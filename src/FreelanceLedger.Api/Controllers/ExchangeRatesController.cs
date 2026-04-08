@@ -6,13 +6,13 @@ using Microsoft.EntityFrameworkCore;
 namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/exchange-rates")]
 public class ExchangeRatesController(LedgerDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int? month, [FromQuery] int? year)
     {
-        var query = db.ExchangeRates.AsQueryable();
+        var query = db.ExchangeRates.AsNoTracking().AsQueryable();
 
         if (month.HasValue)
             query = query.Where(r => r.Month == month.Value);
@@ -20,61 +20,50 @@ public class ExchangeRatesController(LedgerDbContext db) : ControllerBase
         if (year.HasValue)
             query = query.Where(r => r.Year == year.Value);
 
-        var rates = await query.OrderBy(r => r.Year).ThenBy(r => r.Month).ThenBy(r => r.Currency).ToListAsync();
+        var rates = await query
+            .OrderByDescending(r => r.Year)
+            .ThenByDescending(r => r.Month)
+            .ThenBy(r => r.Currency)
+            .ToListAsync();
+
         return Ok(rates);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var rate = await db.ExchangeRates.FindAsync(id);
+        var rate = await db.ExchangeRates.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
         if (rate is null)
-            return Problem(title: "Not Found", detail: $"ExchangeRate {id} not found.", statusCode: 404);
+            return Problem(title: "Not Found", detail: $"Exchange rate {id} not found.", statusCode: 404);
 
         return Ok(rate);
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(ExchangeRate rate)
+    public async Task<IActionResult> Create(ExchangeRate exchangeRate)
     {
-        db.ExchangeRates.Add(rate);
+        db.ExchangeRates.Add(exchangeRate);
         await db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { id = rate.Id }, rate);
+
+        return CreatedAtAction(nameof(GetById), new { id = exchangeRate.Id }, exchangeRate);
     }
 
-    [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, ExchangeRate updated)
-    {
-        var rate = await db.ExchangeRates.FindAsync(id);
-        if (rate is null)
-            return Problem(title: "Not Found", detail: $"ExchangeRate {id} not found.", statusCode: 404);
-
-        rate.Currency = updated.Currency;
-        rate.Month = updated.Month;
-        rate.Year = updated.Year;
-        rate.Rate = updated.Rate;
-
-        await db.SaveChangesAsync();
-        return Ok(rate);
-    }
-
-    // Upsert: create or update by currency+month+year
-    [HttpPut("upsert")]
-    public async Task<IActionResult> Upsert(ExchangeRate incoming)
+    [HttpPut]
+    public async Task<IActionResult> Upsert(ExchangeRate exchangeRate)
     {
         var existing = await db.ExchangeRates.FirstOrDefaultAsync(r =>
-            r.Currency == incoming.Currency &&
-            r.Month == incoming.Month &&
-            r.Year == incoming.Year);
+            r.Currency == exchangeRate.Currency &&
+            r.Month == exchangeRate.Month &&
+            r.Year == exchangeRate.Year);
 
         if (existing is null)
         {
-            db.ExchangeRates.Add(incoming);
+            db.ExchangeRates.Add(exchangeRate);
             await db.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetById), new { id = incoming.Id }, incoming);
+            return CreatedAtAction(nameof(GetById), new { id = exchangeRate.Id }, exchangeRate);
         }
 
-        existing.Rate = incoming.Rate;
+        existing.Rate = exchangeRate.Rate;
         await db.SaveChangesAsync();
         return Ok(existing);
     }
@@ -84,7 +73,7 @@ public class ExchangeRatesController(LedgerDbContext db) : ControllerBase
     {
         var rate = await db.ExchangeRates.FindAsync(id);
         if (rate is null)
-            return Problem(title: "Not Found", detail: $"ExchangeRate {id} not found.", statusCode: 404);
+            return Problem(title: "Not Found", detail: $"Exchange rate {id} not found.", statusCode: 404);
 
         db.ExchangeRates.Remove(rate);
         await db.SaveChangesAsync();

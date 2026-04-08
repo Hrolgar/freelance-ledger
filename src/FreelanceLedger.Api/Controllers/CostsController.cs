@@ -6,13 +6,13 @@ using Microsoft.EntityFrameworkCore;
 namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/costs")]
 public class CostsController(LedgerDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int? month, [FromQuery] int? year)
     {
-        var query = db.Costs.AsQueryable();
+        var query = db.Costs.AsNoTracking().AsQueryable();
 
         if (month.HasValue)
             query = query.Where(c => c.Month == month.Value);
@@ -20,14 +20,19 @@ public class CostsController(LedgerDbContext db) : ControllerBase
         if (year.HasValue)
             query = query.Where(c => c.Year == year.Value);
 
-        var costs = await query.OrderBy(c => c.Year).ThenBy(c => c.Month).ToListAsync();
+        var costs = await query
+            .OrderByDescending(c => c.Year)
+            .ThenByDescending(c => c.Month)
+            .ThenBy(c => c.Description)
+            .ToListAsync();
+
         return Ok(costs);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var cost = await db.Costs.FindAsync(id);
+        var cost = await db.Costs.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id);
         if (cost is null)
             return Problem(title: "Not Found", detail: $"Cost {id} not found.", statusCode: 404);
 
@@ -39,6 +44,7 @@ public class CostsController(LedgerDbContext db) : ControllerBase
     {
         db.Costs.Add(cost);
         await db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetById), new { id = cost.Id }, cost);
     }
 

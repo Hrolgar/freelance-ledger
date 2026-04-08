@@ -6,16 +6,18 @@ using Microsoft.EntityFrameworkCore;
 namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/projects")]
 public class ProjectsController(LedgerDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
         var projects = await db.Projects
+            .AsNoTracking()
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
             .ToListAsync();
+
         return Ok(projects);
     }
 
@@ -23,6 +25,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
     public async Task<IActionResult> GetById(int id)
     {
         var project = await db.Projects
+            .AsNoTracking()
             .Include(p => p.Milestones.OrderBy(m => m.SortOrder))
             .Include(p => p.Tips)
             .FirstOrDefaultAsync(p => p.Id == id);
@@ -37,6 +40,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
     public async Task<IActionResult> GetSummary(int id)
     {
         var project = await db.Projects
+            .AsNoTracking()
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
             .FirstOrDefaultAsync(p => p.Id == id);
@@ -54,16 +58,14 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         var fee = gross * (project.FeePercentage / 100m);
         var net = gross - fee;
 
-        return Ok(new
-        {
-            ProjectId = id,
-            PaidMilestoneTotal = paidMilestoneTotal,
-            TipTotal = tipTotal,
-            Gross = gross,
-            Fee = fee,
-            Net = net,
-            Currency = project.Currency
-        });
+        return Ok(new ProjectSummaryResponse(
+            id,
+            paidMilestoneTotal,
+            tipTotal,
+            gross,
+            fee,
+            net,
+            project.Currency));
     }
 
     [HttpPost]
@@ -71,6 +73,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
     {
         db.Projects.Add(project);
         await db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetById), new { id = project.Id }, project);
     }
 
@@ -107,3 +110,12 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         return NoContent();
     }
 }
+
+public record ProjectSummaryResponse(
+    int ProjectId,
+    decimal PaidMilestoneTotal,
+    decimal TipTotal,
+    decimal Gross,
+    decimal Fee,
+    decimal Net,
+    Currency Currency);

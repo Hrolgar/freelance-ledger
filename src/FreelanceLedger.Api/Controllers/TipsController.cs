@@ -6,17 +6,19 @@ using Microsoft.EntityFrameworkCore;
 namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
-[Route("api/projects/{projectId}/tips")]
+[Route("api/projects/{projectId:int}/tips")]
 public class TipsController(LedgerDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(int projectId)
     {
-        var exists = await db.Projects.AnyAsync(p => p.Id == projectId);
-        if (!exists)
+        var projectExists = await db.Projects.AnyAsync(p => p.Id == projectId);
+        if (!projectExists)
             return Problem(title: "Not Found", detail: $"Project {projectId} not found.", statusCode: 404);
 
         var tips = await db.Tips
+            .AsNoTracking()
+            .Include(t => t.Project)
             .Where(t => t.ProjectId == projectId)
             .OrderByDescending(t => t.Date)
             .ToListAsync();
@@ -27,7 +29,11 @@ public class TipsController(LedgerDbContext db) : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int projectId, int id)
     {
-        var tip = await db.Tips.FirstOrDefaultAsync(t => t.Id == id && t.ProjectId == projectId);
+        var tip = await db.Tips
+            .AsNoTracking()
+            .Include(t => t.Project)
+            .FirstOrDefaultAsync(t => t.Id == id && t.ProjectId == projectId);
+
         if (tip is null)
             return Problem(title: "Not Found", detail: $"Tip {id} not found.", statusCode: 404);
 
@@ -37,13 +43,14 @@ public class TipsController(LedgerDbContext db) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(int projectId, Tip tip)
     {
-        var exists = await db.Projects.AnyAsync(p => p.Id == projectId);
-        if (!exists)
+        var projectExists = await db.Projects.AnyAsync(p => p.Id == projectId);
+        if (!projectExists)
             return Problem(title: "Not Found", detail: $"Project {projectId} not found.", statusCode: 404);
 
         tip.ProjectId = projectId;
         db.Tips.Add(tip);
         await db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetById), new { projectId, id = tip.Id }, tip);
     }
 

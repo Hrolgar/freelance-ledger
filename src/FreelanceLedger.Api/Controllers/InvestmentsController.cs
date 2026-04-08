@@ -6,25 +6,30 @@ using Microsoft.EntityFrameworkCore;
 namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/investments")]
 public class InvestmentsController(LedgerDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int? year)
     {
-        var query = db.Investments.AsQueryable();
+        var query = db.Investments.AsNoTracking().AsQueryable();
 
         if (year.HasValue)
             query = query.Where(i => i.Year == year.Value);
 
-        var investments = await query.OrderBy(i => i.Year).ThenBy(i => i.Month).ToListAsync();
+        var investments = await query
+            .OrderByDescending(i => i.Year)
+            .ThenByDescending(i => i.Month)
+            .ThenBy(i => i.Description)
+            .ToListAsync();
+
         return Ok(investments);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var investment = await db.Investments.FindAsync(id);
+        var investment = await db.Investments.AsNoTracking().FirstOrDefaultAsync(i => i.Id == id);
         if (investment is null)
             return Problem(title: "Not Found", detail: $"Investment {id} not found.", statusCode: 404);
 
@@ -36,6 +41,7 @@ public class InvestmentsController(LedgerDbContext db) : ControllerBase
     {
         db.Investments.Add(investment);
         await db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetById), new { id = investment.Id }, investment);
     }
 

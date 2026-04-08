@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
-[Route("api/projects/{projectId}/milestones")]
+[Route("api/projects/{projectId:int}/milestones")]
 public class MilestonesController(LedgerDbContext db) : ControllerBase
 {
     [HttpGet]
@@ -17,6 +17,8 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
             return Problem(title: "Not Found", detail: $"Project {projectId} not found.", statusCode: 404);
 
         var milestones = await db.Milestones
+            .AsNoTracking()
+            .Include(m => m.Project)
             .Where(m => m.ProjectId == projectId)
             .OrderBy(m => m.SortOrder)
             .ToListAsync();
@@ -28,6 +30,8 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
     public async Task<IActionResult> GetById(int projectId, int id)
     {
         var milestone = await db.Milestones
+            .AsNoTracking()
+            .Include(m => m.Project)
             .FirstOrDefaultAsync(m => m.Id == id && m.ProjectId == projectId);
 
         if (milestone is null)
@@ -46,6 +50,7 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
         milestone.ProjectId = projectId;
         db.Milestones.Add(milestone);
         await db.SaveChangesAsync();
+
         return CreatedAtAction(nameof(GetById), new { projectId, id = milestone.Id }, milestone);
     }
 
@@ -71,11 +76,10 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
         return Ok(milestone);
     }
 
-    [HttpPatch("{id}")]
-    public async Task<IActionResult> Patch(int projectId, int id, [FromBody] MilestonePatch patch)
+    [HttpPatch("~/api/milestones/{id:int}")]
+    public async Task<IActionResult> Patch(int id, [FromBody] MilestonePatchRequest patch)
     {
-        var milestone = await db.Milestones
-            .FirstOrDefaultAsync(m => m.Id == id && m.ProjectId == projectId);
+        var milestone = await db.Milestones.FindAsync(id);
 
         if (milestone is null)
             return Problem(title: "Not Found", detail: $"Milestone {id} not found.", statusCode: 404);
@@ -105,4 +109,4 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
     }
 }
 
-public record MilestonePatch(MilestoneStatus? Status, DateOnly? DatePaid);
+public record MilestonePatchRequest(MilestoneStatus? Status, DateOnly? DatePaid);
