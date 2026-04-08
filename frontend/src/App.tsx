@@ -33,10 +33,7 @@ function MyClock() {
   }, [myTz])
   const city = myTz.split('/').pop()?.replace('_', ' ') ?? myTz
   return (
-    <div className="text-[11px]">
-      <span className="text-slate-500">{city}</span>
-      <span className="ml-1.5 font-mono text-slate-300">{time}</span>
-    </div>
+    <p className="font-mono text-[11px] text-slate-300">{time}</p>
   )
 }
 
@@ -74,7 +71,6 @@ function AppShell() {
 
         <div className="border-t border-slate-700 px-4 py-3">
           <MyClock />
-          <p className="mt-1 font-mono text-[11px] text-slate-500">FY{new Date().getFullYear()}</p>
         </div>
       </aside>
 

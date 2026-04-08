@@ -9,6 +9,7 @@ import {
   updateCost,
   updateInvestment,
 } from '../api'
+import { Modal } from '../components/Modal'
 import { AppCard, Button, Checkbox, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { formatCurrency } from '../lib/format'
@@ -56,6 +57,8 @@ export default function Costs() {
   const [investmentDraft, setInvestmentDraft] = useState<InvestmentInput>(emptyInvestment)
   const [editingCostId, setEditingCostId] = useState<number | null>(null)
   const [editingInvestmentId, setEditingInvestmentId] = useState<number | null>(null)
+  const [showCostModal, setShowCostModal] = useState(false)
+  const [showInvestmentModal, setShowInvestmentModal] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = async () => {
@@ -86,6 +89,7 @@ export default function Costs() {
         await createCost(costDraft)
       }
       setEditingCostId(null)
+      setShowCostModal(false)
       setCostDraft(emptyCost)
       await load()
     } catch (caught) {
@@ -102,6 +106,7 @@ export default function Costs() {
         await createInvestment(investmentDraft)
       }
       setEditingInvestmentId(null)
+      setShowInvestmentModal(false)
       setInvestmentDraft(emptyInvestment)
       await load()
     } catch (caught) {
@@ -159,10 +164,11 @@ export default function Costs() {
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      {/* Cost form + recurring table */}
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <AppCard>
-          <SectionHeading title="Recurring Costs" description="Auto-applied to every month from start date." />
+      {/* Recurring costs */}
+      <AppCard>
+        <SectionHeading title="Recurring Costs" description="Auto-applied to every month from start date."
+          action={<Button variant="secondary" className="text-xs" onClick={() => { setEditingCostId(null); setCostDraft({ ...emptyCost, recurring: true }); setShowCostModal(true) }}>+ Add</Button>}
+        />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -187,7 +193,7 @@ export default function Costs() {
                     <td className="px-4 py-2.5 text-right font-mono text-slate-200"><MoneyAmount amount={cost.amount} currency={cost.currency} /></td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" className="px-2 text-xs" onClick={() => editCost(cost)}>Edit</Button>
+                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
                         <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
                       </div>
                     </td>
@@ -197,10 +203,12 @@ export default function Costs() {
             </table>
           </div>
 
-          {/* One-time costs below recurring */}
-          {oneTimeCosts.length > 0 && (
-            <>
-              <SectionHeading title="One-Time Costs" description="Charged to a specific month only." />
+        {/* One-time costs below recurring */}
+        {oneTimeCosts.length > 0 && (
+          <>
+            <SectionHeading title="One-Time Costs" description="Charged to a specific month only."
+              action={<Button variant="secondary" className="text-xs" onClick={() => { setEditingCostId(null); setCostDraft({ ...emptyCost, recurring: false }); setShowCostModal(true) }}>+ Add</Button>}
+            />
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -221,7 +229,7 @@ export default function Costs() {
                         <td className="px-4 py-2.5 text-right font-mono text-slate-200"><MoneyAmount amount={cost.amount} currency={cost.currency} /></td>
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" className="px-2 text-xs" onClick={() => editCost(cost)}>Edit</Button>
+                            <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
                             <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
                           </div>
                         </td>
@@ -234,10 +242,9 @@ export default function Costs() {
           )}
         </AppCard>
 
-        {/* Add/edit form */}
-        <AppCard className="h-fit">
-          <SectionHeading title={editingCostId ? 'Edit Cost' : 'Add Cost'} />
-          <form className="grid gap-3 p-4" onSubmit={handleCostSave}>
+      {showCostModal && (
+        <Modal title={editingCostId ? 'Edit Cost' : 'Add Cost'} onClose={() => { setShowCostModal(false); setEditingCostId(null); setCostDraft(emptyCost) }}>
+          <form className="grid gap-3" onSubmit={handleCostSave}>
             <Field label="Description" required>
               <Input required value={costDraft.description} onChange={(e) => setCostDraft((c) => ({ ...c, description: e.target.value }))} />
             </Field>
@@ -286,20 +293,19 @@ export default function Costs() {
             <Field label="Notes">
               <Textarea value={costDraft.notes ?? ''} onChange={(e) => setCostDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>
-            <div className="flex justify-end gap-2">
-              {editingCostId && (
-                <Button type="button" variant="secondary" onClick={() => { setEditingCostId(null); setCostDraft(emptyCost) }}>Cancel</Button>
-              )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => { setShowCostModal(false); setEditingCostId(null); setCostDraft(emptyCost) }}>Cancel</Button>
               <Button type="submit">{editingCostId ? 'Update' : 'Add Cost'}</Button>
             </div>
           </form>
-        </AppCard>
-      </div>
+        </Modal>
+      )}
 
       {/* Investments */}
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <AppCard>
-          <SectionHeading title="Investments" description="One-time purchases, not in monthly P&L." />
+      <AppCard>
+        <SectionHeading title="Investments" description="One-time purchases, not in monthly P&L."
+          action={<Button variant="secondary" className="text-xs" onClick={() => { setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment); setShowInvestmentModal(true) }}>+ Add</Button>}
+        />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -324,7 +330,7 @@ export default function Costs() {
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-400"><MoneyAmount amount={inv.amount * inv.nokRate} currency="NOK" /></td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" className="px-2 text-xs" onClick={() => editInvestment(inv)}>Edit</Button>
+                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { editInvestment(inv); setShowInvestmentModal(true) }}>Edit</Button>
                         <Button variant="danger" className="px-2 text-xs" onClick={() => void removeInvestment(inv.id)}>Del</Button>
                       </div>
                     </td>
@@ -333,11 +339,11 @@ export default function Costs() {
               </tbody>
             </table>
           </div>
-        </AppCard>
+      </AppCard>
 
-        <AppCard className="h-fit">
-          <SectionHeading title={editingInvestmentId ? 'Edit Investment' : 'Add Investment'} />
-          <form className="grid gap-3 p-4" onSubmit={handleInvestmentSave}>
+      {showInvestmentModal && (
+        <Modal title={editingInvestmentId ? 'Edit Investment' : 'Add Investment'} onClose={() => { setShowInvestmentModal(false); setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment) }} size="md">
+          <form className="grid gap-3" onSubmit={handleInvestmentSave}>
             <Field label="Description" required>
               <Input required value={investmentDraft.description} onChange={(e) => setInvestmentDraft((c) => ({ ...c, description: e.target.value }))} />
             </Field>
@@ -367,15 +373,13 @@ export default function Costs() {
             <Field label="Notes">
               <Textarea value={investmentDraft.notes ?? ''} onChange={(e) => setInvestmentDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>
-            <div className="flex justify-end gap-2">
-              {editingInvestmentId && (
-                <Button type="button" variant="secondary" onClick={() => { setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment) }}>Cancel</Button>
-              )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => { setShowInvestmentModal(false); setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment) }}>Cancel</Button>
               <Button type="submit">{editingInvestmentId ? 'Update' : 'Add Investment'}</Button>
             </div>
           </form>
-        </AppCard>
-      </div>
+        </Modal>
+      )}
     </div>
   )
 }
