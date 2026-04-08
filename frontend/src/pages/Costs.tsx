@@ -10,6 +10,7 @@ import {
   updateInvestment,
 } from '../api'
 import { AppCard, Button, Checkbox, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
+import { MoneyAmount } from '../components/MoneyAmount'
 import { formatCurrency } from '../lib/format'
 import type { Cost, CostInput, Investment, InvestmentInput } from '../types'
 import { COST_CATEGORIES, CURRENCIES, MONTH_NAMES } from '../types'
@@ -183,7 +184,7 @@ export default function Costs() {
                     <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{formatPeriod(cost)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(cost.amount, cost.currency)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-slate-200"><MoneyAmount amount={cost.amount} currency={cost.currency} /></td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" className="px-2 text-xs" onClick={() => editCost(cost)}>Edit</Button>
@@ -217,7 +218,7 @@ export default function Costs() {
                         <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
                         <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
                         <td className="px-4 py-2.5 text-xs text-slate-400">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
-                        <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(cost.amount, cost.currency)}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-slate-200"><MoneyAmount amount={cost.amount} currency={cost.currency} /></td>
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" className="px-2 text-xs" onClick={() => editCost(cost)}>Edit</Button>
@@ -319,8 +320,8 @@ export default function Costs() {
                   <tr key={inv.id} className="border-b border-slate-700/50 last:border-0">
                     <td className="px-4 py-2.5 text-slate-200">{inv.description}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{MONTH_NAMES[inv.month - 1]} {inv.year}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(inv.amount, inv.currency)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-400">{formatCurrency(inv.amount * inv.nokRate, 'NOK')}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-slate-200"><MoneyAmount amount={inv.amount} currency={inv.currency} /></td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-400"><MoneyAmount amount={inv.amount * inv.nokRate} currency="NOK" /></td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" className="px-2 text-xs" onClick={() => editInvestment(inv)}>Edit</Button>
