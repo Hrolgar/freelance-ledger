@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { useMyTimezone } from './lib/useMyTimezone'
 import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
@@ -15,6 +17,28 @@ const navItems = [
   { to: '/costs', label: 'Costs' },
   { to: '/settings', label: 'Settings' },
 ]
+
+function MyClock() {
+  const [myTz] = useMyTimezone()
+  const [time, setTime] = useState('')
+  useEffect(() => {
+    const update = () => {
+      try {
+        setTime(new Date().toLocaleTimeString('en-GB', { timeZone: myTz, hour: '2-digit', minute: '2-digit' }))
+      } catch { setTime('') }
+    }
+    update()
+    const id = setInterval(update, 30000)
+    return () => clearInterval(id)
+  }, [myTz])
+  const city = myTz.split('/').pop()?.replace('_', ' ') ?? myTz
+  return (
+    <div className="text-[11px]">
+      <span className="text-slate-500">{city}</span>
+      <span className="ml-1.5 font-mono text-slate-300">{time}</span>
+    </div>
+  )
+}
 
 function AppShell() {
   return (
@@ -49,7 +73,8 @@ function AppShell() {
         </nav>
 
         <div className="border-t border-slate-700 px-4 py-3">
-          <p className="font-mono text-[11px] text-slate-500">FY{new Date().getFullYear()}</p>
+          <MyClock />
+          <p className="mt-1 font-mono text-[11px] text-slate-500">FY{new Date().getFullYear()}</p>
         </div>
       </aside>
 
