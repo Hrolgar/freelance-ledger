@@ -1,4 +1,6 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace FreelanceLedger.Api.Models;
 
@@ -7,6 +9,7 @@ public class Milestone
     public int Id { get; set; }
     public int ProjectId { get; set; }
     [JsonIgnore]
+    [ValidateNever]
     public Project Project { get; set; } = null!;
 
     public string Name { get; set; } = string.Empty;
