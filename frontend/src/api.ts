@@ -107,8 +107,9 @@ export const updateTip = (projectId: number, id: number, data: TipInput) =>
 export const deleteTip = (projectId: number, id: number) =>
   request<void>(`/projects/${projectId}/tips/${id}`, { method: 'DELETE' })
 
-export const getCosts = (params?: { month?: number; year?: number }) =>
-  request<Cost[]>(`/costs${query(params ?? {})}`)
+export const getCosts = () => request<Cost[]>('/costs')
+export const getEffectiveCosts = (month: number, year: number) =>
+  request<Cost[]>(`/costs/effective${query({ month, year })}`)
 export const createCost = (data: CostInput) =>
   request<Cost>('/costs', { method: 'POST', body: JSON.stringify(data) })
 export const updateCost = (id: number, data: CostInput) =>

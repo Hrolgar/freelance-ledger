@@ -49,6 +49,8 @@ export interface Cost {
   month: number
   year: number
   recurring: boolean
+  endMonth: number | null
+  endYear: number | null
   notes: string | null
 }
 
@@ -115,6 +117,7 @@ export type ProjectInput = Omit<Project, 'id' | 'milestones' | 'tips'>
 export type MilestoneInput = Omit<Milestone, 'id' | 'projectId'>
 export type TipInput = Omit<Tip, 'id' | 'projectId'>
 export type CostInput = Omit<Cost, 'id'>
+export type CostPayloadFixed = CostInput
 export type InvestmentInput = Omit<Investment, 'id'>
 export type ExchangeRateInput = Omit<ExchangeRate, 'id'>
 

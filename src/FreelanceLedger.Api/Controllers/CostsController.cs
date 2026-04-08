@@ -9,24 +9,57 @@ namespace FreelanceLedger.Api.Controllers;
 [Route("api/costs")]
 public class CostsController(LedgerDbContext db) : ControllerBase
 {
+    /// <summary>
+    /// Get all cost definitions (for the Costs management page).
+    /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int? month, [FromQuery] int? year)
+    public async Task<IActionResult> GetAll()
     {
-        var query = db.Costs.AsNoTracking().AsQueryable();
-
-        if (month.HasValue)
-            query = query.Where(c => c.Month == month.Value);
-
-        if (year.HasValue)
-            query = query.Where(c => c.Year == year.Value);
-
-        var costs = await query
-            .OrderByDescending(c => c.Year)
+        var costs = await db.Costs.AsNoTracking()
+            .OrderBy(c => c.Recurring ? 0 : 1)
+            .ThenByDescending(c => c.Year)
             .ThenByDescending(c => c.Month)
             .ThenBy(c => c.Description)
             .ToListAsync();
 
         return Ok(costs);
+    }
+
+    /// <summary>
+    /// Get effective costs for a specific month — one-time costs in that month
+    /// plus recurring costs that are active during that month.
+    /// </summary>
+    [HttpGet("effective")]
+    public async Task<IActionResult> GetEffective([FromQuery] int month, [FromQuery] int year)
+    {
+        var allCosts = await db.Costs.AsNoTracking().ToListAsync();
+
+        var effective = allCosts.Where(c =>
+        {
+            var startKey = c.Year * 12 + c.Month;
+            var queryKey = year * 12 + month;
+
+            if (!c.Recurring)
+            {
+                // One-time: must match exactly
+                return c.Month == month && c.Year == year;
+            }
+
+            // Recurring: must have started on or before this month
+            if (startKey > queryKey) return false;
+
+            // If no end date, it's still active
+            if (!c.EndMonth.HasValue || !c.EndYear.HasValue) return true;
+
+            // Check end date
+            var endKey = c.EndYear.Value * 12 + c.EndMonth.Value;
+            return queryKey <= endKey;
+        })
+        .OrderBy(c => c.Recurring ? 0 : 1)
+        .ThenBy(c => c.Description)
+        .ToList();
+
+        return Ok(effective);
     }
 
     [HttpGet("{id}")]
@@ -61,6 +94,8 @@ public class CostsController(LedgerDbContext db) : ControllerBase
         cost.Month = updated.Month;
         cost.Year = updated.Year;
         cost.Recurring = updated.Recurring;
+        cost.EndMonth = updated.EndMonth;
+        cost.EndYear = updated.EndYear;
         cost.Notes = updated.Notes;
 
         await db.SaveChangesAsync();
