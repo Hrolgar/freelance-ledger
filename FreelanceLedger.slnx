@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FreelanceLedger.Api/FreelanceLedger.Api.csproj" />
+  </Folder>
+</Solution>
