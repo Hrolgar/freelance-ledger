@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getCosts, getExchangeRates, getProjects } from '../api'
+import { getEffectiveCosts, getExchangeRates, getProjects } from '../api'
 import { AppCard, EmptyState, ErrorState, PageIntro, SectionHeading, Select, StatCard } from '../components/ui'
 import { formatCurrency } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
@@ -86,7 +86,7 @@ export default function Monthly() {
     try {
       const [projectsData, costsData, ratesData] = await Promise.all([
         getProjects(),
-        getCosts({ month, year }),
+        getEffectiveCosts(month, year),
         getExchangeRates({ month, year }),
       ])
       setProjects(projectsData)

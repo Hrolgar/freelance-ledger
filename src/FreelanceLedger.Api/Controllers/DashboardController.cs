@@ -19,10 +19,7 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             .Include(p => p.Tips)
             .ToListAsync();
 
-        var costs = await db.Costs
-            .AsNoTracking()
-            .Where(c => c.Year == year)
-            .ToListAsync();
+        var allCosts = await db.Costs.AsNoTracking().ToListAsync();
 
         // Auto-fetch rates for months that have activity
         var activeMonths = new HashSet<int>();
@@ -61,9 +58,16 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
                 revenue += net * rate;
             }
 
-            var monthCosts = costs
-                .Where(c => c.Month == month)
-                .Sum(c => c.Amount);
+            var monthCosts = allCosts.Where(c =>
+            {
+                var startKey = c.Year * 12 + c.Month;
+                var queryKey = year * 12 + month;
+                if (!c.Recurring) return c.Month == month && c.Year == year;
+                if (startKey > queryKey) return false;
+                if (!c.EndMonth.HasValue || !c.EndYear.HasValue) return true;
+                var endKey = c.EndYear.Value * 12 + c.EndMonth.Value;
+                return queryKey <= endKey;
+            }).Sum(c => c.Amount);
 
             monthResults.Add(new MonthlyOverviewResponse(
                 month,
