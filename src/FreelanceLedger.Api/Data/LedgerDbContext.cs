@@ -21,7 +21,7 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
             e.HasMany(c => c.Projects)
                 .WithOne(p => p.Client)
                 .HasForeignKey(p => p.ClientId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Project>(e =>
