@@ -6,17 +6,15 @@ import type { Cost, Project } from '../types'
 import { MONTH_FULL_NAMES } from '../types'
 
 function projectRevenueForMonth(project: Project, year: number, month: number) {
+  const prefix = `${year}-${String(month).padStart(2, '0')}`
+
   const milestoneRevenue = project.milestones
-    .filter(
-      (milestone) =>
-        milestone.status === 'Paid' &&
-        milestone.datePaid?.startsWith(`${year}-${String(month).padStart(2, '0')}`),
-    )
-    .reduce((sum, milestone) => sum + milestone.amount, 0)
+    .filter((m) => m.status === 'Paid' && m.datePaid?.startsWith(prefix))
+    .reduce((sum, m) => sum + m.amount, 0)
 
   const tipRevenue = project.tips
-    .filter((tip) => tip.date.startsWith(`${year}-${String(month).padStart(2, '0')}`))
-    .reduce((sum, tip) => sum + tip.amount, 0)
+    .filter((t) => t.date.startsWith(prefix))
+    .reduce((sum, t) => sum + t.amount, 0)
 
   const gross = milestoneRevenue + tipRevenue
 
@@ -40,14 +38,16 @@ export default function Monthly() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const years = Array.from({ length: 5 }, (_, index) => now.getFullYear() - 2 + index)
+  const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i)
 
   const load = async () => {
     setLoading(true)
     setError(null)
-
     try {
-      const [projectsData, costsData] = await Promise.all([getProjects(), getCosts({ month, year })])
+      const [projectsData, costsData] = await Promise.all([
+        getProjects(),
+        getCosts({ month, year }),
+      ])
       setProjects(projectsData)
       setCosts(costsData)
     } catch (caught) {
@@ -64,99 +64,85 @@ export default function Monthly() {
   const revenueRows = useMemo(
     () =>
       projects
-        .map((project) => projectRevenueForMonth(project, year, month))
-        .filter((project) => project.gross > 0)
-        .sort((left, right) => right.net - left.net),
+        .map((p) => projectRevenueForMonth(p, year, month))
+        .filter((r) => r.gross > 0)
+        .sort((a, b) => b.net - a.net),
     [month, projects, year],
   )
 
-  const totalRevenue = revenueRows.reduce((sum, row) => sum + row.net, 0)
-  const totalCosts = costs.reduce((sum, cost) => sum + cost.amount, 0)
+  const totalRevenue = revenueRows.reduce((sum, r) => sum + r.net, 0)
+  const totalCosts = costs.reduce((sum, c) => sum + c.amount, 0)
   const profit = totalRevenue - totalCosts
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageIntro
         title="Monthly P&L"
-        description="Inspect one month at a time with direct revenue attribution, recorded operating costs, and final monthly profit."
+        description="Revenue attribution, costs, and profit for a single month."
         action={
-          <div className="flex w-full gap-3 sm:w-auto">
-            <Select value={month} onChange={(event) => setMonth(Number(event.target.value))}>
-              {MONTH_FULL_NAMES.map((name, index) => (
-                <option key={name} value={index + 1}>
-                  {name}
-                </option>
+          <div className="flex gap-2">
+            <Select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-36">
+              {MONTH_FULL_NAMES.map((name, i) => (
+                <option key={name} value={i + 1}>{name}</option>
               ))}
             </Select>
-            <Select value={year} onChange={(event) => setYear(Number(event.target.value))}>
-              {years.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
+            <Select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-24">
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
             </Select>
           </div>
         }
       />
 
-      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      {!loading ? (
-        <div className="grid gap-4 sm:grid-cols-3">
+      {!loading && (
+        <div className="grid gap-3 sm:grid-cols-3">
           <StatCard label="Revenue" value={formatCurrency(totalRevenue, 'NOK')} />
           <StatCard label="Costs" value={formatCurrency(totalCosts, 'NOK')} />
           <StatCard label="Net Profit" value={formatCurrency(profit, 'NOK')} />
         </div>
-      ) : null}
+      )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        {/* Revenue breakdown */}
         <AppCard>
           <SectionHeading
             title="Revenue Breakdown"
-            description={`Net project revenue recorded in ${MONTH_FULL_NAMES[month - 1]} ${year}.`}
+            description={`${MONTH_FULL_NAMES[month - 1]} ${year}`}
           />
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-700/70 text-left text-xs uppercase tracking-[0.2em] text-zinc-500">
-                  <th className="px-5 py-3 font-medium">Project</th>
-                  <th className="px-5 py-3 font-medium">Client</th>
-                  <th className="px-5 py-3 text-right font-medium">Gross</th>
-                  <th className="px-5 py-3 text-right font-medium">Fee</th>
-                  <th className="px-5 py-3 text-right font-medium">Net</th>
+                <tr className="border-b border-slate-700 text-left">
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Project</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Client</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Gross</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Fee</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Net</th>
                 </tr>
               </thead>
               <tbody>
                 {revenueRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10">
+                    <td colSpan={5} className="px-4 py-8">
                       <EmptyState
                         title="No paid revenue this month"
-                        description="Paid milestones and dated tips will appear here once they fall inside the selected month."
+                        description="Paid milestones and dated tips appear here once inside the selected month."
                       />
                     </td>
                   </tr>
                 ) : (
                   revenueRows.map((row) => (
-                    <tr key={row.projectId} className="border-b border-zinc-700/50 last:border-0">
-                      <td className="px-5 py-4 font-medium text-white">{row.projectName}</td>
-                      <td className="px-5 py-4 text-zinc-400">{row.clientName}</td>
-                      <td
-                        className="px-5 py-4 text-right text-zinc-200"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                      >
+                    <tr key={row.projectId} className="border-b border-slate-700/50 last:border-0">
+                      <td className="px-4 py-2.5 font-medium text-slate-100">{row.projectName}</td>
+                      <td className="px-4 py-2.5 text-slate-400">{row.clientName}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-slate-300">
                         {formatCurrency(row.gross, row.currency)}
                       </td>
-                      <td
-                        className="px-5 py-4 text-right text-zinc-400"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                      >
+                      <td className="px-4 py-2.5 text-right font-mono text-slate-500">
                         {formatCurrency(row.fee, row.currency)}
                       </td>
-                      <td
-                        className="px-5 py-4 text-right text-white"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                      >
+                      <td className="px-4 py-2.5 text-right font-mono font-medium text-slate-100">
                         {formatCurrency(row.net, row.currency)}
                       </td>
                     </tr>
@@ -167,39 +153,34 @@ export default function Monthly() {
           </div>
         </AppCard>
 
+        {/* Costs */}
         <AppCard>
-          <SectionHeading
-            title="Costs"
-            description="Operating costs recorded for the selected month."
-          />
+          <SectionHeading title="Costs" description="Operating costs for the selected month." />
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-700/70 text-left text-xs uppercase tracking-[0.2em] text-zinc-500">
-                  <th className="px-5 py-3 font-medium">Description</th>
-                  <th className="px-5 py-3 font-medium">Category</th>
-                  <th className="px-5 py-3 text-right font-medium">Amount</th>
+                <tr className="border-b border-slate-700 text-left">
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Cat</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {costs.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-5 py-10">
+                    <td colSpan={3} className="px-4 py-8">
                       <EmptyState
-                        title="No costs in this month"
-                        description="Monthly costs will appear here as soon as you add them in the costs ledger."
+                        title="No costs this month"
+                        description="Monthly costs appear here once added in the costs ledger."
                       />
                     </td>
                   </tr>
                 ) : (
                   costs.map((cost) => (
-                    <tr key={cost.id} className="border-b border-zinc-700/50 last:border-0">
-                      <td className="px-5 py-4 text-white">{cost.description}</td>
-                      <td className="px-5 py-4 text-zinc-400">{cost.category}</td>
-                      <td
-                        className="px-5 py-4 text-right text-zinc-100"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                      >
+                    <tr key={cost.id} className="border-b border-slate-700/50 last:border-0">
+                      <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-slate-300">
                         {formatCurrency(cost.amount, 'NOK')}
                       </td>
                     </tr>

@@ -11,8 +11,9 @@ import {
   updateProject,
   updateTip,
 } from '../api'
+import { MilestoneStatusBadge, ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
-import { formatCurrency, formatDate, getNextMilestoneOrder, isoDate, milestoneStatusTone, projectStatusTone } from '../lib/format'
+import { formatCurrency, formatDate, getNextMilestoneOrder, isoDate } from '../lib/format'
 import type { Milestone, MilestoneInput, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
 import { CURRENCIES, MILESTONE_STATUSES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
@@ -67,19 +68,14 @@ export default function ProjectDetail() {
   const load = async () => {
     setLoading(true)
     setError(null)
-
     try {
       const [projectData, summaryData] = await Promise.all([
         getProject(projectId),
         getProjectSummary(projectId),
       ])
 
-      const orderedMilestones = [...projectData.milestones].sort(
-        (left, right) => left.sortOrder - right.sortOrder,
-      )
-      const orderedTips = [...projectData.tips].sort((left, right) =>
-        right.date.localeCompare(left.date),
-      )
+      const orderedMilestones = [...projectData.milestones].sort((a, b) => a.sortOrder - b.sortOrder)
+      const orderedTips = [...projectData.tips].sort((a, b) => b.date.localeCompare(a.date))
       const hydrated = { ...projectData, milestones: orderedMilestones, tips: orderedTips }
 
       setProject(hydrated)
@@ -100,10 +96,7 @@ export default function ProjectDetail() {
         currency: hydrated.currency,
         sortOrder: getNextMilestoneOrder(orderedMilestones),
       })
-      setTipDraft({
-        ...emptyTipDraft,
-        currency: hydrated.currency,
-      })
+      setTipDraft({ ...emptyTipDraft, currency: hydrated.currency })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load project.')
     } finally {
@@ -117,14 +110,12 @@ export default function ProjectDetail() {
       setLoading(false)
       return
     }
-
     void load()
   }, [projectId])
 
   const handleProjectSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavingProject(true)
-
     try {
       await updateProject(projectId, projectDraft)
       await load()
@@ -138,14 +129,12 @@ export default function ProjectDetail() {
   const handleMilestoneSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavingMilestone(true)
-
     try {
       if (editingMilestoneId) {
         await updateMilestone(projectId, editingMilestoneId, milestoneDraft)
       } else {
         await createMilestone(projectId, milestoneDraft)
       }
-
       setEditingMilestoneId(null)
       await load()
     } catch (caught) {
@@ -158,14 +147,12 @@ export default function ProjectDetail() {
   const handleTipSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavingTip(true)
-
     try {
       if (editingTipId) {
         await updateTip(projectId, editingTipId, tipDraft)
       } else {
         await createTip(projectId, tipDraft)
       }
-
       setEditingTipId(null)
       await load()
     } catch (caught) {
@@ -191,12 +178,7 @@ export default function ProjectDetail() {
 
   const loadTipIntoForm = (tip: Tip) => {
     setEditingTipId(tip.id)
-    setTipDraft({
-      amount: tip.amount,
-      currency: tip.currency,
-      date: tip.date,
-      notes: tip.notes,
-    })
+    setTipDraft({ amount: tip.amount, currency: tip.currency, date: tip.date, notes: tip.notes })
   }
 
   const resetMilestoneForm = () => {
@@ -210,15 +192,11 @@ export default function ProjectDetail() {
 
   const resetTipForm = () => {
     setEditingTipId(null)
-    setTipDraft({
-      ...emptyTipDraft,
-      currency: project?.currency ?? 'USD',
-    })
+    setTipDraft({ ...emptyTipDraft, currency: project?.currency ?? 'USD' })
   }
 
   const handleMilestoneDelete = async (milestoneId: number) => {
     if (!window.confirm('Delete this milestone?')) return
-
     try {
       await deleteMilestone(projectId, milestoneId)
       await load()
@@ -229,7 +207,6 @@ export default function ProjectDetail() {
 
   const handleTipDelete = async (tipId: number) => {
     if (!window.confirm('Delete this tip?')) return
-
     try {
       await deleteTip(projectId, tipId)
       await load()
@@ -239,7 +216,15 @@ export default function ProjectDetail() {
   }
 
   if (loading) {
-    return <div className="space-y-8"><div className="h-48 animate-pulse rounded-2xl border border-zinc-800 bg-zinc-800/70" /></div>
+    return (
+      <div className="space-y-4">
+        <div className="skeleton h-8 w-48" />
+        <div className="skeleton h-16" />
+        <div className="grid gap-3 sm:grid-cols-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="skeleton h-16" />)}
+        </div>
+      </div>
+    )
   }
 
   if (error && !project) {
@@ -251,247 +236,210 @@ export default function ProjectDetail() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center gap-2 text-sm text-zinc-500">
-        <Link to="/projects" className="hover:text-zinc-300">
-          Projects
-        </Link>
+    <div className="space-y-6">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <Link to="/projects" className="hover:text-slate-300 transition-colors">Projects</Link>
         <span>/</span>
-        <span className="text-zinc-300">{project.projectName}</span>
+        <span className="text-slate-300">{project.projectName}</span>
       </div>
 
       <PageIntro
         title={project.projectName}
-        description={`${project.clientName} · ${project.platform} · ${project.currency}`}
+        description={`${project.clientName} · ${project.platform} · ${project.currency} · ${project.feePercentage}% fee`}
       />
 
-      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      {summary ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Summary stats */}
+      {summary && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Paid Milestones" value={formatCurrency(summary.paidMilestoneTotal, summary.currency)} />
           <StatCard label="Tips" value={formatCurrency(summary.tipTotal, summary.currency)} />
           <StatCard label="Fees" value={formatCurrency(summary.fee, summary.currency)} />
           <StatCard label="Net Revenue" value={formatCurrency(summary.net, summary.currency)} />
         </div>
-      ) : null}
+      )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      {/* Project details + summary */}
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <AppCard>
-          <SectionHeading title="Project Details" description="Editable client and bookkeeping metadata." />
-          <form className="grid gap-4 p-5" onSubmit={handleProjectSave}>
-            <div className="grid gap-4 md:grid-cols-2">
+          <SectionHeading title="Project Details" />
+          <form className="grid gap-3 p-4" onSubmit={handleProjectSave}>
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Client Name" required>
                 <Input
                   required
                   value={projectDraft.clientName}
-                  onChange={(event) =>
-                    setProjectDraft((current) => ({ ...current, clientName: event.target.value }))
-                  }
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, clientName: e.target.value }))}
                 />
               </Field>
               <Field label="Project Name" required>
                 <Input
                   required
                   value={projectDraft.projectName}
-                  onChange={(event) =>
-                    setProjectDraft((current) => ({ ...current, projectName: event.target.value }))
-                  }
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, projectName: e.target.value }))}
                 />
               </Field>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-3 grid-cols-3">
               <Field label="Platform">
                 <Select
                   value={projectDraft.platform}
-                  onChange={(event) =>
-                    setProjectDraft((current) => ({ ...current, platform: event.target.value as Project['platform'] }))
-                  }
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, platform: e.target.value as Project['platform'] }))}
                 >
-                  {PLATFORMS.map((platform) => (
-                    <option key={platform} value={platform}>
-                      {platform}
-                    </option>
-                  ))}
+                  {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </Select>
               </Field>
               <Field label="Currency">
                 <Select
                   value={projectDraft.currency}
-                  onChange={(event) =>
-                    setProjectDraft((current) => ({ ...current, currency: event.target.value as Project['currency'] }))
-                  }
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, currency: e.target.value as Project['currency'] }))}
                 >
-                  {CURRENCIES.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               </Field>
-              <Field label="Fee Percentage">
+              <Field label="Fee %">
                 <Input
                   type="number"
                   min="0"
                   max="100"
                   step="0.1"
                   value={projectDraft.feePercentage}
-                  onChange={(event) =>
-                    setProjectDraft((current) => ({ ...current, feePercentage: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))}
                 />
               </Field>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-3 grid-cols-3">
               <Field label="Status">
                 <Select
                   value={projectDraft.status}
-                  onChange={(event) =>
-                    setProjectDraft((current) => ({ ...current, status: event.target.value as Project['status'] }))
-                  }
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, status: e.target.value as Project['status'] }))}
                 >
-                  {PROJECT_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {status === 'InProgress' ? 'In Progress' : status}
-                    </option>
+                  {PROJECT_STATUSES.map((s) => (
+                    <option key={s} value={s}>{s === 'InProgress' ? 'In Progress' : s}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Date Awarded">
+              <Field label="Awarded">
                 <Input
                   type="date"
                   value={isoDate(projectDraft.dateAwarded)}
-                  onChange={(event) =>
-                    setProjectDraft((current) => ({ ...current, dateAwarded: event.target.value || null }))
-                  }
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, dateAwarded: e.target.value || null }))}
                 />
               </Field>
-              <Field label="Date Completed">
+              <Field label="Completed">
                 <Input
                   type="date"
                   value={isoDate(projectDraft.dateCompleted)}
-                  onChange={(event) =>
-                    setProjectDraft((current) => ({ ...current, dateCompleted: event.target.value || null }))
-                  }
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, dateCompleted: e.target.value || null }))}
                 />
               </Field>
             </div>
             <Field label="Notes">
               <Textarea
                 value={projectDraft.notes ?? ''}
-                onChange={(event) =>
-                  setProjectDraft((current) => ({ ...current, notes: event.target.value || null }))
-                }
+                onChange={(e) => setProjectDraft((c) => ({ ...c, notes: e.target.value || null }))}
               />
             </Field>
             <div className="flex items-center justify-between gap-4">
-              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${projectStatusTone(projectDraft.status)}`}>
-                {projectDraft.status === 'InProgress' ? 'In Progress' : projectDraft.status}
-              </span>
+              <ProjectStatusBadge status={projectDraft.status} />
               <Button type="submit" disabled={savingProject}>
-                {savingProject ? 'Saving…' : 'Save Project'}
+                {savingProject ? 'Saving…' : 'Save Changes'}
               </Button>
             </div>
           </form>
         </AppCard>
 
-        <AppCard className="p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Revenue Summary</p>
-          <dl className="mt-5 space-y-4 text-sm">
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Awarded</dt>
-              <dd className="text-zinc-100">{formatDate(project.dateAwarded)}</dd>
+        {/* Revenue summary */}
+        <AppCard>
+          <SectionHeading title="Revenue Summary" />
+          <dl className="divide-y divide-slate-700/50 px-4 text-sm">
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="text-slate-400">Awarded</dt>
+              <dd className="text-slate-200">{formatDate(project.dateAwarded)}</dd>
             </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Completed</dt>
-              <dd className="text-zinc-100">{formatDate(project.dateCompleted)}</dd>
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="text-slate-400">Completed</dt>
+              <dd className="text-slate-200">{formatDate(project.dateCompleted)}</dd>
             </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Milestones</dt>
-              <dd className="text-zinc-100">{project.milestones.length}</dd>
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="text-slate-400">Milestones</dt>
+              <dd className="text-slate-200">{project.milestones.length}</dd>
             </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Tips</dt>
-              <dd className="text-zinc-100">{project.tips.length}</dd>
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="text-slate-400">Tips</dt>
+              <dd className="text-slate-200">{project.tips.length}</dd>
             </div>
-            <div className="h-px bg-zinc-700/70" />
-            <div className="flex items-center justify-between">
-              <dt className="text-zinc-400">Current Net</dt>
-              <dd
-                className="text-lg font-semibold text-white"
-                style={{ fontFamily: '"JetBrains Mono", monospace' }}
-              >
-                {summary ? formatCurrency(summary.net, summary.currency) : formatCurrency(0, project.currency)}
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="text-slate-400">Net Revenue</dt>
+              <dd className="font-mono font-semibold text-slate-100">
+                {summary ? formatCurrency(summary.net, summary.currency) : '—'}
               </dd>
             </div>
           </dl>
         </AppCard>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      {/* Milestones */}
+      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
         <AppCard>
           <SectionHeading
             title="Milestones"
-            description="Maintain payment stages, due dates, and released revenue."
             action={
               editingMilestoneId ? (
-                <Button variant="secondary" onClick={resetMilestoneForm}>
+                <Button variant="ghost" className="text-xs" onClick={resetMilestoneForm}>
                   Cancel edit
                 </Button>
               ) : null
             }
           />
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-700/70 text-left text-xs uppercase tracking-[0.2em] text-zinc-500">
-                  <th className="px-5 py-3 font-medium">Name</th>
-                  <th className="px-5 py-3 font-medium">Amount</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Due</th>
-                  <th className="px-5 py-3 font-medium">Paid</th>
-                  <th className="px-5 py-3" />
+                <tr className="border-b border-slate-700 text-left">
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Name</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Amount</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Status</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Due</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Paid</th>
+                  <th className="px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody>
                 {project.milestones.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8">
+                    <td colSpan={6} className="px-4 py-8">
                       <EmptyState
                         title="No milestones yet"
-                        description="Add the payment stages for this project to track pipeline and settled revenue."
+                        description="Add payment stages to track pipeline and settled revenue."
                       />
                     </td>
                   </tr>
                 ) : (
                   project.milestones.map((milestone) => (
-                    <tr key={milestone.id} className="border-b border-zinc-700/50 last:border-0">
-                      <td className="px-5 py-4">
-                        <p className="font-medium text-white">{milestone.name}</p>
-                        {milestone.description ? (
-                          <p className="mt-1 text-xs text-zinc-400">{milestone.description}</p>
-                        ) : null}
+                    <tr key={milestone.id} className="border-b border-slate-700/50 last:border-0">
+                      <td className="px-4 py-2.5">
+                        <p className="font-medium text-slate-100">{milestone.name}</p>
+                        {milestone.description && (
+                          <p className="mt-0.5 text-xs text-slate-500">{milestone.description}</p>
+                        )}
                       </td>
-                      <td
-                        className="px-5 py-4 text-zinc-100"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                      >
+                      <td className="px-4 py-2.5 font-mono text-slate-200">
                         {formatCurrency(milestone.amount, milestone.currency)}
                       </td>
-                      <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${milestoneStatusTone(milestone.status)}`}>
-                          {milestone.status}
-                        </span>
+                      <td className="px-4 py-2.5">
+                        <MilestoneStatusBadge status={milestone.status} />
                       </td>
-                      <td className="px-5 py-4 text-zinc-300">{formatDate(milestone.dateDue)}</td>
-                      <td className="px-5 py-4 text-zinc-300">{formatDate(milestone.datePaid)}</td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" onClick={() => loadMilestoneIntoForm(milestone)}>
+                      <td className="px-4 py-2.5 text-slate-400 text-xs">{formatDate(milestone.dateDue)}</td>
+                      <td className="px-4 py-2.5 text-slate-400 text-xs">{formatDate(milestone.datePaid)}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" className="px-2 text-xs" onClick={() => loadMilestoneIntoForm(milestone)}>
                             Edit
                           </Button>
-                          <Button variant="danger" onClick={() => void handleMilestoneDelete(milestone.id)}>
-                            Delete
+                          <Button variant="danger" className="px-2 text-xs" onClick={() => void handleMilestoneDelete(milestone.id)}>
+                            Del
                           </Button>
                         </div>
                       </td>
@@ -503,87 +451,63 @@ export default function ProjectDetail() {
           </div>
         </AppCard>
 
+        {/* Milestone form */}
         <AppCard>
-          <SectionHeading
-            title={editingMilestoneId ? 'Edit Milestone' : 'Add Milestone'}
-            description="Each milestone becomes part of the project revenue lifecycle."
-          />
-          <form className="grid gap-4 p-5" onSubmit={handleMilestoneSave}>
-            <Field label="Milestone Name" required>
+          <SectionHeading title={editingMilestoneId ? 'Edit Milestone' : 'Add Milestone'} />
+          <form className="grid gap-3 p-4" onSubmit={handleMilestoneSave}>
+            <Field label="Name" required>
               <Input
                 required
                 value={milestoneDraft.name}
-                onChange={(event) =>
-                  setMilestoneDraft((current) => ({ ...current, name: event.target.value }))
-                }
+                onChange={(e) => setMilestoneDraft((c) => ({ ...c, name: e.target.value }))}
               />
             </Field>
             <Field label="Description">
               <Textarea
                 value={milestoneDraft.description ?? ''}
-                onChange={(event) =>
-                  setMilestoneDraft((current) => ({ ...current, description: event.target.value || null }))
-                }
+                onChange={(e) => setMilestoneDraft((c) => ({ ...c, description: e.target.value || null }))}
               />
             </Field>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 grid-cols-2">
               <Field label="Amount">
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={milestoneDraft.amount}
-                  onChange={(event) =>
-                    setMilestoneDraft((current) => ({ ...current, amount: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, amount: Number(e.target.value) }))}
                 />
               </Field>
               <Field label="Currency">
                 <Select
                   value={milestoneDraft.currency}
-                  onChange={(event) =>
-                    setMilestoneDraft((current) => ({ ...current, currency: event.target.value as Milestone['currency'] }))
-                  }
+                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, currency: e.target.value as Milestone['currency'] }))}
                 >
-                  {CURRENCIES.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               </Field>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-3 grid-cols-3">
               <Field label="Status">
                 <Select
                   value={milestoneDraft.status}
-                  onChange={(event) =>
-                    setMilestoneDraft((current) => ({ ...current, status: event.target.value as Milestone['status'] }))
-                  }
+                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, status: e.target.value as Milestone['status'] }))}
                 >
-                  {MILESTONE_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
+                  {MILESTONE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </Field>
-              <Field label="Date Due">
+              <Field label="Due">
                 <Input
                   type="date"
                   value={isoDate(milestoneDraft.dateDue)}
-                  onChange={(event) =>
-                    setMilestoneDraft((current) => ({ ...current, dateDue: event.target.value || null }))
-                  }
+                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, dateDue: e.target.value || null }))}
                 />
               </Field>
-              <Field label="Date Paid">
+              <Field label="Paid">
                 <Input
                   type="date"
                   value={isoDate(milestoneDraft.datePaid)}
-                  onChange={(event) =>
-                    setMilestoneDraft((current) => ({ ...current, datePaid: event.target.value || null }))
-                  }
+                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, datePaid: e.target.value || null }))}
                 />
               </Field>
             </div>
@@ -591,99 +515,90 @@ export default function ProjectDetail() {
               <Input
                 type="number"
                 min="1"
-                step="1"
                 value={milestoneDraft.sortOrder}
-                onChange={(event) =>
-                  setMilestoneDraft((current) => ({ ...current, sortOrder: Number(event.target.value) }))
-                }
+                onChange={(e) => setMilestoneDraft((c) => ({ ...c, sortOrder: Number(e.target.value) }))}
               />
             </Field>
-            <div className="flex justify-end gap-3">
-              {editingMilestoneId ? (
+            <div className="flex justify-end gap-2">
+              {editingMilestoneId && (
                 <Button type="button" variant="secondary" onClick={resetMilestoneForm}>
                   Cancel
                 </Button>
-              ) : null}
+              )}
               <Button type="submit" disabled={savingMilestone}>
-                {savingMilestone
-                  ? 'Saving…'
-                  : editingMilestoneId
-                    ? 'Update Milestone'
-                    : 'Add Milestone'}
+                {savingMilestone ? 'Saving…' : editingMilestoneId ? 'Update' : 'Add Milestone'}
               </Button>
             </div>
           </form>
         </AppCard>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      {/* Tips */}
+      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
         <AppCard>
-          <SectionHeading title="Tips" description="Track client gratuities and small bonuses separately." />
-          <div className="divide-y divide-zinc-700/70">
-            {project.tips.length === 0 ? (
-              <div className="p-5">
-                <EmptyState
-                  title="No tips recorded"
-                  description="Tips recorded here are added to the final project revenue."
-                />
-              </div>
-            ) : (
-              project.tips.map((tip) => (
-                <div key={tip.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p
-                      className="text-base font-medium text-white"
-                      style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                    >
+          <SectionHeading title="Tips" description="Client bonuses and gratuities." />
+          {project.tips.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                title="No tips recorded"
+                description="Tips are added to the final project revenue."
+              />
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-700 text-left">
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Amount</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Date</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Notes</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {project.tips.map((tip) => (
+                  <tr key={tip.id} className="border-b border-slate-700/50 last:border-0">
+                    <td className="px-4 py-2.5 font-mono font-medium text-slate-100">
                       {formatCurrency(tip.amount, tip.currency)}
-                    </p>
-                    <p className="mt-1 text-sm text-zinc-400">{formatDate(tip.date)}</p>
-                    {tip.notes ? <p className="mt-2 text-sm text-zinc-500">{tip.notes}</p> : null}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" onClick={() => loadTipIntoForm(tip)}>
-                      Edit
-                    </Button>
-                    <Button variant="danger" onClick={() => void handleTipDelete(tip.id)}>
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(tip.date)}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{tip.notes ?? '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" className="px-2 text-xs" onClick={() => loadTipIntoForm(tip)}>
+                          Edit
+                        </Button>
+                        <Button variant="danger" className="px-2 text-xs" onClick={() => void handleTipDelete(tip.id)}>
+                          Del
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </AppCard>
 
+        {/* Tip form */}
         <AppCard>
-          <SectionHeading
-            title={editingTipId ? 'Edit Tip' : 'Add Tip'}
-            description="Useful for bonuses, appreciation, and unstructured project income."
-          />
-          <form className="grid gap-4 p-5" onSubmit={handleTipSave}>
-            <div className="grid gap-4 md:grid-cols-2">
+          <SectionHeading title={editingTipId ? 'Edit Tip' : 'Add Tip'} />
+          <form className="grid gap-3 p-4" onSubmit={handleTipSave}>
+            <div className="grid gap-3 grid-cols-2">
               <Field label="Amount">
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={tipDraft.amount}
-                  onChange={(event) =>
-                    setTipDraft((current) => ({ ...current, amount: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setTipDraft((c) => ({ ...c, amount: Number(e.target.value) }))}
                 />
               </Field>
               <Field label="Currency">
                 <Select
                   value={tipDraft.currency}
-                  onChange={(event) =>
-                    setTipDraft((current) => ({ ...current, currency: event.target.value as Tip['currency'] }))
-                  }
+                  onChange={(e) => setTipDraft((c) => ({ ...c, currency: e.target.value as Tip['currency'] }))}
                 >
-                  {CURRENCIES.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               </Field>
             </div>
@@ -691,25 +606,23 @@ export default function ProjectDetail() {
               <Input
                 type="date"
                 value={tipDraft.date}
-                onChange={(event) => setTipDraft((current) => ({ ...current, date: event.target.value }))}
+                onChange={(e) => setTipDraft((c) => ({ ...c, date: e.target.value }))}
               />
             </Field>
             <Field label="Notes">
               <Textarea
                 value={tipDraft.notes ?? ''}
-                onChange={(event) =>
-                  setTipDraft((current) => ({ ...current, notes: event.target.value || null }))
-                }
+                onChange={(e) => setTipDraft((c) => ({ ...c, notes: e.target.value || null }))}
               />
             </Field>
-            <div className="flex justify-end gap-3">
-              {editingTipId ? (
+            <div className="flex justify-end gap-2">
+              {editingTipId && (
                 <Button type="button" variant="secondary" onClick={resetTipForm}>
                   Cancel
                 </Button>
-              ) : null}
+              )}
               <Button type="submit" disabled={savingTip}>
-                {savingTip ? 'Saving…' : editingTipId ? 'Update Tip' : 'Add Tip'}
+                {savingTip ? 'Saving…' : editingTipId ? 'Update' : 'Add Tip'}
               </Button>
             </div>
           </form>
