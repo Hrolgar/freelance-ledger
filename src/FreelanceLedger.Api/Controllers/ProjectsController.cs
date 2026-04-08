@@ -27,6 +27,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
     {
         var project = await db.Projects
             .AsNoTracking()
+            .Include(p => p.Client)
             .Include(p => p.Milestones.OrderBy(m => m.SortOrder))
             .Include(p => p.Tips)
             .FirstOrDefaultAsync(p => p.Id == id);
