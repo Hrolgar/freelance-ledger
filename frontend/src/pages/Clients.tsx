@@ -188,7 +188,7 @@ function ClientDetail() {
   }
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete client "${client?.name}"? Projects will keep their data.`)) return
+    if (!window.confirm(`Delete client "${client?.name}" and all their projects?`)) return
     try { await deleteClient(Number(id)); navigate('/clients') }
     catch (err) { setError(err instanceof Error ? err.message : 'Failed to delete.') }
   }
