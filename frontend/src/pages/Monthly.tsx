@@ -49,13 +49,20 @@ function MoneyCell({ amount, currency, mainCurrency, rates, className = '' }: {
   className?: string
 }) {
   const converted = convert(amount, currency, mainCurrency, rates)
-  const tooltip = converted !== null && currency !== mainCurrency
-    ? `${formatCurrency(converted, mainCurrency)}`
-    : undefined
+  const hasConversion = converted !== null && currency !== mainCurrency
 
   return (
-    <td className={`px-4 py-2.5 text-right font-mono ${className}`} title={tooltip}>
-      {formatCurrency(amount, currency)}
+    <td className={`px-4 py-2.5 text-right font-mono ${className}`}>
+      {hasConversion ? (
+        <span className="group relative cursor-help border-b border-dashed border-slate-600">
+          {formatCurrency(amount, currency)}
+          <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-slate-700 px-2 py-1 text-xs font-medium text-blue-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+            {formatCurrency(converted, mainCurrency)}
+          </span>
+        </span>
+      ) : (
+        formatCurrency(amount, currency)
+      )}
     </td>
   )
 }
