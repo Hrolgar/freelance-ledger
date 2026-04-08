@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +8,7 @@ namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
 [Route("api/exchange-rates")]
-public class ExchangeRatesController(LedgerDbContext db) : ControllerBase
+public class ExchangeRatesController(LedgerDbContext db, ExchangeRateService rateService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] int? month, [FromQuery] int? year)
@@ -66,6 +67,24 @@ public class ExchangeRatesController(LedgerDbContext db) : ControllerBase
         existing.Rate = exchangeRate.Rate;
         await db.SaveChangesAsync();
         return Ok(existing);
+    }
+
+    /// <summary>
+    /// Auto-fetch rates for a given month from frankfurter.app.
+    /// If rates already exist, they are updated.
+    /// </summary>
+    [HttpPost("auto-fetch")]
+    public async Task<IActionResult> AutoFetch([FromQuery] int month, [FromQuery] int year)
+    {
+        await rateService.EnsureRatesExist(month, year);
+
+        var rates = await db.ExchangeRates
+            .AsNoTracking()
+            .Where(r => r.Month == month && r.Year == year)
+            .OrderBy(r => r.Currency)
+            .ToListAsync();
+
+        return Ok(rates);
     }
 
     [HttpDelete("{id}")]

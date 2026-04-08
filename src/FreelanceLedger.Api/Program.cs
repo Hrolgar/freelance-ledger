@@ -1,4 +1,5 @@
 using FreelanceLedger.Api.Data;
+using FreelanceLedger.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using System.Text.Json.Serialization;
@@ -17,6 +18,8 @@ builder.Services
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+builder.Services.AddHttpClient<ExchangeRateService>();
+builder.Services.AddScoped<ExchangeRateService>();
 builder.Services.AddOpenApi();
 
 builder.Services.AddCors(options =>
