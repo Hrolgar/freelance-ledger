@@ -7,6 +7,7 @@ import type {
   InvestmentInput,
   Milestone,
   MilestoneInput,
+  MilestonePatchRequest,
   Pipeline,
   Project,
   ProjectInput,
@@ -60,6 +61,7 @@ function query(params: Record<string, string | number | undefined>) {
 
 export const getDashboardYear = (year: number) =>
   request<YearOverview>(`/dashboard/year-overview${query({ year })}`)
+export const getYearOverview = getDashboardYear
 
 export const getPipeline = () => request<Pipeline>('/dashboard/pipeline')
 
@@ -83,8 +85,11 @@ export const updateMilestone = (projectId: number, id: number, data: MilestoneIn
     method: 'PUT',
     body: JSON.stringify(data),
   })
-export const patchMilestone = (id: number, data: { status: string; datePaid?: string | null }) =>
-  request<Milestone>(`/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const patchMilestone = (id: number, data: MilestonePatchRequest) =>
+  request<Milestone>(`/milestones/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 export const deleteMilestone = (projectId: number, id: number) =>
   request<void>(`/projects/${projectId}/milestones/${id}`, { method: 'DELETE' })
 
@@ -127,3 +132,36 @@ export const upsertExchangeRate = (data: ExchangeRateInput) =>
   request<ExchangeRate>('/exchange-rates', { method: 'PUT', body: JSON.stringify(data) })
 export const deleteExchangeRate = (id: number) =>
   request<void>(`/exchange-rates/${id}`, { method: 'DELETE' })
+
+export const api = {
+  getDashboardYear,
+  getYearOverview,
+  getPipeline,
+  getProjects,
+  getProject,
+  getProjectSummary,
+  createProject,
+  updateProject,
+  deleteProject,
+  getMilestones,
+  createMilestone,
+  updateMilestone,
+  patchMilestone,
+  deleteMilestone,
+  getTips,
+  createTip,
+  updateTip,
+  deleteTip,
+  getCosts,
+  createCost,
+  updateCost,
+  deleteCost,
+  getInvestments,
+  createInvestment,
+  updateInvestment,
+  deleteInvestment,
+  getExchangeRates,
+  createExchangeRate,
+  upsertExchangeRate,
+  deleteExchangeRate,
+}

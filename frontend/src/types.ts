@@ -118,6 +118,18 @@ export type CostInput = Omit<Cost, 'id'>
 export type InvestmentInput = Omit<Investment, 'id'>
 export type ExchangeRateInput = Omit<ExchangeRate, 'id'>
 
+export type ProjectPayload = ProjectInput
+export type MilestonePayload = MilestoneInput
+export type TipPayload = TipInput
+export type CostPayload = CostInput
+export type InvestmentPayload = InvestmentInput
+export type ExchangeRatePayload = ExchangeRateInput
+
+export interface MilestonePatchRequest {
+  status?: MilestoneStatus
+  datePaid?: string | null
+}
+
 export const CURRENCIES: Currency[] = ['GBP', 'USD', 'EUR', 'CAD', 'INR', 'NOK']
 export const PLATFORMS: Platform[] = ['Freelancer', 'Upwork', 'Direct', 'Other']
 export const PROJECT_STATUSES: ProjectStatus[] = [
@@ -156,3 +168,10 @@ export const MONTH_FULL_NAMES = [
   'November',
   'December',
 ]
+
+export const currencies = CURRENCIES
+export const platforms = PLATFORMS
+export const projectStatuses = PROJECT_STATUSES
+export const milestoneStatuses = MILESTONE_STATUSES
+export const costCategories = COST_CATEGORIES
+export const monthNames = MONTH_NAMES

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getDashboardYear, getPipeline, getProjects } from '../api'
+import { getYearOverview, getPipeline, getProjects } from '../api'
 import { AppCard, Button, EmptyState, ErrorState, LoadingState, PageIntro, SectionHeading, StatCard } from '../components/ui'
 import { calculateProjectRevenue, formatCurrency, formatMonth, projectStatusTone } from '../lib/format'
 import type { Pipeline, Project, YearOverview } from '../types'
@@ -19,7 +19,7 @@ export default function Dashboard() {
 
     try {
       const [overviewData, pipelineData, projectsData] = await Promise.all([
-        getDashboardYear(year),
+        getYearOverview(year),
         getPipeline(),
         getProjects(),
       ])

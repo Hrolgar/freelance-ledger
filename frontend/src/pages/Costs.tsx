@@ -1,393 +1,477 @@
-import { useState, useEffect } from 'react'
-import { getCosts, createCost, updateCost, deleteCost, getInvestments, createInvestment, updateInvestment, deleteInvestment } from '../api'
-import type { Cost, Investment } from '../types'
-import { CURRENCIES, COST_CATEGORIES } from '../types'
-import { Modal } from '../components/Modal'
+import { useEffect, useState } from 'react'
 import {
-  AppCard, Button, SectionHeading, PageIntro, EmptyState, ErrorState, LoadingState,
-  Input, Select, Field, Checkbox,
-} from '../components/ui'
+  createCost,
+  createInvestment,
+  deleteCost,
+  deleteInvestment,
+  getCosts,
+  getInvestments,
+  updateCost,
+  updateInvestment,
+} from '../api'
+import { AppCard, Button, Checkbox, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { formatCurrency } from '../lib/format'
+import type { Cost, CostInput, Investment, InvestmentInput } from '../types'
+import { COST_CATEGORIES, CURRENCIES } from '../types'
 
-const MONTHS = Array.from({ length: 12 }, (_, i) => ({
-  value: i + 1,
-  label: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
-}))
-const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
+const now = new Date()
 
-interface CostForm {
-  description: string; amount: string; category: string
-  month: string; year: string; recurring: boolean; notes: string
+const emptyCost: CostInput = {
+  description: '',
+  amount: 0,
+  category: 'Software',
+  month: now.getMonth() + 1,
+  year: now.getFullYear(),
+  recurring: true,
+  notes: null,
 }
-const emptyCost = (): CostForm => ({
-  description: '', amount: '', category: 'Software',
-  month: String(new Date().getMonth() + 1),
-  year: String(new Date().getFullYear()),
-  recurring: false, notes: '',
-})
 
-interface InvForm {
-  description: string; amount: string; currency: string; nokRate: string
-  month: string; year: string; notes: string
-}
-const emptyInv = (): InvForm => ({
-  description: '', amount: '', currency: 'USD', nokRate: '1',
-  month: String(new Date().getMonth() + 1),
-  year: String(new Date().getFullYear()),
-  notes: '',
-})
-
-function DeleteConfirmModal({ type, onConfirm, onCancel }: { type: string; onConfirm: () => void; onCancel: () => void }) {
-  return (
-    <Modal title={`Delete ${type}`} onClose={onCancel} size="sm">
-      <p className="text-sm text-zinc-400 mb-6">This will permanently delete this {type}.</p>
-      <div className="flex justify-end gap-3">
-        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-        <Button variant="danger" onClick={onConfirm}>Delete</Button>
-      </div>
-    </Modal>
-  )
+const emptyInvestment: InvestmentInput = {
+  description: '',
+  amount: 0,
+  currency: 'USD',
+  nokRate: 0,
+  month: now.getMonth() + 1,
+  year: now.getFullYear(),
+  notes: null,
 }
 
 export default function Costs() {
   const [costs, setCosts] = useState<Cost[]>([])
   const [investments, setInvestments] = useState<Investment[]>([])
-  const [loading, setLoading] = useState(true)
+  const [costDraft, setCostDraft] = useState<CostInput>(emptyCost)
+  const [investmentDraft, setInvestmentDraft] = useState<InvestmentInput>(emptyInvestment)
+  const [editingCostId, setEditingCostId] = useState<number | null>(null)
+  const [editingInvestmentId, setEditingInvestmentId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const [costModal, setCostModal] = useState<'add' | 'edit' | null>(null)
-  const [costForm, setCostForm] = useState<CostForm>(emptyCost())
-  const [editCostId, setEditCostId] = useState<number | null>(null)
+  const load = async () => {
+    setError(null)
 
-  const [invModal, setInvModal] = useState<'add' | 'edit' | null>(null)
-  const [invForm, setInvForm] = useState<InvForm>(emptyInv())
-  const [editInvId, setEditInvId] = useState<number | null>(null)
-
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'cost' | 'investment'; id: number } | null>(null)
-  const [saving, setSaving] = useState(false)
-
-  const load = () => {
-    setLoading(true)
-    Promise.all([getCosts(), getInvestments()])
-      .then(([cs, inv]) => { setCosts(cs); setInvestments(inv) })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }
-  useEffect(() => { load() }, [])
-
-  const handleSaveCost = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
     try {
-      const data: Omit<Cost, 'id'> = {
-        description: costForm.description,
-        amount: parseFloat(costForm.amount) || 0,
-        category: costForm.category as Cost['category'],
-        month: parseInt(costForm.month),
-        year: parseInt(costForm.year),
-        recurring: costForm.recurring,
-        notes: costForm.notes || null,
+      const [costData, investmentData] = await Promise.all([
+        getCosts(),
+        getInvestments({ year: new Date().getFullYear() }),
+      ])
+      setCosts(costData)
+      setInvestments(investmentData)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to load costs.')
+    } finally {
+      // No view-level spinner; errors and table empty states cover the load lifecycle.
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [])
+
+  const recurringCosts = costs.filter((cost) => cost.recurring)
+
+  const handleCostSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    try {
+      if (editingCostId) {
+        await updateCost(editingCostId, costDraft)
+      } else {
+        await createCost(costDraft)
       }
-      if (costModal === 'edit' && editCostId) await updateCost(editCostId, data)
-      else await createCost(data)
-      setCostModal(null)
-      setCostForm(emptyCost())
-      load()
-    } catch (e: unknown) { alert((e as Error).message) }
-    finally { setSaving(false) }
+
+      setEditingCostId(null)
+      setCostDraft(emptyCost)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to save cost.')
+    }
   }
 
-  const handleSaveInv = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
+  const handleInvestmentSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
     try {
-      const data: Omit<Investment, 'id'> = {
-        description: invForm.description,
-        amount: parseFloat(invForm.amount) || 0,
-        currency: invForm.currency as Investment['currency'],
-        nokRate: parseFloat(invForm.nokRate) || 1,
-        month: parseInt(invForm.month),
-        year: parseInt(invForm.year),
-        notes: invForm.notes || null,
+      if (editingInvestmentId) {
+        await updateInvestment(editingInvestmentId, investmentDraft)
+      } else {
+        await createInvestment(investmentDraft)
       }
-      if (invModal === 'edit' && editInvId) await updateInvestment(editInvId, data)
-      else await createInvestment(data)
-      setInvModal(null)
-      setInvForm(emptyInv())
-      load()
-    } catch (e: unknown) { alert((e as Error).message) }
-    finally { setSaving(false) }
+
+      setEditingInvestmentId(null)
+      setInvestmentDraft(emptyInvestment)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to save investment.')
+    }
   }
 
-  const handleDelete = async () => {
-    if (!deleteConfirm) return
+  const editCost = (cost: Cost) => {
+    setEditingCostId(cost.id)
+    setCostDraft({
+      description: cost.description,
+      amount: cost.amount,
+      category: cost.category,
+      month: cost.month,
+      year: cost.year,
+      recurring: cost.recurring,
+      notes: cost.notes,
+    })
+  }
+
+  const editInvestment = (investment: Investment) => {
+    setEditingInvestmentId(investment.id)
+    setInvestmentDraft({
+      description: investment.description,
+      amount: investment.amount,
+      currency: investment.currency,
+      nokRate: investment.nokRate,
+      month: investment.month,
+      year: investment.year,
+      notes: investment.notes,
+    })
+  }
+
+  const removeCost = async (id: number) => {
+    if (!window.confirm('Delete this cost entry?')) return
+
     try {
-      if (deleteConfirm.type === 'cost') await deleteCost(deleteConfirm.id)
-      else await deleteInvestment(deleteConfirm.id)
-      setDeleteConfirm(null)
-      load()
-    } catch (e: unknown) { alert((e as Error).message) }
+      await deleteCost(id)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to delete cost.')
+    }
   }
 
-  const openEditCost = (c: Cost) => {
-    setCostForm({
-      description: c.description, amount: String(c.amount), category: c.category,
-      month: String(c.month), year: String(c.year), recurring: c.recurring, notes: c.notes ?? '',
-    })
-    setEditCostId(c.id)
-    setCostModal('edit')
+  const removeInvestment = async (id: number) => {
+    if (!window.confirm('Delete this investment entry?')) return
+
+    try {
+      await deleteInvestment(id)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to delete investment.')
+    }
   }
-
-  const openEditInv = (inv: Investment) => {
-    setInvForm({
-      description: inv.description, amount: String(inv.amount), currency: inv.currency,
-      nokRate: String(inv.nokRate), month: String(inv.month), year: String(inv.year), notes: inv.notes ?? '',
-    })
-    setEditInvId(inv.id)
-    setInvModal('edit')
-  }
-
-  if (loading) return <LoadingState label="Loading costs" />
-  if (error) return <ErrorState message={error} onRetry={load} />
-
-  const totalCosts = costs.reduce((s, c) => s + c.amount, 0)
-  const totalInvestments = investments.reduce((s, i) => s + i.amount * i.nokRate, 0)
-
-  const actionIcons = (onEdit: () => void, onDelete: () => void) => (
-    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-      <button onClick={onEdit} className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors rounded">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-      </button>
-      <button onClick={onDelete} className="p-1 text-zinc-500 hover:text-rose-400 transition-colors rounded">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-      </button>
-    </div>
-  )
 
   return (
     <div className="space-y-8">
       <PageIntro
         title="Costs"
-        description="Recurring monthly expenses and one-time investments."
-        action={
-          <div className="flex gap-3">
-            <Button onClick={() => { setCostForm(emptyCost()); setCostModal('add') }}>Add Cost</Button>
-            <Button variant="secondary" onClick={() => { setInvForm(emptyInv()); setInvModal('add') }}>Add Investment</Button>
-          </div>
-        }
+        description="Separate monthly operating costs from one-time investments so the ledger reflects both P&L and strategic spending."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <AppCard className="p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Total Costs (NOK)</p>
-          <p className="mt-4 text-2xl font-semibold tracking-tight text-rose-300" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-            {formatCurrency(totalCosts, 'NOK')}
-          </p>
-          <p className="mt-2 text-sm text-zinc-400">{costs.length} entries</p>
-        </AppCard>
-        <AppCard className="p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">Total Investments (NOK)</p>
-          <p className="mt-4 text-2xl font-semibold tracking-tight text-amber-300" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
-            {formatCurrency(totalInvestments, 'NOK')}
-          </p>
-          <p className="mt-2 text-sm text-zinc-400">{investments.length} entries</p>
-        </AppCard>
-      </div>
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
 
-      {/* Costs table */}
-      <AppCard>
-        <SectionHeading
-          title="Recurring Costs"
-          description="Monthly operating expenses."
-          action={<Button onClick={() => { setCostForm(emptyCost()); setCostModal('add') }}>Add Cost</Button>}
-        />
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-zinc-700/70 text-xs text-zinc-500 uppercase tracking-wider">
-              <th className="text-left px-5 py-3 font-medium">Description</th>
-              <th className="text-left px-5 py-3 font-medium">Category</th>
-              <th className="text-left px-5 py-3 font-medium">Period</th>
-              <th className="text-center px-5 py-3 font-medium">Recurring</th>
-              <th className="text-right px-5 py-3 font-medium">Amount (NOK)</th>
-              <th className="px-5 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {costs.length === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-8">
-                <EmptyState title="No costs yet" description="Add your first operating expense." />
-              </td></tr>
-            ) : (
-              costs.map(c => (
-                <tr key={c.id} className="border-b border-zinc-700/50 last:border-0 hover:bg-zinc-700/20 transition-colors group">
-                  <td className="px-5 py-3 text-zinc-200">{c.description}</td>
-                  <td className="px-5 py-3 text-zinc-400">{c.category}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-zinc-500">{MONTHS[c.month - 1].label} {c.year}</td>
-                  <td className="px-5 py-3 text-center">
-                    {c.recurring
-                      ? <span className="text-xs text-blue-300 bg-blue-500/10 ring-1 ring-inset ring-blue-400/30 px-2 py-0.5 rounded-full">Yes</span>
-                      : <span className="text-xs text-zinc-600">—</span>}
-                  </td>
-                  <td className="px-5 py-3 text-right font-mono text-zinc-300">{formatCurrency(c.amount, 'NOK')}</td>
-                  <td className="px-5 py-3">{actionIcons(() => openEditCost(c), () => setDeleteConfirm({ type: 'cost', id: c.id }))}</td>
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <AppCard>
+          <SectionHeading title="Recurring Costs" description="Software, internet, office, and other monthly operating expenses." />
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-700/70 text-left text-xs uppercase tracking-[0.2em] text-zinc-500">
+                  <th className="px-5 py-3 font-medium">Description</th>
+                  <th className="px-5 py-3 font-medium">Category</th>
+                  <th className="px-5 py-3 font-medium">Month</th>
+                  <th className="px-5 py-3 text-right font-medium">Amount</th>
+                  <th className="px-5 py-3" />
                 </tr>
-              ))
-            )}
-          </tbody>
-          {costs.length > 0 && (
-            <tfoot>
-              <tr className="border-t border-zinc-700 bg-zinc-700/10">
-                <td colSpan={4} className="px-5 py-3 text-xs font-medium text-zinc-500">Total</td>
-                <td className="px-5 py-3 text-right font-mono font-semibold text-zinc-200">{formatCurrency(totalCosts, 'NOK')}</td>
-                <td />
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </AppCard>
+              </thead>
+              <tbody>
+                {recurringCosts.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10">
+                      <EmptyState
+                        title="No recurring costs yet"
+                        description="Add subscriptions and operating costs to keep the monthly P&L complete."
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  recurringCosts.map((cost) => (
+                    <tr key={cost.id} className="border-b border-zinc-700/50 last:border-0">
+                      <td className="px-5 py-4 text-white">{cost.description}</td>
+                      <td className="px-5 py-4 text-zinc-400">{cost.category}</td>
+                      <td className="px-5 py-4 text-zinc-300">{`${cost.month}/${cost.year}`}</td>
+                      <td
+                        className="px-5 py-4 text-right text-zinc-100"
+                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
+                      >
+                        {formatCurrency(cost.amount, 'NOK')}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" onClick={() => editCost(cost)}>
+                            Edit
+                          </Button>
+                          <Button variant="danger" onClick={() => void removeCost(cost.id)}>
+                            Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </AppCard>
 
-      {/* Investments table */}
-      <AppCard>
-        <SectionHeading
-          title="Investments"
-          description="One-time purchases not included in monthly P&L."
-          action={<Button onClick={() => { setInvForm(emptyInv()); setInvModal('add') }}>Add Investment</Button>}
-        />
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-zinc-700/70 text-xs text-zinc-500 uppercase tracking-wider">
-              <th className="text-left px-5 py-3 font-medium">Description</th>
-              <th className="text-left px-5 py-3 font-medium">Period</th>
-              <th className="text-right px-5 py-3 font-medium">Amount</th>
-              <th className="text-right px-5 py-3 font-medium">NOK Rate</th>
-              <th className="text-right px-5 py-3 font-medium">NOK Value</th>
-              <th className="px-5 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {investments.length === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-8">
-                <EmptyState title="No investments yet" description="Track one-time hardware, software, and equipment purchases." />
-              </td></tr>
-            ) : (
-              investments.map(inv => (
-                <tr key={inv.id} className="border-b border-zinc-700/50 last:border-0 hover:bg-zinc-700/20 transition-colors group">
-                  <td className="px-5 py-3">
-                    <p className="text-zinc-200">{inv.description}</p>
-                    {inv.notes && <p className="text-xs text-zinc-500">{inv.notes}</p>}
-                  </td>
-                  <td className="px-5 py-3 font-mono text-xs text-zinc-500">{MONTHS[inv.month - 1].label} {inv.year}</td>
-                  <td className="px-5 py-3 text-right font-mono text-zinc-300">{inv.currency} {inv.amount.toFixed(2)}</td>
-                  <td className="px-5 py-3 text-right font-mono text-zinc-500">{inv.nokRate.toFixed(2)}</td>
-                  <td className="px-5 py-3 text-right font-mono text-zinc-300">{formatCurrency(inv.amount * inv.nokRate, 'NOK')}</td>
-                  <td className="px-5 py-3">{actionIcons(() => openEditInv(inv), () => setDeleteConfirm({ type: 'investment', id: inv.id }))}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-          {investments.length > 0 && (
-            <tfoot>
-              <tr className="border-t border-zinc-700 bg-zinc-700/10">
-                <td colSpan={4} className="px-5 py-3 text-xs font-medium text-zinc-500">Total NOK</td>
-                <td className="px-5 py-3 text-right font-mono font-semibold text-zinc-200">{formatCurrency(totalInvestments, 'NOK')}</td>
-                <td />
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </AppCard>
-
-      {/* Cost Modal */}
-      {costModal && (
-        <Modal title={costModal === 'edit' ? 'Edit Cost' : 'Add Cost'} onClose={() => setCostModal(null)} size="md">
-          <form onSubmit={handleSaveCost} className="space-y-4">
+        <AppCard>
+          <SectionHeading
+            title={editingCostId ? 'Edit Cost' : 'Add Cost'}
+            description="Store the month, category, and whether the cost recurs."
+          />
+          <form className="grid gap-4 p-5" onSubmit={handleCostSave}>
             <Field label="Description" required>
-              <Input value={costForm.description} onChange={e => setCostForm(f => ({ ...f, description: e.target.value }))} required placeholder="GitHub Copilot" />
+              <Input
+                required
+                value={costDraft.description}
+                onChange={(event) =>
+                  setCostDraft((current) => ({ ...current, description: event.target.value }))
+                }
+              />
             </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Amount (NOK)" required>
-                <Input type="number" min="0" step="0.01" required value={costForm.amount} onChange={e => setCostForm(f => ({ ...f, amount: e.target.value }))} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Amount (NOK)">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={costDraft.amount}
+                  onChange={(event) =>
+                    setCostDraft((current) => ({ ...current, amount: Number(event.target.value) }))
+                  }
+                />
               </Field>
               <Field label="Category">
-                <Select value={costForm.category} onChange={e => setCostForm(f => ({ ...f, category: e.target.value }))}>
-                  {COST_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                <Select
+                  value={costDraft.category}
+                  onChange={(event) =>
+                    setCostDraft((current) => ({ ...current, category: event.target.value as Cost['category'] }))
+                  }
+                >
+                  {COST_CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
                 </Select>
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <Field label="Month">
-                <Select value={costForm.month} onChange={e => setCostForm(f => ({ ...f, month: e.target.value }))}>
-                  {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </Select>
+                <Input
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={costDraft.month}
+                  onChange={(event) =>
+                    setCostDraft((current) => ({ ...current, month: Number(event.target.value) }))
+                  }
+                />
               </Field>
               <Field label="Year">
-                <Select value={costForm.year} onChange={e => setCostForm(f => ({ ...f, year: e.target.value }))}>
-                  {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                </Select>
+                <Input
+                  type="number"
+                  min="2020"
+                  value={costDraft.year}
+                  onChange={(event) =>
+                    setCostDraft((current) => ({ ...current, year: Number(event.target.value) }))
+                  }
+                />
               </Field>
             </div>
             <label className="flex items-center gap-3 text-sm text-zinc-300">
-              <Checkbox checked={costForm.recurring} onChange={e => setCostForm(f => ({ ...f, recurring: e.target.checked }))} />
+              <Checkbox
+                checked={costDraft.recurring}
+                onChange={(event) =>
+                  setCostDraft((current) => ({ ...current, recurring: event.target.checked }))
+                }
+              />
               Recurring monthly cost
             </label>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="secondary" type="button" onClick={() => setCostModal(null)}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving ? 'Saving…' : costModal === 'edit' ? 'Save Changes' : 'Add Cost'}</Button>
+            <Field label="Notes">
+              <Textarea
+                value={costDraft.notes ?? ''}
+                onChange={(event) =>
+                  setCostDraft((current) => ({ ...current, notes: event.target.value || null }))
+                }
+              />
+            </Field>
+            <div className="flex justify-end gap-3">
+              {editingCostId ? (
+                <Button type="button" variant="secondary" onClick={() => {
+                  setEditingCostId(null)
+                  setCostDraft(emptyCost)
+                }}>
+                  Cancel
+                </Button>
+              ) : null}
+              <Button type="submit">{editingCostId ? 'Update Cost' : 'Add Cost'}</Button>
             </div>
           </form>
-        </Modal>
-      )}
+        </AppCard>
+      </div>
 
-      {/* Investment Modal */}
-      {invModal && (
-        <Modal title={invModal === 'edit' ? 'Edit Investment' : 'Add Investment'} onClose={() => setInvModal(null)} size="md">
-          <form onSubmit={handleSaveInv} className="space-y-4">
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <AppCard>
+          <SectionHeading title="Investments" description="One-time purchases tracked outside the monthly operating ledger." />
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-700/70 text-left text-xs uppercase tracking-[0.2em] text-zinc-500">
+                  <th className="px-5 py-3 font-medium">Description</th>
+                  <th className="px-5 py-3 font-medium">Date</th>
+                  <th className="px-5 py-3 text-right font-medium">Amount</th>
+                  <th className="px-5 py-3 text-right font-medium">NOK Rate</th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {investments.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10">
+                      <EmptyState
+                        title="No investments yet"
+                        description="Track large one-time purchases separately from monthly running costs."
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  investments.map((investment) => (
+                    <tr key={investment.id} className="border-b border-zinc-700/50 last:border-0">
+                      <td className="px-5 py-4 text-white">{investment.description}</td>
+                      <td className="px-5 py-4 text-zinc-300">{`${investment.month}/${investment.year}`}</td>
+                      <td
+                        className="px-5 py-4 text-right text-zinc-100"
+                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
+                      >
+                        {formatCurrency(investment.amount, investment.currency)}
+                      </td>
+                      <td
+                        className="px-5 py-4 text-right text-zinc-400"
+                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
+                      >
+                        {investment.nokRate.toFixed(4)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" onClick={() => editInvestment(investment)}>
+                            Edit
+                          </Button>
+                          <Button variant="danger" onClick={() => void removeInvestment(investment.id)}>
+                            Delete
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </AppCard>
+
+        <AppCard>
+          <SectionHeading
+            title={editingInvestmentId ? 'Edit Investment' : 'Add Investment'}
+            description="Use this for hardware, equipment, or capital purchases."
+          />
+          <form className="grid gap-4 p-5" onSubmit={handleInvestmentSave}>
             <Field label="Description" required>
-              <Input value={invForm.description} onChange={e => setInvForm(f => ({ ...f, description: e.target.value }))} required placeholder="New laptop" />
+              <Input
+                required
+                value={investmentDraft.description}
+                onChange={(event) =>
+                  setInvestmentDraft((current) => ({ ...current, description: event.target.value }))
+                }
+              />
             </Field>
-            <div className="grid grid-cols-3 gap-4">
-              <Field label="Amount" required>
-                <Input type="number" min="0" step="0.01" required value={invForm.amount} onChange={e => setInvForm(f => ({ ...f, amount: e.target.value }))} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Amount">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={investmentDraft.amount}
+                  onChange={(event) =>
+                    setInvestmentDraft((current) => ({ ...current, amount: Number(event.target.value) }))
+                  }
+                />
               </Field>
               <Field label="Currency">
-                <Select value={invForm.currency} onChange={e => setInvForm(f => ({ ...f, currency: e.target.value }))}>
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                <Select
+                  value={investmentDraft.currency}
+                  onChange={(event) =>
+                    setInvestmentDraft((current) => ({
+                      ...current,
+                      currency: event.target.value as Investment['currency'],
+                    }))
+                  }
+                >
+                  {CURRENCIES.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {currency}
+                    </option>
+                  ))}
                 </Select>
-              </Field>
-              <Field label="NOK Rate">
-                <Input type="number" min="0" step="0.01" value={invForm.nokRate} onChange={e => setInvForm(f => ({ ...f, nokRate: e.target.value }))} />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <Field label="NOK Rate">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  value={investmentDraft.nokRate}
+                  onChange={(event) =>
+                    setInvestmentDraft((current) => ({ ...current, nokRate: Number(event.target.value) }))
+                  }
+                />
+              </Field>
               <Field label="Month">
-                <Select value={invForm.month} onChange={e => setInvForm(f => ({ ...f, month: e.target.value }))}>
-                  {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </Select>
+                <Input
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={investmentDraft.month}
+                  onChange={(event) =>
+                    setInvestmentDraft((current) => ({ ...current, month: Number(event.target.value) }))
+                  }
+                />
               </Field>
               <Field label="Year">
-                <Select value={invForm.year} onChange={e => setInvForm(f => ({ ...f, year: e.target.value }))}>
-                  {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                </Select>
+                <Input
+                  type="number"
+                  min="2020"
+                  value={investmentDraft.year}
+                  onChange={(event) =>
+                    setInvestmentDraft((current) => ({ ...current, year: Number(event.target.value) }))
+                  }
+                />
               </Field>
             </div>
             <Field label="Notes">
-              <Input value={invForm.notes} onChange={e => setInvForm(f => ({ ...f, notes: e.target.value }))} />
+              <Textarea
+                value={investmentDraft.notes ?? ''}
+                onChange={(event) =>
+                  setInvestmentDraft((current) => ({ ...current, notes: event.target.value || null }))
+                }
+              />
             </Field>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="secondary" type="button" onClick={() => setInvModal(null)}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving ? 'Saving…' : invModal === 'edit' ? 'Save Changes' : 'Add Investment'}</Button>
+            <div className="flex justify-end gap-3">
+              {editingInvestmentId ? (
+                <Button type="button" variant="secondary" onClick={() => {
+                  setEditingInvestmentId(null)
+                  setInvestmentDraft(emptyInvestment)
+                }}>
+                  Cancel
+                </Button>
+              ) : null}
+              <Button type="submit">{editingInvestmentId ? 'Update Investment' : 'Add Investment'}</Button>
             </div>
           </form>
-        </Modal>
-      )}
-
-      {deleteConfirm && (
-        <DeleteConfirmModal
-          type={deleteConfirm.type}
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteConfirm(null)}
-        />
-      )}
+        </AppCard>
+      </div>
     </div>
   )
 }
