@@ -14,6 +14,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
     {
         var projects = await db.Projects
             .AsNoTracking()
+            .Include(p => p.Client)
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
             .ToListAsync();

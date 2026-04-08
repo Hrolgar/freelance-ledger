@@ -17,6 +17,7 @@ builder.Services
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 builder.Services.AddHttpClient<ExchangeRateService>();
 builder.Services.AddScoped<ExchangeRateService>();
@@ -26,7 +27,10 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://localhost:5179",
+                "http://10.69.1.100:5179")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
