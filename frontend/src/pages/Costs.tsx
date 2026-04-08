@@ -47,7 +47,6 @@ export default function Costs() {
 
   const load = async () => {
     setError(null)
-
     try {
       const [costData, investmentData] = await Promise.all([
         getCosts(),
@@ -57,8 +56,6 @@ export default function Costs() {
       setInvestments(investmentData)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load costs.')
-    } finally {
-      // No view-level spinner; errors and table empty states cover the load lifecycle.
     }
   }
 
@@ -66,18 +63,16 @@ export default function Costs() {
     void load()
   }, [])
 
-  const recurringCosts = costs.filter((cost) => cost.recurring)
+  const recurringCosts = costs.filter((c) => c.recurring)
 
   const handleCostSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
     try {
       if (editingCostId) {
         await updateCost(editingCostId, costDraft)
       } else {
         await createCost(costDraft)
       }
-
       setEditingCostId(null)
       setCostDraft(emptyCost)
       await load()
@@ -88,14 +83,12 @@ export default function Costs() {
 
   const handleInvestmentSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
     try {
       if (editingInvestmentId) {
         await updateInvestment(editingInvestmentId, investmentDraft)
       } else {
         await createInvestment(investmentDraft)
       }
-
       setEditingInvestmentId(null)
       setInvestmentDraft(emptyInvestment)
       await load()
@@ -132,7 +125,6 @@ export default function Costs() {
 
   const removeCost = async (id: number) => {
     if (!window.confirm('Delete this cost entry?')) return
-
     try {
       await deleteCost(id)
       await load()
@@ -143,7 +135,6 @@ export default function Costs() {
 
   const removeInvestment = async (id: number) => {
     if (!window.confirm('Delete this investment entry?')) return
-
     try {
       await deleteInvestment(id)
       await load()
@@ -153,57 +144,57 @@ export default function Costs() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageIntro
         title="Costs"
-        description="Separate monthly operating costs from one-time investments so the ledger reflects both P&L and strategic spending."
+        description="Operating costs and one-time investments."
       />
 
-      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      {/* Recurring costs */}
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <AppCard>
-          <SectionHeading title="Recurring Costs" description="Software, internet, office, and other monthly operating expenses." />
+          <SectionHeading title="Recurring Costs" description="Monthly operating expenses." />
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-700/70 text-left text-xs uppercase tracking-[0.2em] text-zinc-500">
-                  <th className="px-5 py-3 font-medium">Description</th>
-                  <th className="px-5 py-3 font-medium">Category</th>
-                  <th className="px-5 py-3 font-medium">Month</th>
-                  <th className="px-5 py-3 text-right font-medium">Amount</th>
-                  <th className="px-5 py-3" />
+                <tr className="border-b border-slate-700 text-left">
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Period</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
+                  <th className="px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody>
                 {recurringCosts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10">
+                    <td colSpan={5} className="px-4 py-8">
                       <EmptyState
                         title="No recurring costs yet"
-                        description="Add subscriptions and operating costs to keep the monthly P&L complete."
+                        description="Add subscriptions and operating costs to keep monthly P&L accurate."
                       />
                     </td>
                   </tr>
                 ) : (
                   recurringCosts.map((cost) => (
-                    <tr key={cost.id} className="border-b border-zinc-700/50 last:border-0">
-                      <td className="px-5 py-4 text-white">{cost.description}</td>
-                      <td className="px-5 py-4 text-zinc-400">{cost.category}</td>
-                      <td className="px-5 py-4 text-zinc-300">{`${cost.month}/${cost.year}`}</td>
-                      <td
-                        className="px-5 py-4 text-right text-zinc-100"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                      >
+                    <tr key={cost.id} className="border-b border-slate-700/50 last:border-0">
+                      <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-slate-400">
+                        {cost.month}/{cost.year}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-slate-200">
                         {formatCurrency(cost.amount, 'NOK')}
                       </td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" onClick={() => editCost(cost)}>
+                      <td className="px-4 py-2.5">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" className="px-2 text-xs" onClick={() => editCost(cost)}>
                             Edit
                           </Button>
-                          <Button variant="danger" onClick={() => void removeCost(cost.id)}>
-                            Delete
+                          <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>
+                            Del
                           </Button>
                         </div>
                       </td>
@@ -216,57 +207,42 @@ export default function Costs() {
         </AppCard>
 
         <AppCard>
-          <SectionHeading
-            title={editingCostId ? 'Edit Cost' : 'Add Cost'}
-            description="Store the month, category, and whether the cost recurs."
-          />
-          <form className="grid gap-4 p-5" onSubmit={handleCostSave}>
+          <SectionHeading title={editingCostId ? 'Edit Cost' : 'Add Cost'} />
+          <form className="grid gap-3 p-4" onSubmit={handleCostSave}>
             <Field label="Description" required>
               <Input
                 required
                 value={costDraft.description}
-                onChange={(event) =>
-                  setCostDraft((current) => ({ ...current, description: event.target.value }))
-                }
+                onChange={(e) => setCostDraft((c) => ({ ...c, description: e.target.value }))}
               />
             </Field>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 grid-cols-2">
               <Field label="Amount (NOK)">
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={costDraft.amount}
-                  onChange={(event) =>
-                    setCostDraft((current) => ({ ...current, amount: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setCostDraft((c) => ({ ...c, amount: Number(e.target.value) }))}
                 />
               </Field>
               <Field label="Category">
                 <Select
                   value={costDraft.category}
-                  onChange={(event) =>
-                    setCostDraft((current) => ({ ...current, category: event.target.value as Cost['category'] }))
-                  }
+                  onChange={(e) => setCostDraft((c) => ({ ...c, category: e.target.value as Cost['category'] }))}
                 >
-                  {COST_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
+                  {COST_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
                 </Select>
               </Field>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 grid-cols-2">
               <Field label="Month">
                 <Input
                   type="number"
                   min="1"
                   max="12"
                   value={costDraft.month}
-                  onChange={(event) =>
-                    setCostDraft((current) => ({ ...current, month: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setCostDraft((c) => ({ ...c, month: Number(e.target.value) }))}
                 />
               </Field>
               <Field label="Year">
@@ -274,92 +250,80 @@ export default function Costs() {
                   type="number"
                   min="2020"
                   value={costDraft.year}
-                  onChange={(event) =>
-                    setCostDraft((current) => ({ ...current, year: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setCostDraft((c) => ({ ...c, year: Number(e.target.value) }))}
                 />
               </Field>
             </div>
-            <label className="flex items-center gap-3 text-sm text-zinc-300">
+            <label className="flex items-center gap-2 text-sm text-slate-300">
               <Checkbox
                 checked={costDraft.recurring}
-                onChange={(event) =>
-                  setCostDraft((current) => ({ ...current, recurring: event.target.checked }))
-                }
+                onChange={(e) => setCostDraft((c) => ({ ...c, recurring: e.target.checked }))}
               />
               Recurring monthly cost
             </label>
             <Field label="Notes">
               <Textarea
                 value={costDraft.notes ?? ''}
-                onChange={(event) =>
-                  setCostDraft((current) => ({ ...current, notes: event.target.value || null }))
-                }
+                onChange={(e) => setCostDraft((c) => ({ ...c, notes: e.target.value || null }))}
               />
             </Field>
-            <div className="flex justify-end gap-3">
-              {editingCostId ? (
-                <Button type="button" variant="secondary" onClick={() => {
-                  setEditingCostId(null)
-                  setCostDraft(emptyCost)
-                }}>
+            <div className="flex justify-end gap-2">
+              {editingCostId && (
+                <Button type="button" variant="secondary" onClick={() => { setEditingCostId(null); setCostDraft(emptyCost) }}>
                   Cancel
                 </Button>
-              ) : null}
+              )}
               <Button type="submit">{editingCostId ? 'Update Cost' : 'Add Cost'}</Button>
             </div>
           </form>
         </AppCard>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      {/* Investments */}
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <AppCard>
-          <SectionHeading title="Investments" description="One-time purchases tracked outside the monthly operating ledger." />
+          <SectionHeading title="Investments" description="One-time purchases tracked outside monthly P&L." />
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-700/70 text-left text-xs uppercase tracking-[0.2em] text-zinc-500">
-                  <th className="px-5 py-3 font-medium">Description</th>
-                  <th className="px-5 py-3 font-medium">Date</th>
-                  <th className="px-5 py-3 text-right font-medium">Amount</th>
-                  <th className="px-5 py-3 text-right font-medium">NOK Rate</th>
-                  <th className="px-5 py-3" />
+                <tr className="border-b border-slate-700 text-left">
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Period</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">NOK Rate</th>
+                  <th className="px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody>
                 {investments.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10">
+                    <td colSpan={5} className="px-4 py-8">
                       <EmptyState
                         title="No investments yet"
-                        description="Track large one-time purchases separately from monthly running costs."
+                        description="Track hardware and equipment separately from monthly running costs."
                       />
                     </td>
                   </tr>
                 ) : (
-                  investments.map((investment) => (
-                    <tr key={investment.id} className="border-b border-zinc-700/50 last:border-0">
-                      <td className="px-5 py-4 text-white">{investment.description}</td>
-                      <td className="px-5 py-4 text-zinc-300">{`${investment.month}/${investment.year}`}</td>
-                      <td
-                        className="px-5 py-4 text-right text-zinc-100"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                      >
-                        {formatCurrency(investment.amount, investment.currency)}
+                  investments.map((inv) => (
+                    <tr key={inv.id} className="border-b border-slate-700/50 last:border-0">
+                      <td className="px-4 py-2.5 text-slate-200">{inv.description}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-slate-400">
+                        {inv.month}/{inv.year}
                       </td>
-                      <td
-                        className="px-5 py-4 text-right text-zinc-400"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                      >
-                        {investment.nokRate.toFixed(4)}
+                      <td className="px-4 py-2.5 text-right font-mono text-slate-200">
+                        {formatCurrency(inv.amount, inv.currency)}
                       </td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" onClick={() => editInvestment(investment)}>
+                      <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-400">
+                        {inv.nokRate.toFixed(4)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" className="px-2 text-xs" onClick={() => editInvestment(inv)}>
                             Edit
                           </Button>
-                          <Button variant="danger" onClick={() => void removeInvestment(investment.id)}>
-                            Delete
+                          <Button variant="danger" className="px-2 text-xs" onClick={() => void removeInvestment(inv.id)}>
+                            Del
                           </Button>
                         </div>
                       </td>
@@ -372,60 +336,42 @@ export default function Costs() {
         </AppCard>
 
         <AppCard>
-          <SectionHeading
-            title={editingInvestmentId ? 'Edit Investment' : 'Add Investment'}
-            description="Use this for hardware, equipment, or capital purchases."
-          />
-          <form className="grid gap-4 p-5" onSubmit={handleInvestmentSave}>
+          <SectionHeading title={editingInvestmentId ? 'Edit Investment' : 'Add Investment'} />
+          <form className="grid gap-3 p-4" onSubmit={handleInvestmentSave}>
             <Field label="Description" required>
               <Input
                 required
                 value={investmentDraft.description}
-                onChange={(event) =>
-                  setInvestmentDraft((current) => ({ ...current, description: event.target.value }))
-                }
+                onChange={(e) => setInvestmentDraft((c) => ({ ...c, description: e.target.value }))}
               />
             </Field>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 grid-cols-2">
               <Field label="Amount">
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={investmentDraft.amount}
-                  onChange={(event) =>
-                    setInvestmentDraft((current) => ({ ...current, amount: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setInvestmentDraft((c) => ({ ...c, amount: Number(e.target.value) }))}
                 />
               </Field>
               <Field label="Currency">
                 <Select
                   value={investmentDraft.currency}
-                  onChange={(event) =>
-                    setInvestmentDraft((current) => ({
-                      ...current,
-                      currency: event.target.value as Investment['currency'],
-                    }))
-                  }
+                  onChange={(e) => setInvestmentDraft((c) => ({ ...c, currency: e.target.value as Investment['currency'] }))}
                 >
-                  {CURRENCIES.map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               </Field>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-3 grid-cols-3">
               <Field label="NOK Rate">
                 <Input
                   type="number"
                   min="0"
                   step="0.0001"
                   value={investmentDraft.nokRate}
-                  onChange={(event) =>
-                    setInvestmentDraft((current) => ({ ...current, nokRate: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setInvestmentDraft((c) => ({ ...c, nokRate: Number(e.target.value) }))}
                 />
               </Field>
               <Field label="Month">
@@ -434,9 +380,7 @@ export default function Costs() {
                   min="1"
                   max="12"
                   value={investmentDraft.month}
-                  onChange={(event) =>
-                    setInvestmentDraft((current) => ({ ...current, month: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setInvestmentDraft((c) => ({ ...c, month: Number(e.target.value) }))}
                 />
               </Field>
               <Field label="Year">
@@ -444,29 +388,22 @@ export default function Costs() {
                   type="number"
                   min="2020"
                   value={investmentDraft.year}
-                  onChange={(event) =>
-                    setInvestmentDraft((current) => ({ ...current, year: Number(event.target.value) }))
-                  }
+                  onChange={(e) => setInvestmentDraft((c) => ({ ...c, year: Number(e.target.value) }))}
                 />
               </Field>
             </div>
             <Field label="Notes">
               <Textarea
                 value={investmentDraft.notes ?? ''}
-                onChange={(event) =>
-                  setInvestmentDraft((current) => ({ ...current, notes: event.target.value || null }))
-                }
+                onChange={(e) => setInvestmentDraft((c) => ({ ...c, notes: e.target.value || null }))}
               />
             </Field>
-            <div className="flex justify-end gap-3">
-              {editingInvestmentId ? (
-                <Button type="button" variant="secondary" onClick={() => {
-                  setEditingInvestmentId(null)
-                  setInvestmentDraft(emptyInvestment)
-                }}>
+            <div className="flex justify-end gap-2">
+              {editingInvestmentId && (
+                <Button type="button" variant="secondary" onClick={() => { setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment) }}>
                   Cancel
                 </Button>
-              ) : null}
+              )}
               <Button type="submit">{editingInvestmentId ? 'Update Investment' : 'Add Investment'}</Button>
             </div>
           </form>

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getYearOverview, getPipeline, getProjects } from '../api'
+import { getPipeline, getProjects, getYearOverview } from '../api'
+import { ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, LoadingState, PageIntro, SectionHeading, StatCard } from '../components/ui'
-import { calculateProjectRevenue, formatCurrency, formatMonth, projectStatusTone } from '../lib/format'
+import { calculateProjectRevenue, formatCurrency, formatMonth } from '../lib/format'
 import type { Pipeline, Project, YearOverview } from '../types'
 
 export default function Dashboard() {
@@ -23,7 +24,6 @@ export default function Dashboard() {
         getPipeline(),
         getProjects(),
       ])
-
       setOverview(overviewData)
       setPipeline(pipelineData)
       setProjects(projectsData)
@@ -39,71 +39,60 @@ export default function Dashboard() {
   }, [year])
 
   const recentProjects = useMemo(
-    () => [...projects].sort((left, right) => right.id - left.id).slice(0, 5),
+    () => [...projects].sort((a, b) => b.id - a.id).slice(0, 5),
     [projects],
   )
 
-  const highestMonth = Math.max(...(overview?.months.map((month) => month.revenue) ?? [1]), 1)
+  const highestMonth = Math.max(...(overview?.months.map((m) => m.revenue) ?? [1]), 1)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageIntro
         title={`${year} Dashboard`}
-        description="Track revenue, operating costs, and near-term pipeline from one yearly view."
+        description="Revenue, costs, and pipeline for the current year."
         action={
-          <Link to="/projects" className="w-full sm:w-auto">
-            <Button className="w-full sm:w-auto">Open project pipeline</Button>
+          <Link to="/projects">
+            <Button>New project</Button>
           </Link>
         }
       />
 
-      {loading ? <LoadingState label="Loading dashboard" /> : null}
-      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+      {loading && <LoadingState label="Loading dashboard" />}
+      {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      {!loading && !error && overview ? (
+      {!loading && !error && overview && (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Total Revenue" value={formatCurrency(overview.totalRevenue, 'NOK')} />
-            <StatCard label="Total Costs" value={formatCurrency(overview.totalCosts, 'NOK')} />
+          {/* Stat row */}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Revenue" value={formatCurrency(overview.totalRevenue, 'NOK')} />
+            <StatCard label="Costs" value={formatCurrency(overview.totalCosts, 'NOK')} />
             <StatCard label="Net Profit" value={formatCurrency(overview.totalProfit, 'NOK')} />
             <StatCard
-              label="Pipeline Value"
+              label="Pipeline"
               value={formatCurrency(pipeline?.totalPipelineValue ?? 0, 'NOK')}
-              hint={pipeline ? `${pipeline.projects.length} pipeline projects` : 'No open pipeline'}
+              hint={pipeline ? `${pipeline.projects.length} open projects` : undefined}
             />
           </div>
 
+          {/* Monthly revenue chart */}
           <AppCard>
-            <SectionHeading
-              title="Monthly Revenue"
-              description="Simple CSS bars show net revenue month by month."
-            />
-            <div className="p-5">
-              <div className="grid h-72 grid-cols-12 gap-3 items-end">
-                {overview.months.map((month) => {
-                  const height = Math.max((month.revenue / highestMonth) * 100, month.revenue > 0 ? 8 : 3)
+            <SectionHeading title="Monthly Revenue" description={`Net NOK by month, ${year}`} />
+            <div className="p-4">
+              <div className="flex h-48 items-end gap-1.5">
+                {overview.months.map((m) => {
+                  const pct = Math.max((m.revenue / highestMonth) * 100, m.revenue > 0 ? 6 : 2)
                   return (
-                    <div key={month.month} className="flex h-full flex-col justify-end gap-3">
-                      <div className="flex-1 rounded-2xl border border-zinc-700/70 bg-zinc-900/80 p-2">
-                        <div className="flex h-full items-end">
-                          <div
-                            className="w-full rounded-xl bg-gradient-to-t from-indigo-500 to-indigo-300 transition-all duration-300"
-                            style={{ height: `${height}%` }}
-                            title={`${formatMonth(month.month)}: ${formatCurrency(month.revenue, 'NOK')}`}
-                          />
-                        </div>
+                    <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
+                      <div className="flex w-full flex-1 items-end">
+                        <div
+                          className="w-full rounded-sm bg-blue-500/70 transition-all duration-300 hover:bg-blue-400"
+                          style={{ height: `${pct}%` }}
+                          title={`${formatMonth(m.month)}: ${formatCurrency(m.revenue, 'NOK')}`}
+                        />
                       </div>
-                      <div className="space-y-1 text-center">
-                        <p
-                          className="text-xs text-zinc-300"
-                          style={{ fontFamily: '"JetBrains Mono", monospace' }}
-                        >
-                          {formatCurrency(month.revenue, 'NOK')}
-                        </p>
-                        <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                          {formatMonth(month.month)}
-                        </p>
-                      </div>
+                      <span className="font-mono text-[10px] text-slate-500">
+                        {formatMonth(m.month)}
+                      </span>
                     </div>
                   )
                 })}
@@ -111,100 +100,94 @@ export default function Dashboard() {
             </div>
           </AppCard>
 
-          <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
+          {/* Recent projects + pipeline */}
+          <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
             <AppCard>
               <SectionHeading
                 title="Recent Projects"
-                description="Latest created projects with current revenue and status."
                 action={
-                  <Link className="text-sm text-indigo-300 hover:text-indigo-200" to="/projects">
+                  <Link className="text-xs text-blue-400 hover:text-blue-300" to="/projects">
                     View all
                   </Link>
                 }
               />
-              <div className="divide-y divide-zinc-700/70">
-                {recentProjects.length === 0 ? (
-                  <div className="p-5">
-                    <EmptyState
-                      title="No projects yet"
-                      description="Create your first freelance project to start tracking milestones, tips, and fees."
-                      action={
-                        <Link to="/projects">
-                          <Button>Add project</Button>
-                        </Link>
-                      }
-                    />
-                  </div>
-                ) : (
-                  recentProjects.map((project) => (
-                    <Link
-                      key={project.id}
-                      to={`/projects/${project.id}`}
-                      className="grid gap-3 px-5 py-4 transition hover:bg-zinc-900/60 sm:grid-cols-[1fr_auto_auto]"
-                    >
-                      <div>
-                        <p className="text-base font-medium text-white">{project.projectName}</p>
-                        <p className="mt-1 text-sm text-zinc-400">
-                          {project.clientName} · {project.platform}
-                        </p>
-                      </div>
-                      <div className="self-center">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${projectStatusTone(project.status)}`}>
-                          {project.status === 'InProgress' ? 'In Progress' : project.status}
-                        </span>
-                      </div>
-                      <div
-                        className="self-center text-sm text-zinc-200"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
+              {recentProjects.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState
+                    title="No projects yet"
+                    description="Create a project to start tracking milestones and revenue."
+                    action={
+                      <Link to="/projects">
+                        <Button>Add project</Button>
+                      </Link>
+                    }
+                  />
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {recentProjects.map((project) => (
+                      <tr
+                        key={project.id}
+                        className="border-b border-slate-700/50 last:border-0 hover:bg-slate-700/30 transition-colors"
                       >
-                        {formatCurrency(calculateProjectRevenue(project), project.currency)}
-                      </div>
-                    </Link>
-                  ))
-                )}
-              </div>
+                        <td className="px-4 py-3">
+                          <Link to={`/projects/${project.id}`} className="block">
+                            <p className="font-medium text-slate-100">{project.projectName}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{project.clientName} · {project.platform}</p>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <ProjectStatusBadge status={project.status} />
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
+                          {formatCurrency(calculateProjectRevenue(project), project.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </AppCard>
 
             <AppCard>
-              <SectionHeading title="Pipeline" description="Quoted and awarded work awaiting conversion." />
-              <div className="divide-y divide-zinc-700/70">
-                {pipeline && pipeline.projects.length > 0 ? (
-                  pipeline.projects.map((project) => (
-                    <Link
-                      key={project.projectId}
-                      to={`/projects/${project.projectId}`}
-                      className="block px-5 py-4 transition hover:bg-zinc-900/60"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-base font-medium text-white">{project.projectName}</p>
-                          <p className="mt-1 text-sm text-zinc-400">{project.clientName}</p>
-                        </div>
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${projectStatusTone(project.status)}`}>
-                          {project.status}
-                        </span>
-                      </div>
-                      <div
-                        className="mt-3 text-sm text-zinc-200"
-                        style={{ fontFamily: '"JetBrains Mono", monospace' }}
+              <SectionHeading title="Pipeline" description="Quoted and awarded work." />
+              {!pipeline || pipeline.projects.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState
+                    title="Pipeline is clear"
+                    description="Quoted and awarded projects appear here."
+                  />
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {pipeline.projects.map((project) => (
+                      <tr
+                        key={project.projectId}
+                        className="border-b border-slate-700/50 last:border-0 hover:bg-slate-700/30 transition-colors"
                       >
-                        {formatCurrency(project.netValue, project.currency)}
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="p-5">
-                    <EmptyState
-                      title="Pipeline is clear"
-                      description="Quoted and awarded projects will appear here once they exist."
-                    />
-                  </div>
-                )}
-              </div>
+                        <td className="px-4 py-3">
+                          <Link to={`/projects/${project.projectId}`} className="block">
+                            <p className="font-medium text-slate-100">{project.projectName}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{project.clientName}</p>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <ProjectStatusBadge status={project.status} />
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
+                          {formatCurrency(project.netValue, project.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </AppCard>
           </div>
         </>
-      ) : null}
+      )}
     </div>
   )
 }
