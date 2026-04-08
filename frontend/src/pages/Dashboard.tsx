@@ -78,18 +78,23 @@ export default function Dashboard() {
           <AppCard>
             <SectionHeading title="Monthly Revenue" description={`Net NOK by month, ${year}`} />
             <div className="p-4">
-              <div className="flex h-48 items-end gap-1.5">
+              <div className="flex items-end gap-1.5" style={{ height: 192 }}>
                 {overview.months.map((m) => {
-                  const pct = Math.max((m.revenue / highestMonth) * 100, m.revenue > 0 ? 6 : 2)
+                  const pct = Math.max((m.revenue / highestMonth) * 100, m.revenue > 0 ? 8 : 2)
                   return (
-                    <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
-                      <div className="flex w-full flex-1 items-end">
-                        <div
-                          className="w-full rounded-sm bg-blue-500/70 transition-all duration-300 hover:bg-blue-400"
-                          style={{ height: `${pct}%` }}
-                          title={`${formatMonth(m.month)}: ${formatCurrency(m.revenue, 'NOK')}`}
-                        />
-                      </div>
+                    <div key={m.month} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+                      {m.revenue > 0 && (
+                        <span className="font-mono text-[10px] text-slate-400">
+                          {Math.round(m.revenue / 1000)}k
+                        </span>
+                      )}
+                      <div
+                        className={`w-full rounded-sm transition-all duration-300 ${
+                          m.revenue > 0 ? 'bg-blue-500 hover:bg-blue-400' : 'bg-slate-800'
+                        }`}
+                        style={{ height: `${pct}%` }}
+                        title={`${formatMonth(m.month)}: ${formatCurrency(m.revenue, 'NOK')}`}
+                      />
                       <span className="font-mono text-[10px] text-slate-500">
                         {formatMonth(m.month)}
                       </span>
