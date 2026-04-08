@@ -11,7 +11,7 @@ export function formatCurrency(amount: number, currency: Currency | 'NOK') {
 }
 
 export function formatDate(value: string | null | undefined) {
-  if (!value) return 'Not set'
+  if (!value) return '—'
 
   return new Intl.DateTimeFormat('en-GB', {
     year: 'numeric',
@@ -50,32 +50,33 @@ export function getNextMilestoneOrder(milestones: Milestone[]) {
   return milestones.reduce((max, milestone) => Math.max(max, milestone.sortOrder), 0) + 1
 }
 
+// These are only used as fallback inline in pages that haven't been updated to use StatusBadge components
 export function projectStatusTone(status: ProjectStatus) {
   switch (status) {
     case 'Paid':
-      return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-400/30'
+      return 'bg-green-500/15 text-green-400 border border-green-500/30'
     case 'Completed':
-      return 'bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-400/30'
+      return 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
     case 'InProgress':
-      return 'bg-indigo-500/15 text-indigo-100 ring-1 ring-inset ring-indigo-400/30'
+      return 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
     case 'Awarded':
-      return 'bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-400/30'
+      return 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
     default:
-      return 'bg-zinc-700/70 text-zinc-200 ring-1 ring-inset ring-zinc-600'
+      return 'bg-slate-700/60 text-slate-400 border border-slate-600/50'
   }
 }
 
 export function milestoneStatusTone(status: MilestoneStatus) {
   switch (status) {
     case 'Paid':
-      return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-inset ring-emerald-400/30'
+      return 'bg-green-500/15 text-green-400 border border-green-500/30'
     case 'Released':
-      return 'bg-amber-500/15 text-amber-200 ring-1 ring-inset ring-amber-400/30'
+      return 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
     case 'Funded':
-      return 'bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-400/30'
+      return 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
     case 'Disputed':
-      return 'bg-rose-500/15 text-rose-200 ring-1 ring-inset ring-rose-400/30'
+      return 'bg-red-500/15 text-red-400 border border-red-500/30'
     default:
-      return 'bg-zinc-700/70 text-zinc-200 ring-1 ring-inset ring-zinc-600'
+      return 'bg-slate-700/60 text-slate-400 border border-slate-600/50'
   }
 }
