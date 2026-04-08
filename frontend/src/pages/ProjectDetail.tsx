@@ -26,6 +26,7 @@ import {
   createTip,
   deleteMilestone,
   deleteTip,
+  getClients,
   getProject,
   getProjectSummary,
   updateMilestone,
@@ -36,10 +37,11 @@ import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge, ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
 import { formatCurrency, formatDate, getNextMilestoneOrder, isoDate } from '../lib/format'
-import type { Milestone, MilestoneInput, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
+import type { Client, Milestone, MilestoneInput, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
 import { CURRENCIES, MILESTONE_STATUSES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
 const emptyProjectDraft: ProjectInput = {
+  clientId: null,
   clientName: '',
   projectName: '',
   platform: 'Direct',
@@ -75,6 +77,7 @@ export default function ProjectDetail() {
   const projectId = Number(id)
 
   const [project, setProject] = useState<Project | null>(null)
+  const [clients, setClients] = useState<Client[]>([])
   const [summary, setSummary] = useState<ProjectSummary | null>(null)
   const [projectDraft, setProjectDraft] = useState<ProjectInput>(emptyProjectDraft)
   const [milestoneDraft, setMilestoneDraft] = useState<MilestoneInput>(emptyMilestoneDraft)
@@ -91,10 +94,12 @@ export default function ProjectDetail() {
     setLoading(true)
     setError(null)
     try {
-      const [projectData, summaryData] = await Promise.all([
+      const [projectData, summaryData, clientsData] = await Promise.all([
         getProject(projectId),
         getProjectSummary(projectId),
+        getClients(),
       ])
+      setClients(clientsData)
 
       const orderedMilestones = [...projectData.milestones].sort((a, b) => a.sortOrder - b.sortOrder)
       const orderedTips = [...projectData.tips].sort((a, b) => b.date.localeCompare(a.date))
@@ -103,6 +108,7 @@ export default function ProjectDetail() {
       setProject(hydrated)
       setSummary(summaryData)
       setProjectDraft({
+        clientId: hydrated.clientId,
         clientName: hydrated.clientName,
         projectName: hydrated.projectName,
         platform: hydrated.platform,
@@ -290,12 +296,19 @@ export default function ProjectDetail() {
           <SectionHeading title="Project Details" />
           <form className="grid gap-3 p-4" onSubmit={handleProjectSave}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Client Name" required>
-                <Input
+              <Field label="Client" required>
+                <Select
+                  value={projectDraft.clientId ?? ''}
+                  onChange={(e) => {
+                    const id = Number(e.target.value)
+                    const client = clients.find(c => c.id === id)
+                    setProjectDraft(d => ({ ...d, clientId: id || null, clientName: client?.name ?? '' }))
+                  }}
                   required
-                  value={projectDraft.clientName}
-                  onChange={(e) => setProjectDraft((c) => ({ ...c, clientName: e.target.value }))}
-                />
+                >
+                  <option value="">Select client...</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
               </Field>
               <Field label="Project Name" required>
                 <Input
