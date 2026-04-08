@@ -34,13 +34,22 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http)
 
     /// <summary>
     /// Ensures rates exist for a given month. Returns true if rates were fetched.
+    /// Will not fetch for future months. Current month uses today's rate.
     /// </summary>
     public async Task<bool> EnsureRatesExist(int month, int year)
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // Don't fetch for future months - we can't know those rates
+        if (year > today.Year || (year == today.Year && month > today.Month))
+            return false;
+
         var count = await db.ExchangeRates
             .CountAsync(r => r.Month == month && r.Year == year);
 
-        if (count >= TrackedCurrencies.Length) return false;
+        // For past months, rates are final - don't re-fetch
+        if (count >= TrackedCurrencies.Length && !(year == today.Year && month == today.Month))
+            return false;
 
         await FetchAndStoreRates(month, year);
         return true;
@@ -48,18 +57,17 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http)
 
     private async Task FetchAndStoreRates(int month, int year)
     {
-        // For current/future months, use latest rates
-        // For past months, use the last business day of that month
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         string dateStr;
 
-        if (year > today.Year || (year == today.Year && month >= today.Month))
+        if (year == today.Year && month == today.Month)
         {
+            // Current month: use today's rate (will update on next request)
             dateStr = "latest";
         }
         else
         {
-            // Last day of the month
+            // Past month: use the last business day of that month (final rate)
             var lastDay = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
             dateStr = lastDay.ToString("yyyy-MM-dd");
         }
