@@ -1,5 +1,26 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+
+function ClientTimezone({ timezone }: { timezone: string }) {
+  const [time, setTime] = useState('')
+  useEffect(() => {
+    const update = () => {
+      try {
+        const now = new Date()
+        setTime(now.toLocaleTimeString('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', weekday: 'short' }))
+      } catch { setTime('') }
+    }
+    update()
+    const id = setInterval(update, 30000)
+    return () => clearInterval(id)
+  }, [timezone])
+  const city = timezone.split('/').pop()?.replace('_', ' ') ?? timezone
+  return (
+    <span className="rounded bg-slate-800 px-3 py-1.5 text-xs text-slate-400">
+      {city} <span className="font-mono text-blue-300">{time}</span>
+    </span>
+  )
+}
 import {
   createMilestone,
   createTip,
@@ -247,7 +268,8 @@ export default function ProjectDetail() {
 
       <PageIntro
         title={project.projectName}
-        description={`${project.clientName} · ${project.platform} · ${project.currency} · ${project.feePercentage}% fee`}
+        description={`${project.client?.name ?? project.clientName} · ${project.platform} · ${project.currency} · ${project.feePercentage}% fee`}
+        action={project.client?.timezone ? <ClientTimezone timezone={project.client.timezone} /> : undefined}
       />
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
