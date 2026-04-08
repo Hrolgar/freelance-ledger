@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getEffectiveCosts, getExchangeRates, getProjects } from '../api'
-import { AppCard, Button, EmptyState, ErrorState, PageIntro, SectionHeading } from '../components/ui'
+import { AppCard, Button, EmptyState, ErrorState, PageIntro, SectionHeading, StatCard } from '../components/ui'
 import { formatCurrency } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
 import type { EffectiveCost, ExchangeRate, Project } from '../types'
@@ -155,6 +155,13 @@ export default function Monthly() {
     if (month === 12) { setMonth(1); setYear(y => y + 1) }
     else setMonth(m => m + 1)
   }
+  const cycleYear = () => {
+    // Click cycles: current year -> previous -> next -> current
+    const cur = now.getFullYear()
+    if (year === cur) setYear(cur - 1)
+    else if (year === cur - 1) setYear(cur + 1)
+    else setYear(cur)
+  }
 
   const revenueRows = useMemo(
     () =>
@@ -189,7 +196,14 @@ export default function Monthly() {
               <span className="text-lg">‹</span>
             </Button>
             <span className="min-w-[140px] text-center text-sm font-medium text-slate-200">
-              {MONTH_FULL_NAMES[month - 1]} {year}
+              {MONTH_FULL_NAMES[month - 1]}{' '}
+              <button
+                onClick={cycleYear}
+                className="cursor-pointer text-slate-400 hover:text-blue-400 transition-colors"
+                title="Click to change year"
+              >
+                {year}
+              </button>
             </span>
             <Button variant="ghost" className="px-2" onClick={next}>
               <span className="text-lg">›</span>
@@ -200,11 +214,22 @@ export default function Monthly() {
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      {/* Donut chart */}
-      {!loading && (totalRevenueMain > 0 || totalCostsMain > 0) && (
-        <AppCard className="p-5">
-          <DonutChart revenue={totalRevenueMain} costs={totalCostsMain} profit={profit} currency={mainCurrency} />
-        </AppCard>
+      {/* Summary row: donut + stat cards */}
+      {!loading && (
+        <div className="grid gap-4 xl:grid-cols-[auto_1fr]">
+          {(totalRevenueMain > 0 || totalCostsMain > 0) && (
+            <AppCard className="p-5">
+              <DonutChart revenue={totalRevenueMain} costs={totalCostsMain} profit={profit} currency={mainCurrency} />
+            </AppCard>
+          )}
+          <div className="grid content-start gap-3 sm:grid-cols-3">
+            <StatCard label="Revenue" value={formatCurrency(totalRevenueMain, mainCurrency)} />
+            <StatCard label="Costs" value={formatCurrency(totalCostsMain, mainCurrency)} />
+            <StatCard label="Net Profit" value={formatCurrency(profit, mainCurrency)} hint={
+              totalRevenueMain > 0 ? `${Math.round((profit / totalRevenueMain) * 100)}% margin` : undefined
+            } />
+          </div>
+        </div>
       )}
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
