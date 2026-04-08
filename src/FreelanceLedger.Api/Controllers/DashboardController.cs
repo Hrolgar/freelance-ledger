@@ -21,19 +21,8 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
 
         var allCosts = await db.Costs.AsNoTracking().ToListAsync();
 
-        // Preload all cached rates in one query, then fetch missing ones
+        // Preload all rates for the year in one DB query
         await rateService.PreloadYear(year);
-
-        var activeMonths = new HashSet<int>();
-        foreach (var p in projects)
-        {
-            foreach (var m in p.Milestones.Where(m => m.Status == MilestoneStatus.Paid && m.DatePaid?.Year == year))
-                activeMonths.Add(m.DatePaid!.Value.Month);
-            foreach (var t in p.Tips.Where(t => t.Date.Year == year))
-                activeMonths.Add(t.Date.Month);
-        }
-        foreach (var month in activeMonths)
-            await rateService.EnsureRatesExist(month, year);
 
         var monthResults = new List<MonthlyOverviewResponse>();
         foreach (var month in Enumerable.Range(1, 12))

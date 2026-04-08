@@ -15,7 +15,8 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http)
 
     /// <summary>
     /// Gets the NOK rate for a currency in a given month.
-    /// Uses in-memory cache, falls back to DB, auto-fetches if missing.
+    /// Uses in-memory cache, falls back to DB. Returns 0 if not available.
+    /// Does NOT auto-fetch from external API — use EnsureRatesExist for that.
     /// </summary>
     public async Task<decimal> GetRate(Currency currency, int month, int year)
     {
@@ -26,6 +27,7 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http)
             return cached;
 
         var existing = await db.ExchangeRates
+            .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Currency == currency && r.Month == month && r.Year == year);
 
         if (existing is not null)
@@ -34,15 +36,7 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http)
             return existing.Rate;
         }
 
-        // Fetch and store all currencies for this month
-        await FetchAndStoreRates(month, year);
-
-        var fetched = await db.ExchangeRates
-            .FirstOrDefaultAsync(r => r.Currency == currency && r.Month == month && r.Year == year);
-
-        var rate = fetched?.Rate ?? 0m;
-        if (rate > 0) _rateCache[key] = rate;
-        return rate;
+        return 0m;
     }
 
     /// <summary>
