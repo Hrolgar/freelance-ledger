@@ -58,16 +58,25 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
                 revenue += net * rate;
             }
 
-            var monthCosts = allCosts.Where(c =>
+            decimal monthCosts = 0;
+            foreach (var c in allCosts)
             {
                 var startKey = c.Year * 12 + c.Month;
                 var queryKey = year * 12 + month;
-                if (!c.Recurring) return c.Month == month && c.Year == year;
-                if (startKey > queryKey) return false;
-                if (!c.EndMonth.HasValue || !c.EndYear.HasValue) return true;
-                var endKey = c.EndYear.Value * 12 + c.EndMonth.Value;
-                return queryKey <= endKey;
-            }).Sum(c => c.Amount);
+                bool applies;
+                if (!c.Recurring)
+                    applies = c.Month == month && c.Year == year;
+                else
+                {
+                    if (startKey > queryKey) applies = false;
+                    else if (!c.EndMonth.HasValue || !c.EndYear.HasValue) applies = true;
+                    else applies = queryKey <= c.EndYear.Value * 12 + c.EndMonth.Value;
+                }
+                if (!applies) continue;
+                var costRate = await rateService.GetRate(c.Currency, month, year);
+                monthCosts += c.Amount * costRate;
+            }
+            monthCosts = Math.Round(monthCosts, 2);
 
             monthResults.Add(new MonthlyOverviewResponse(
                 month,

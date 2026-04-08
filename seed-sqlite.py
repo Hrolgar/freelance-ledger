@@ -29,10 +29,10 @@ def insert_tip(project_id, amount, currency, date, notes=None):
                  VALUES (?, ?, ?, ?, ?)""",
               (project_id, str(amount), CURRENCY[currency], date, notes))
 
-def insert_cost(desc, amount, category, month, year, recurring, notes=None, end_month=None, end_year=None):
-    c.execute("""INSERT INTO Costs (Description, Amount, Category, Month, Year, Recurring, EndMonth, EndYear, Notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-              (desc, str(amount), COST_CATEGORY[category], month, year, 1 if recurring else 0, end_month, end_year, notes))
+def insert_cost(desc, amount, currency, category, month, year, recurring, notes=None, end_month=None, end_year=None):
+    c.execute("""INSERT INTO Costs (Description, Amount, Currency, Category, Month, Year, Recurring, EndMonth, EndYear, Notes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+              (desc, str(amount), CURRENCY[currency], COST_CATEGORY[category], month, year, 1 if recurring else 0, end_month, end_year, notes))
 
 def insert_investment(desc, amount, currency, nok_rate, month, year, notes=None):
     c.execute("""INSERT INTO Investments (Description, Amount, Currency, NokRate, Month, Year, Notes)
@@ -94,11 +94,11 @@ pid = insert_project("gauthamm0", "Claude Superagent", "Freelancer", "INR", 10, 
 insert_milestone(pid, "Full delivery", 55000, "INR", "Pending", 1)
 
 print("Seeding costs...")
-# Recurring costs (one entry, applies to every month from start)
-insert_cost("Claude Max x5", 1222.50, "Software", 3, 2026, True, "~125 USD/mo")
-insert_cost("Freelancer Plus", 97.70, "Software", 3, 2026, True, "~9.99 USD/mo")
+# Recurring costs in original currency (auto-converted to NOK using exchange rates)
+insert_cost("Claude Max x5", 125, "USD", "Software", 3, 2026, True)
+insert_cost("Freelancer Plus", 9.99, "USD", "Software", 3, 2026, True)
 # One-time costs
-insert_cost("Highlight bid", 2.93, "Software", 3, 2026, False)
+insert_cost("Highlight bid", 0.30, "USD", "Software", 3, 2026, False)
 
 print("Seeding investments...")
 insert_investment("English Exam", 5, "USD", 9.78, 3, 2026)

@@ -19,6 +19,7 @@ const now = new Date()
 const emptyCost: CostInput = {
   description: '',
   amount: 0,
+  currency: 'USD',
   category: 'Software',
   month: now.getMonth() + 1,
   year: now.getFullYear(),
@@ -112,6 +113,7 @@ export default function Costs() {
     setCostDraft({
       description: cost.description,
       amount: cost.amount,
+      currency: cost.currency,
       category: cost.category,
       month: cost.month,
       year: cost.year,
@@ -181,7 +183,7 @@ export default function Costs() {
                     <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{formatPeriod(cost)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(cost.amount, 'NOK')}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(cost.amount, cost.currency)}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" className="px-2 text-xs" onClick={() => editCost(cost)}>Edit</Button>
@@ -215,7 +217,7 @@ export default function Costs() {
                         <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
                         <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
                         <td className="px-4 py-2.5 text-xs text-slate-400">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
-                        <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(cost.amount, 'NOK')}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(cost.amount, cost.currency)}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" className="px-2 text-xs" onClick={() => editCost(cost)}>Edit</Button>
@@ -238,9 +240,14 @@ export default function Costs() {
             <Field label="Description" required>
               <Input required value={costDraft.description} onChange={(e) => setCostDraft((c) => ({ ...c, description: e.target.value }))} />
             </Field>
-            <div className="grid gap-3 grid-cols-2">
-              <Field label="Amount (NOK/mo)">
+            <div className="grid gap-3 grid-cols-3">
+              <Field label="Amount">
                 <Input type="number" min="0" step="0.01" value={costDraft.amount} onChange={(e) => setCostDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
+              </Field>
+              <Field label="Currency">
+                <Select value={costDraft.currency} onChange={(e) => setCostDraft((c) => ({ ...c, currency: e.target.value as Cost['currency'] }))}>
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </Select>
               </Field>
               <Field label="Category">
                 <Select value={costDraft.category} onChange={(e) => setCostDraft((c) => ({ ...c, category: e.target.value as Cost['category'] }))}>

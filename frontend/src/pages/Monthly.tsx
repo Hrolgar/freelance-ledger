@@ -3,7 +3,7 @@ import { getEffectiveCosts, getExchangeRates, getProjects } from '../api'
 import { AppCard, EmptyState, ErrorState, PageIntro, SectionHeading, Select, StatCard } from '../components/ui'
 import { formatCurrency } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
-import type { Cost, ExchangeRate, Project } from '../types'
+import type { EffectiveCost, ExchangeRate, Project } from '../types'
 import { MONTH_FULL_NAMES } from '../types'
 
 function projectRevenueForMonth(project: Project, year: number, month: number) {
@@ -72,7 +72,7 @@ export default function Monthly() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [projects, setProjects] = useState<Project[]>([])
-  const [costs, setCosts] = useState<Cost[]>([])
+  const [costs, setCosts] = useState<EffectiveCost[]>([])
   const [rates, setRates] = useState<ExchangeRate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -115,13 +115,13 @@ export default function Monthly() {
     const c = convert(r.net, r.currency, mainCurrency, rates)
     return sum + (c ?? r.net)
   }, 0)
-  const totalCosts = costs.reduce((sum, c) => sum + c.amount, 0)
-  // Costs are already in NOK
+  const totalCostsNok = costs.reduce((sum, c) => sum + c.amountNok, 0)
+  // Convert NOK total to main currency if needed
   const totalCostsMain = mainCurrency === 'NOK'
-    ? totalCosts
+    ? totalCostsNok
     : (() => {
         const nokRate = rates.find((r) => r.currency === mainCurrency)?.rate
-        return nokRate ? totalCosts / nokRate : totalCosts
+        return nokRate ? totalCostsNok / nokRate : totalCostsNok
       })()
   const profit = totalRevenueMain - totalCostsMain
 
@@ -198,7 +198,7 @@ export default function Monthly() {
         </AppCard>
 
         <AppCard>
-          <SectionHeading title="Costs" description="Operating costs (NOK)." />
+          <SectionHeading title="Costs" description="Operating costs for this month." />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -206,12 +206,13 @@ export default function Monthly() {
                   <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
                   <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Cat</th>
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">NOK</th>
                 </tr>
               </thead>
               <tbody>
                 {costs.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-4 py-8">
+                    <td colSpan={4} className="px-4 py-8">
                       <EmptyState title="No costs this month" description="Add costs in the Costs page." />
                     </td>
                   </tr>
@@ -220,7 +221,12 @@ export default function Monthly() {
                     <tr key={cost.id} className="border-b border-slate-700/50 last:border-0">
                       <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
-                      <MoneyCell amount={cost.amount} currency="NOK" mainCurrency={mainCurrency} rates={rates} className="text-slate-300" />
+                      <td className="px-4 py-2.5 text-right font-mono text-slate-400">
+                        {formatCurrency(cost.amount, cost.currency)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-slate-200">
+                        {formatCurrency(cost.amountNok, 'NOK')}
+                      </td>
                     </tr>
                   ))
                 )}
