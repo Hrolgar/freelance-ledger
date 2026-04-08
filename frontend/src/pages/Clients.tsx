@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClients, getClient, createClient, updateClient, deleteClient } from '../api'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, SectionHeading, Textarea } from '../components/ui'
 import { ProjectStatusBadge } from '../components/StatusBadge'
+import { MoneyAmount } from '../components/MoneyAmount'
 import { formatCurrency, formatDate } from '../lib/format'
 import type { Client, ClientInput } from '../types'
 
@@ -258,7 +259,7 @@ function ClientDetail() {
                       {p.milestones.filter(m => m.status === 'Paid').length}/{p.milestones.length}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono font-medium text-slate-200">
-                      {formatCurrency(paid, p.currency)}
+                      <MoneyAmount amount={paid} currency={p.currency} />
                     </td>
                   </tr>
                 )

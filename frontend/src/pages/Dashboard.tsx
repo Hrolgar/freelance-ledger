@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getPipeline, getProjects, getYearOverview } from '../api'
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, LoadingState, PageIntro, SectionHeading, StatCard } from '../components/ui'
+import { MoneyAmount } from '../components/MoneyAmount'
 import { calculateProjectRevenue, formatCurrency, formatMonth } from '../lib/format'
 import type { Pipeline, Project, YearOverview } from '../types'
 
@@ -146,7 +147,7 @@ export default function Dashboard() {
                           <ProjectStatusBadge status={project.status} />
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
-                          {formatCurrency(calculateProjectRevenue(project), project.currency)}
+                          <MoneyAmount amount={calculateProjectRevenue(project)} currency={project.currency} />
                         </td>
                       </tr>
                     ))}
@@ -182,7 +183,7 @@ export default function Dashboard() {
                           <ProjectStatusBadge status={project.status} />
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
-                          {formatCurrency(project.netValue, project.currency)}
+                          <MoneyAmount amount={project.netValue} currency={project.currency} />
                         </td>
                       </tr>
                     ))}
