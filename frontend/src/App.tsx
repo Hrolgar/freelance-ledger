@@ -4,11 +4,13 @@ import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
 import Monthly from './pages/Monthly'
 import Costs from './pages/Costs'
+import Clients from './pages/Clients'
 import Settings from './pages/Settings'
 
 const navItems = [
   { to: '/', label: 'Dashboard' },
   { to: '/projects', label: 'Projects' },
+  { to: '/clients', label: 'Clients' },
   { to: '/monthly', label: 'Monthly' },
   { to: '/costs', label: 'Costs' },
   { to: '/settings', label: 'Settings' },
@@ -68,6 +70,8 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
+        <Route path="/clients" element={<Clients />} />
+        <Route path="/clients/:name" element={<Clients />} />
         <Route path="/monthly" element={<Monthly />} />
         <Route path="/costs" element={<Costs />} />
         <Route path="/settings" element={<Settings />} />
