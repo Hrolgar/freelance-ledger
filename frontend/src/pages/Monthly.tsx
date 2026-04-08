@@ -27,7 +27,7 @@ export default function Monthly() {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([getDashboardYear(year), getCosts(month, year)])
+    Promise.all([getDashboardYear(year), getCosts({ month, year })])
       .then(([ov, cs]) => { setOverview(ov); setCosts(cs) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -37,7 +37,7 @@ export default function Monthly() {
   const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i)
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-100">Monthly P&L</h1>

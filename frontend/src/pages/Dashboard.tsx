@@ -51,9 +51,9 @@ export default function Dashboard() {
         title={`${year} Dashboard`}
         description="Track revenue, operating costs, and near-term pipeline from one yearly view."
         action={
-          <Button as={undefined} className="w-full sm:w-auto">
-            <Link to="/projects">Open project pipeline</Link>
-          </Button>
+          <Link to="/projects" className="w-full sm:w-auto">
+            <Button className="w-full sm:w-auto">Open project pipeline</Button>
+          </Link>
         }
       />
 

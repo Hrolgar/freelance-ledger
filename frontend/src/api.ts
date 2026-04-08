@@ -83,6 +83,8 @@ export const updateMilestone = (projectId: number, id: number, data: MilestoneIn
     method: 'PUT',
     body: JSON.stringify(data),
   })
+export const patchMilestone = (id: number, data: { status: string; datePaid?: string | null }) =>
+  request<Milestone>(`/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteMilestone = (projectId: number, id: number) =>
   request<void>(`/projects/${projectId}/milestones/${id}`, { method: 'DELETE' })
 
