@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClients, getClient, createClient, updateClient, deleteClient } from '../api'
-import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, SectionHeading, Textarea } from '../components/ui'
+import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { formatCurrency, formatDate } from '../lib/format'
