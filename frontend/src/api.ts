@@ -1,4 +1,6 @@
 import type {
+  Client,
+  ClientInput,
   Cost,
   CostInput,
   EffectiveCost,
@@ -59,6 +61,15 @@ function query(params: Record<string, string | number | undefined>) {
   const value = search.toString()
   return value ? `?${value}` : ''
 }
+
+// Clients
+export const getClients = () => request<Client[]>('/clients')
+export const getClient = (id: number) => request<Client>(`/clients/${id}`)
+export const createClient = (data: ClientInput) =>
+  request<Client>('/clients', { method: 'POST', body: JSON.stringify(data) })
+export const updateClient = (id: number, data: ClientInput) =>
+  request<Client>(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteClient = (id: number) => request<void>(`/clients/${id}`, { method: 'DELETE' })
 
 export const getDashboardYear = (year: number) =>
   request<YearOverview>(`/dashboard/year-overview${query({ year })}`)

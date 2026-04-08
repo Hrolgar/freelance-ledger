@@ -4,8 +4,25 @@ export type ProjectStatus = 'Quoted' | 'Awarded' | 'InProgress' | 'Completed' | 
 export type MilestoneStatus = 'Pending' | 'Funded' | 'Released' | 'Paid' | 'Disputed'
 export type CostCategory = 'Software' | 'Hardware' | 'Internet' | 'Office' | 'Other'
 
+export interface Client {
+  id: number
+  name: string
+  email: string | null
+  phone: string | null
+  country: string | null
+  timezone: string | null
+  freelancerId: string | null
+  upworkId: string | null
+  notes: string | null
+  aliases: string | null
+  projects: Project[]
+}
+
+export type ClientInput = Omit<Client, 'id' | 'projects'>
+
 export interface Project {
   id: number
+  clientId: number | null
   clientName: string
   projectName: string
   platform: Platform

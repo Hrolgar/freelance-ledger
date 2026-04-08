@@ -5,6 +5,7 @@ namespace FreelanceLedger.Api.Data;
 
 public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbContext(options)
 {
+    public DbSet<Client> Clients => Set<Client>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Milestone> Milestones => Set<Milestone>();
     public DbSet<Tip> Tips => Set<Tip>();
@@ -14,6 +15,15 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Client>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasMany(c => c.Projects)
+                .WithOne(p => p.Client)
+                .HasForeignKey(p => p.ClientId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<Project>(e =>
         {
             e.HasKey(p => p.Id);

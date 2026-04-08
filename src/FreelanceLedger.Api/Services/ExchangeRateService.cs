@@ -10,18 +10,29 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http)
     private static readonly Currency[] TrackedCurrencies =
         [Currency.GBP, Currency.USD, Currency.EUR, Currency.CAD, Currency.INR];
 
+    // In-memory rate cache: "GBP-3-2026" -> rate
+    private static readonly Dictionary<string, decimal> _rateCache = new();
+
     /// <summary>
     /// Gets the NOK rate for a currency in a given month.
-    /// Auto-fetches from frankfurter.app if missing.
+    /// Uses in-memory cache, falls back to DB, auto-fetches if missing.
     /// </summary>
     public async Task<decimal> GetRate(Currency currency, int month, int year)
     {
         if (currency == Currency.NOK) return 1m;
 
+        var key = $"{currency}-{month}-{year}";
+        if (_rateCache.TryGetValue(key, out var cached))
+            return cached;
+
         var existing = await db.ExchangeRates
             .FirstOrDefaultAsync(r => r.Currency == currency && r.Month == month && r.Year == year);
 
-        if (existing is not null) return existing.Rate;
+        if (existing is not null)
+        {
+            _rateCache[key] = existing.Rate;
+            return existing.Rate;
+        }
 
         // Fetch and store all currencies for this month
         await FetchAndStoreRates(month, year);
@@ -29,29 +40,59 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http)
         var fetched = await db.ExchangeRates
             .FirstOrDefaultAsync(r => r.Currency == currency && r.Month == month && r.Year == year);
 
-        return fetched?.Rate ?? 0m;
+        var rate = fetched?.Rate ?? 0m;
+        if (rate > 0) _rateCache[key] = rate;
+        return rate;
     }
 
     /// <summary>
+    /// Preload all rates for a year into the in-memory cache in one DB query.
+    /// Call this before loops that need many rate lookups.
+    /// </summary>
+    public async Task PreloadYear(int year)
+    {
+        var rates = await db.ExchangeRates
+            .AsNoTracking()
+            .Where(r => r.Year == year)
+            .ToListAsync();
+
+        foreach (var r in rates)
+            _rateCache[$"{r.Currency}-{r.Month}-{r.Year}"] = r.Rate;
+    }
+
+    // Track last fetch time to avoid hammering the API
+    private static DateTime _lastCurrentMonthFetch = DateTime.MinValue;
+
+    /// <summary>
     /// Ensures rates exist for a given month. Returns true if rates were fetched.
-    /// Will not fetch for future months. Current month uses today's rate.
+    /// Will not fetch for future months. Current month uses today's rate (cached 24h).
     /// </summary>
     public async Task<bool> EnsureRatesExist(int month, int year)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        // Don't fetch for future months - we can't know those rates
+        // Don't fetch for future months
         if (year > today.Year || (year == today.Year && month > today.Month))
             return false;
 
         var count = await db.ExchangeRates
             .CountAsync(r => r.Month == month && r.Year == year);
 
-        // For past months, rates are final - don't re-fetch
-        if (count >= TrackedCurrencies.Length && !(year == today.Year && month == today.Month))
-            return false;
+        if (count >= TrackedCurrencies.Length)
+        {
+            // Past months: rates are final
+            if (!(year == today.Year && month == today.Month))
+                return false;
+
+            // Current month: only re-fetch once per 24h
+            if ((DateTime.UtcNow - _lastCurrentMonthFetch).TotalHours < 24)
+                return false;
+        }
 
         await FetchAndStoreRates(month, year);
+        if (year == today.Year && month == today.Month)
+            _lastCurrentMonthFetch = DateTime.UtcNow;
+
         return true;
     }
 
