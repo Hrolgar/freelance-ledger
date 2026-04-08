@@ -6,6 +6,32 @@ import { ProjectStatusBadge } from '../components/StatusBadge'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { formatCurrency, formatDate } from '../lib/format'
 import type { Client, ClientInput } from '../types'
+import { TIMEZONES } from '../types'
+
+function ClientClock({ timezone }: { timezone: string }) {
+  const [time, setTime] = useState('')
+
+  useEffect(() => {
+    const update = () => {
+      try {
+        const now = new Date()
+        const timeStr = now.toLocaleTimeString('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit' })
+        const dateStr = now.toLocaleDateString('en-GB', { timeZone: timezone, weekday: 'short' })
+        setTime(`${dateStr} ${timeStr}`)
+      } catch { setTime(timezone) }
+    }
+    update()
+    const interval = setInterval(update, 30000)
+    return () => clearInterval(interval)
+  }, [timezone])
+
+  return (
+    <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-300">
+      <span className="text-slate-500">{timezone.split('/').pop()?.replace('_', ' ')}</span>
+      <span className="ml-2 font-mono text-blue-300">{time}</span>
+    </span>
+  )
+}
 
 const emptyClient: ClientInput = {
   name: '', email: null, phone: null, country: null, timezone: null,
@@ -191,7 +217,10 @@ function ClientDetail() {
               <Input value={draft.country ?? ''} onChange={(e) => setDraft(d => ({ ...d, country: e.target.value || null }))} />
             </Field>
             <Field label="Timezone">
-              <Input value={draft.timezone ?? ''} onChange={(e) => setDraft(d => ({ ...d, timezone: e.target.value || null }))} placeholder="e.g. Asia/Kolkata" />
+              <Select value={draft.timezone ?? ''} onChange={(e) => setDraft(d => ({ ...d, timezone: e.target.value || null }))}>
+                <option value="">Not set</option>
+                {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
+              </Select>
             </Field>
             <Field label="Freelancer ID">
               <Input value={draft.freelancerId ?? ''} onChange={(e) => setDraft(d => ({ ...d, freelancerId: e.target.value || null }))} />
@@ -216,7 +245,7 @@ function ClientDetail() {
       <div className="flex flex-wrap gap-4 text-sm">
         {client.email && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-300">{client.email}</span>}
         {client.phone && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-300">{client.phone}</span>}
-        {client.timezone && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-400">{client.timezone}</span>}
+        {client.timezone && <ClientClock timezone={client.timezone} />}
         {client.freelancerId && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-400">Freelancer: {client.freelancerId}</span>}
         {client.upworkId && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-400">Upwork: {client.upworkId}</span>}
       </div>
