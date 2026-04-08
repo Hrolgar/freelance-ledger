@@ -77,13 +77,13 @@ export function StatCard({
   hint,
 }: {
   label: string
-  value: string
+  value: React.ReactNode
   hint?: string
 }) {
   return (
     <div className="rounded-md border border-slate-700 bg-slate-800 px-4 py-3">
       <p className="text-xs text-slate-400">{label}</p>
-      <p className="mt-1 font-mono text-base font-semibold text-slate-100">{value}</p>
+      <div className="mt-1 font-mono text-base font-semibold text-slate-100">{value}</div>
       {hint ? <p className="mt-0.5 text-xs text-slate-500">{hint}</p> : null}
     </div>
   )

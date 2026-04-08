@@ -33,6 +33,7 @@ import {
   updateProject,
   updateTip,
 } from '../api'
+import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge, ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
@@ -84,6 +85,8 @@ export default function ProjectDetail() {
   const [tipDraft, setTipDraft] = useState<TipInput>(emptyTipDraft)
   const [editingMilestoneId, setEditingMilestoneId] = useState<number | null>(null)
   const [editingTipId, setEditingTipId] = useState<number | null>(null)
+  const [showMilestoneModal, setShowMilestoneModal] = useState(false)
+  const [showTipModal, setShowTipModal] = useState(false)
   const [loading, setLoading] = useState(true)
   const [savingProject, setSavingProject] = useState(false)
   const [savingMilestone, setSavingMilestone] = useState(false)
@@ -164,6 +167,7 @@ export default function ProjectDetail() {
         await createMilestone(projectId, milestoneDraft)
       }
       setEditingMilestoneId(null)
+      setShowMilestoneModal(false)
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to save milestone.')
@@ -176,12 +180,13 @@ export default function ProjectDetail() {
     event.preventDefault()
     setSavingTip(true)
     try {
-      if (editingTipId) {
+      if (editingTipId != null) {
         await updateTip(projectId, editingTipId, tipDraft)
       } else {
         await createTip(projectId, tipDraft)
       }
       setEditingTipId(null)
+      setShowTipModal(false)
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to save tip.')
@@ -283,10 +288,10 @@ export default function ProjectDetail() {
       {/* Summary stats */}
       {summary && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Paid Milestones" value={formatCurrency(summary.paidMilestoneTotal, summary.currency)} />
-          <StatCard label="Tips" value={formatCurrency(summary.tipTotal, summary.currency)} />
-          <StatCard label="Fees" value={formatCurrency(summary.fee, summary.currency)} />
-          <StatCard label="Net Revenue" value={formatCurrency(summary.net, summary.currency)} />
+          <StatCard label="Paid Milestones" value={<MoneyAmount amount={summary.paidMilestoneTotal} currency={summary.currency} />} />
+          <StatCard label="Tips" value={<MoneyAmount amount={summary.tipTotal} currency={summary.currency} />} />
+          <StatCard label="Fees" value={<MoneyAmount amount={summary.fee} currency={summary.currency} />} />
+          <StatCard label="Net Revenue" value={<MoneyAmount amount={summary.net} currency={summary.currency} />} />
         </div>
       )}
 
@@ -410,7 +415,7 @@ export default function ProjectDetail() {
             <div className="flex items-center justify-between py-2.5">
               <dt className="text-slate-400">Net Revenue</dt>
               <dd className="font-mono font-semibold text-slate-100">
-                {summary ? formatCurrency(summary.net, summary.currency) : '—'}
+                {summary ? <MoneyAmount amount={summary.net} currency={summary.currency} /> : '—'}
               </dd>
             </div>
           </dl>
@@ -418,18 +423,15 @@ export default function ProjectDetail() {
       </div>
 
       {/* Milestones */}
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <AppCard>
-          <SectionHeading
-            title="Milestones"
-            action={
-              editingMilestoneId ? (
-                <Button variant="ghost" className="text-xs" onClick={resetMilestoneForm}>
-                  Cancel edit
-                </Button>
-              ) : null
-            }
-          />
+      <AppCard>
+        <SectionHeading
+          title="Milestones"
+          action={
+            <Button variant="secondary" className="text-xs" onClick={() => { resetMilestoneForm(); setShowMilestoneModal(true) }}>
+              + Add
+            </Button>
+          }
+        />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -471,7 +473,7 @@ export default function ProjectDetail() {
                       <td className="px-4 py-2.5 text-slate-400 text-xs">{formatDate(milestone.datePaid)}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" className="px-2 text-xs" onClick={() => loadMilestoneIntoForm(milestone)}>
+                          <Button variant="ghost" className="px-2 text-xs" onClick={() => { loadMilestoneIntoForm(milestone); setShowMilestoneModal(true) }}>
                             Edit
                           </Button>
                           <Button variant="danger" className="px-2 text-xs" onClick={() => void handleMilestoneDelete(milestone.id)}>
@@ -485,94 +487,61 @@ export default function ProjectDetail() {
               </tbody>
             </table>
           </div>
-        </AppCard>
+      </AppCard>
 
-        {/* Milestone form */}
-        <AppCard>
-          <SectionHeading title={editingMilestoneId ? 'Edit Milestone' : 'Add Milestone'} />
-          <form className="grid gap-3 p-4" onSubmit={handleMilestoneSave}>
+      {showMilestoneModal && (
+        <Modal title={editingMilestoneId ? 'Edit Milestone' : 'Add Milestone'} onClose={() => { setShowMilestoneModal(false); resetMilestoneForm() }}>
+          <form className="grid gap-3" onSubmit={handleMilestoneSave}>
             <Field label="Name" required>
-              <Input
-                required
-                value={milestoneDraft.name}
-                onChange={(e) => setMilestoneDraft((c) => ({ ...c, name: e.target.value }))}
-              />
+              <Input required value={milestoneDraft.name} onChange={(e) => setMilestoneDraft((c) => ({ ...c, name: e.target.value }))} />
             </Field>
             <Field label="Description">
-              <Textarea
-                value={milestoneDraft.description ?? ''}
-                onChange={(e) => setMilestoneDraft((c) => ({ ...c, description: e.target.value || null }))}
-              />
+              <Textarea value={milestoneDraft.description ?? ''} onChange={(e) => setMilestoneDraft((c) => ({ ...c, description: e.target.value || null }))} />
             </Field>
             <div className="grid gap-3 grid-cols-2">
               <Field label="Amount">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={milestoneDraft.amount}
-                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, amount: Number(e.target.value) }))}
-                />
+                <Input type="number" min="0" step="0.01" value={milestoneDraft.amount} onChange={(e) => setMilestoneDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
               </Field>
               <Field label="Currency">
-                <Select
-                  value={milestoneDraft.currency}
-                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, currency: e.target.value as Milestone['currency'] }))}
-                >
+                <Select value={milestoneDraft.currency} onChange={(e) => setMilestoneDraft((c) => ({ ...c, currency: e.target.value as Milestone['currency'] }))}>
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               </Field>
             </div>
             <div className="grid gap-3 grid-cols-3">
               <Field label="Status">
-                <Select
-                  value={milestoneDraft.status}
-                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, status: e.target.value as Milestone['status'] }))}
-                >
+                <Select value={milestoneDraft.status} onChange={(e) => setMilestoneDraft((c) => ({ ...c, status: e.target.value as Milestone['status'] }))}>
                   {MILESTONE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </Field>
               <Field label="Due">
-                <Input
-                  type="date"
-                  value={isoDate(milestoneDraft.dateDue)}
-                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, dateDue: e.target.value || null }))}
-                />
+                <Input type="date" value={isoDate(milestoneDraft.dateDue)} onChange={(e) => setMilestoneDraft((c) => ({ ...c, dateDue: e.target.value || null }))} />
               </Field>
               <Field label="Paid">
-                <Input
-                  type="date"
-                  value={isoDate(milestoneDraft.datePaid)}
-                  onChange={(e) => setMilestoneDraft((c) => ({ ...c, datePaid: e.target.value || null }))}
-                />
+                <Input type="date" value={isoDate(milestoneDraft.datePaid)} onChange={(e) => setMilestoneDraft((c) => ({ ...c, datePaid: e.target.value || null }))} />
               </Field>
             </div>
             <Field label="Sort Order">
-              <Input
-                type="number"
-                min="1"
-                value={milestoneDraft.sortOrder}
-                onChange={(e) => setMilestoneDraft((c) => ({ ...c, sortOrder: Number(e.target.value) }))}
-              />
+              <Input type="number" min="1" value={milestoneDraft.sortOrder} onChange={(e) => setMilestoneDraft((c) => ({ ...c, sortOrder: Number(e.target.value) }))} />
             </Field>
-            <div className="flex justify-end gap-2">
-              {editingMilestoneId && (
-                <Button type="button" variant="secondary" onClick={resetMilestoneForm}>
-                  Cancel
-                </Button>
-              )}
-              <Button type="submit" disabled={savingMilestone}>
-                {savingMilestone ? 'Saving…' : editingMilestoneId ? 'Update' : 'Add Milestone'}
-              </Button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => { setShowMilestoneModal(false); resetMilestoneForm() }}>Cancel</Button>
+              <Button type="submit" disabled={savingMilestone}>{savingMilestone ? 'Saving...' : editingMilestoneId ? 'Update' : 'Add'}</Button>
             </div>
           </form>
-        </AppCard>
-      </div>
+        </Modal>
+      )}
 
       {/* Tips */}
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <AppCard>
-          <SectionHeading title="Tips" description="Client bonuses and gratuities." />
+      <AppCard>
+        <SectionHeading
+          title="Tips"
+          action={
+            <Button variant="secondary" className="text-xs" onClick={() => { resetTipForm(); setShowTipModal(true) }}>
+              + Add
+            </Button>
+          }
+        />
           {project.tips.length === 0 ? (
             <div className="p-4">
               <EmptyState
@@ -600,7 +569,7 @@ export default function ProjectDetail() {
                     <td className="px-4 py-2.5 text-xs text-slate-500">{tip.notes ?? '—'}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" className="px-2 text-xs" onClick={() => loadTipIntoForm(tip)}>
+                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { loadTipIntoForm(tip); setShowTipModal(true) }}>
                           Edit
                         </Button>
                         <Button variant="danger" className="px-2 text-xs" onClick={() => void handleTipDelete(tip.id)}>
@@ -613,57 +582,34 @@ export default function ProjectDetail() {
               </tbody>
             </table>
           )}
-        </AppCard>
+      </AppCard>
 
-        {/* Tip form */}
-        <AppCard>
-          <SectionHeading title={editingTipId ? 'Edit Tip' : 'Add Tip'} />
-          <form className="grid gap-3 p-4" onSubmit={handleTipSave}>
+      {showTipModal && (
+        <Modal title={editingTipId ? 'Edit Tip' : 'Add Tip'} onClose={() => { setShowTipModal(false); resetTipForm() }} size="sm">
+          <form className="grid gap-3" onSubmit={handleTipSave}>
             <div className="grid gap-3 grid-cols-2">
               <Field label="Amount">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={tipDraft.amount}
-                  onChange={(e) => setTipDraft((c) => ({ ...c, amount: Number(e.target.value) }))}
-                />
+                <Input type="number" min="0" step="0.01" value={tipDraft.amount} onChange={(e) => setTipDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
               </Field>
               <Field label="Currency">
-                <Select
-                  value={tipDraft.currency}
-                  onChange={(e) => setTipDraft((c) => ({ ...c, currency: e.target.value as Tip['currency'] }))}
-                >
+                <Select value={tipDraft.currency} onChange={(e) => setTipDraft((c) => ({ ...c, currency: e.target.value as Tip['currency'] }))}>
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </Select>
               </Field>
             </div>
             <Field label="Date">
-              <Input
-                type="date"
-                value={tipDraft.date}
-                onChange={(e) => setTipDraft((c) => ({ ...c, date: e.target.value }))}
-              />
+              <Input type="date" value={tipDraft.date} onChange={(e) => setTipDraft((c) => ({ ...c, date: e.target.value }))} />
             </Field>
             <Field label="Notes">
-              <Textarea
-                value={tipDraft.notes ?? ''}
-                onChange={(e) => setTipDraft((c) => ({ ...c, notes: e.target.value || null }))}
-              />
+              <Textarea value={tipDraft.notes ?? ''} onChange={(e) => setTipDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>
-            <div className="flex justify-end gap-2">
-              {editingTipId && (
-                <Button type="button" variant="secondary" onClick={resetTipForm}>
-                  Cancel
-                </Button>
-              )}
-              <Button type="submit" disabled={savingTip}>
-                {savingTip ? 'Saving…' : editingTipId ? 'Update' : 'Add Tip'}
-              </Button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => { setShowTipModal(false); resetTipForm() }}>Cancel</Button>
+              <Button type="submit" disabled={savingTip}>{savingTip ? 'Saving...' : editingTipId ? 'Update' : 'Add'}</Button>
             </div>
           </form>
-        </AppCard>
-      </div>
+        </Modal>
+      )}
     </div>
   )
 }
