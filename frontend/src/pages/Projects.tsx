@@ -4,7 +4,8 @@ import { createClient, createProject, deleteProject, getClients, getProjects } f
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
-import { calculateProjectRevenue, formatCurrency, isoDate } from '../lib/format'
+import { MoneyAmount } from '../components/MoneyAmount'
+import { calculateProjectRevenue, isoDate } from '../lib/format'
 import type { Client, ClientInput, Project, ProjectInput } from '../types'
 import { CURRENCIES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
@@ -186,7 +187,7 @@ export default function Projects() {
                       <ProjectStatusBadge status={project.status} />
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-slate-200">
-                      {formatCurrency(calculateProjectRevenue(project), project.currency)}
+                      <MoneyAmount amount={calculateProjectRevenue(project)} currency={project.currency} />
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <Button

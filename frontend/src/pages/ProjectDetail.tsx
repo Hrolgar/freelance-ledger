@@ -11,6 +11,7 @@ import {
   updateProject,
   updateTip,
 } from '../api'
+import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge, ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
 import { formatCurrency, formatDate, getNextMilestoneOrder, isoDate } from '../lib/format'
@@ -425,8 +426,8 @@ export default function ProjectDetail() {
                           <p className="mt-0.5 text-xs text-slate-500">{milestone.description}</p>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 font-mono text-slate-200">
-                        {formatCurrency(milestone.amount, milestone.currency)}
+                      <td className="px-4 py-2.5 text-slate-200">
+                        <MoneyAmount amount={milestone.amount} currency={milestone.currency} />
                       </td>
                       <td className="px-4 py-2.5">
                         <MilestoneStatusBadge status={milestone.status} />
@@ -557,8 +558,8 @@ export default function ProjectDetail() {
               <tbody>
                 {project.tips.map((tip) => (
                   <tr key={tip.id} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 font-mono font-medium text-slate-100">
-                      {formatCurrency(tip.amount, tip.currency)}
+                    <td className="px-4 py-2.5 font-medium text-slate-100">
+                      <MoneyAmount amount={tip.amount} currency={tip.currency} />
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(tip.date)}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{tip.notes ?? '—'}</td>
