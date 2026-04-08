@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +8,7 @@ namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
 [Route("api/dashboard")]
-public class DashboardController(LedgerDbContext db) : ControllerBase
+public class DashboardController(LedgerDbContext db, ExchangeRateService rateService) : ControllerBase
 {
     [HttpGet("year-overview")]
     public async Task<IActionResult> GetYearOverview([FromQuery] int year)
@@ -23,47 +24,63 @@ public class DashboardController(LedgerDbContext db) : ControllerBase
             .Where(c => c.Year == year)
             .ToListAsync();
 
-        var months = Enumerable.Range(1, 12)
-            .Select(month =>
+        // Auto-fetch rates for months that have activity
+        var activeMonths = new HashSet<int>();
+        foreach (var p in projects)
+        {
+            foreach (var m in p.Milestones.Where(m => m.Status == MilestoneStatus.Paid && m.DatePaid?.Year == year))
+                activeMonths.Add(m.DatePaid!.Value.Month);
+            foreach (var t in p.Tips.Where(t => t.Date.Year == year))
+                activeMonths.Add(t.Date.Month);
+        }
+        foreach (var month in activeMonths)
+            await rateService.EnsureRatesExist(month, year);
+
+        var monthResults = new List<MonthlyOverviewResponse>();
+        foreach (var month in Enumerable.Range(1, 12))
+        {
+            decimal revenue = 0;
+            foreach (var project in projects)
             {
-                var revenue = projects.Sum(project =>
-                {
-                    var paidMilestones = project.Milestones
-                        .Where(m => m.Status == MilestoneStatus.Paid &&
-                                    m.DatePaid.HasValue &&
-                                    m.DatePaid.Value.Year == year &&
-                                    m.DatePaid.Value.Month == month)
-                        .Sum(m => m.Amount);
+                var paidMilestones = project.Milestones
+                    .Where(m => m.Status == MilestoneStatus.Paid &&
+                                m.DatePaid.HasValue &&
+                                m.DatePaid.Value.Year == year &&
+                                m.DatePaid.Value.Month == month)
+                    .Sum(m => m.Amount);
 
-                    var tips = project.Tips
-                        .Where(t => t.Date.Year == year && t.Date.Month == month)
-                        .Sum(t => t.Amount);
+                var tips = project.Tips
+                    .Where(t => t.Date.Year == year && t.Date.Month == month)
+                    .Sum(t => t.Amount);
 
-                    var gross = paidMilestones + tips;
-                    return gross - (gross * (project.FeePercentage / 100m));
-                });
+                var gross = paidMilestones + tips;
+                var net = gross - (gross * (project.FeePercentage / 100m));
 
-                var monthCosts = costs
-                    .Where(c => c.Month == month)
-                    .Sum(c => c.Amount);
+                // Convert to NOK
+                var rate = await rateService.GetRate(project.Currency, month, year);
+                revenue += net * rate;
+            }
 
-                return new MonthlyOverviewResponse(
-                    month,
-                    revenue,
-                    monthCosts,
-                    revenue - monthCosts);
-            })
-            .ToList();
+            var monthCosts = costs
+                .Where(c => c.Month == month)
+                .Sum(c => c.Amount);
 
-        var totalRevenue = months.Sum(m => m.Revenue);
-        var totalCosts = months.Sum(m => m.Costs);
+            monthResults.Add(new MonthlyOverviewResponse(
+                month,
+                Math.Round(revenue, 2),
+                monthCosts,
+                Math.Round(revenue - monthCosts, 2)));
+        }
+
+        var totalRevenue = monthResults.Sum(m => m.Revenue);
+        var totalCosts = monthResults.Sum(m => m.Costs);
 
         return Ok(new YearOverviewResponse(
             year,
             totalRevenue,
             totalCosts,
             totalRevenue - totalCosts,
-            months));
+            monthResults));
     }
 
     [HttpGet("pipeline")]
