@@ -155,13 +155,8 @@ export default function Monthly() {
     if (month === 12) { setMonth(1); setYear(y => y + 1) }
     else setMonth(m => m + 1)
   }
-  const cycleYear = () => {
-    // Click cycles: current year -> previous -> next -> current
-    const cur = now.getFullYear()
-    if (year === cur) setYear(cur - 1)
-    else if (year === cur - 1) setYear(cur + 1)
-    else setYear(cur)
-  }
+  const prevYear = () => setYear(y => y - 1)
+  const nextYear = () => setYear(y => y + 1)
 
   const revenueRows = useMemo(
     () =>
@@ -197,13 +192,11 @@ export default function Monthly() {
             </Button>
             <span className="min-w-[140px] text-center text-sm font-medium text-slate-200">
               {MONTH_FULL_NAMES[month - 1]}{' '}
-              <button
-                onClick={cycleYear}
-                className="cursor-pointer text-slate-400 hover:text-blue-400 transition-colors"
-                title="Click to change year"
-              >
-                {year}
-              </button>
+              <span className="inline-flex items-center gap-0.5">
+                <button onClick={prevYear} className="cursor-pointer text-slate-500 hover:text-blue-400 transition-colors px-0.5">‹</button>
+                <span className="text-slate-400">{year}</span>
+                <button onClick={nextYear} className="cursor-pointer text-slate-500 hover:text-blue-400 transition-colors px-0.5">›</button>
+              </span>
             </span>
             <Button variant="ghost" className="px-2" onClick={next}>
               <span className="text-lg">›</span>
