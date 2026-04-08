@@ -195,6 +195,30 @@ export const MONTH_FULL_NAMES = [
   'December',
 ]
 
+export const TIMEZONES = [
+  'Europe/London',
+  'Europe/Oslo',
+  'Europe/Berlin',
+  'Europe/Paris',
+  'Europe/Moscow',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Toronto',
+  'America/Sao_Paulo',
+  'Asia/Kolkata',
+  'Asia/Dubai',
+  'Asia/Riyadh',
+  'Asia/Shanghai',
+  'Asia/Tokyo',
+  'Asia/Singapore',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+  'Africa/Cairo',
+  'Africa/Lagos',
+]
+
 export const currencies = CURRENCIES
 export const platforms = PLATFORMS
 export const projectStatuses = PROJECT_STATUSES
