@@ -23,6 +23,7 @@ export type ClientInput = Omit<Client, 'id' | 'projects'>
 export interface Project {
   id: number
   clientId: number | null
+  client: Client | null
   clientName: string
   projectName: string
   platform: Platform

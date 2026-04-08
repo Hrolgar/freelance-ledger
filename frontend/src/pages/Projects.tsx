@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createProject, deleteProject, getProjects } from '../api'
+import { createClient, createProject, deleteProject, getClients, getProjects } from '../api'
 import { ProjectStatusBadge } from '../components/StatusBadge'
+import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { calculateProjectRevenue, formatCurrency, isoDate } from '../lib/format'
-import type { Project, ProjectInput } from '../types'
+import type { Client, ClientInput, Project, ProjectInput } from '../types'
 import { CURRENCIES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
 const emptyProject: ProjectInput = {
+  clientId: null,
   clientName: '',
   projectName: '',
   platform: 'Direct',
@@ -19,20 +21,29 @@ const emptyProject: ProjectInput = {
   notes: null,
 }
 
+const emptyNewClient: ClientInput = {
+  name: '', email: null, phone: null, country: null, timezone: null,
+  freelancerId: null, upworkId: null, notes: null, aliases: null,
+}
+
 export default function Projects() {
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [draft, setDraft] = useState<ProjectInput>(emptyProject)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showNewClient, setShowNewClient] = useState(false)
+  const [newClient, setNewClient] = useState<ClientInput>(emptyNewClient)
 
   const load = async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await getProjects()
-      setProjects(data)
+      const [projectData, clientData] = await Promise.all([getProjects(), getClients()])
+      setProjects(projectData)
+      setClients(clientData)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load projects.')
     } finally {
@@ -43,6 +54,19 @@ export default function Projects() {
   useEffect(() => {
     void load()
   }, [])
+
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const created = await createClient(newClient)
+      setClients(prev => [...prev, created])
+      setDraft(d => ({ ...d, clientId: created.id, clientName: created.name }))
+      setShowNewClient(false)
+      setNewClient(emptyNewClient)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to create client.')
+    }
+  }
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) => b.id - a.id),
@@ -83,6 +107,41 @@ export default function Projects() {
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
+      {showNewClient && (
+        <Modal title="New Client" onClose={() => setShowNewClient(false)} size="md">
+          <form className="grid gap-3" onSubmit={handleCreateClient}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Name" required>
+                <Input required value={newClient.name} onChange={(e) => setNewClient(d => ({ ...d, name: e.target.value }))} />
+              </Field>
+              <Field label="Email">
+                <Input type="email" value={newClient.email ?? ''} onChange={(e) => setNewClient(d => ({ ...d, email: e.target.value || null }))} />
+              </Field>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Freelancer ID">
+                <Input value={newClient.freelancerId ?? ''} onChange={(e) => setNewClient(d => ({ ...d, freelancerId: e.target.value || null }))} placeholder="e.g. nick111nick111" />
+              </Field>
+              <Field label="Upwork ID">
+                <Input value={newClient.upworkId ?? ''} onChange={(e) => setNewClient(d => ({ ...d, upworkId: e.target.value || null }))} />
+              </Field>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Country">
+                <Input value={newClient.country ?? ''} onChange={(e) => setNewClient(d => ({ ...d, country: e.target.value || null }))} />
+              </Field>
+              <Field label="Aliases (comma-separated)">
+                <Input value={newClient.aliases ?? ''} onChange={(e) => setNewClient(d => ({ ...d, aliases: e.target.value || null }))} />
+              </Field>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setShowNewClient(false)}>Cancel</Button>
+              <Button type="submit">Create Client</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         {/* Projects table */}
         <AppCard>
@@ -117,7 +176,9 @@ export default function Projects() {
                     className="cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors hover:bg-slate-700/30"
                     onClick={() => navigate(`/projects/${project.id}`)}
                   >
-                    <td className="px-4 py-2.5 text-slate-300">{project.clientName}</td>
+                    <td className="px-4 py-2.5 text-slate-300">
+                      {project.client?.name ?? project.clientName}
+                    </td>
                     <td className="px-4 py-2.5 font-medium text-slate-100">{project.projectName}</td>
                     <td className="px-4 py-2.5 text-slate-500">{project.platform}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{project.currency}</td>
@@ -151,12 +212,31 @@ export default function Projects() {
           <SectionHeading title="Add Project" />
           <form className="grid gap-3 p-4" onSubmit={handleCreate}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Client Name" required>
-                <Input
-                  value={draft.clientName}
-                  onChange={(e) => setDraft((c) => ({ ...c, clientName: e.target.value }))}
-                  required
-                />
+              <Field label="Client" required>
+                <div className="flex gap-1.5">
+                  <Select
+                    value={draft.clientId ?? ''}
+                    onChange={(e) => {
+                      const id = Number(e.target.value)
+                      const client = clients.find(c => c.id === id)
+                      setDraft(d => ({ ...d, clientId: id || null, clientName: client?.name ?? '' }))
+                    }}
+                    required
+                    className="flex-1"
+                  >
+                    <option value="">Select client...</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shrink-0 px-2.5"
+                    onClick={() => setShowNewClient(true)}
+                    title="Add new client"
+                  >
+                    +
+                  </Button>
+                </div>
               </Field>
               <Field label="Project Name" required>
                 <Input
