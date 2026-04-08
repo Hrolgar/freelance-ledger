@@ -9,7 +9,10 @@ builder.Services.AddDbContext<LedgerDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=ledger.db"));
 
 builder.Services
-    .AddControllers()
+    .AddControllers(options =>
+    {
+        options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+    })
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
