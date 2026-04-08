@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +8,7 @@ namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
 [Route("api/costs")]
-public class CostsController(LedgerDbContext db) : ControllerBase
+public class CostsController(LedgerDbContext db, ExchangeRateService rateService) : ControllerBase
 {
     /// <summary>
     /// Get all cost definitions (for the Costs management page).
@@ -28,6 +29,7 @@ public class CostsController(LedgerDbContext db) : ControllerBase
     /// <summary>
     /// Get effective costs for a specific month — one-time costs in that month
     /// plus recurring costs that are active during that month.
+    /// Amounts are returned in both original currency and NOK.
     /// </summary>
     [HttpGet("effective")]
     public async Task<IActionResult> GetEffective([FromQuery] int month, [FromQuery] int year)
@@ -40,18 +42,11 @@ public class CostsController(LedgerDbContext db) : ControllerBase
             var queryKey = year * 12 + month;
 
             if (!c.Recurring)
-            {
-                // One-time: must match exactly
                 return c.Month == month && c.Year == year;
-            }
 
-            // Recurring: must have started on or before this month
             if (startKey > queryKey) return false;
-
-            // If no end date, it's still active
             if (!c.EndMonth.HasValue || !c.EndYear.HasValue) return true;
 
-            // Check end date
             var endKey = c.EndYear.Value * 12 + c.EndMonth.Value;
             return queryKey <= endKey;
         })
@@ -59,7 +54,18 @@ public class CostsController(LedgerDbContext db) : ControllerBase
         .ThenBy(c => c.Description)
         .ToList();
 
-        return Ok(effective);
+        var results = new List<EffectiveCostResponse>();
+        foreach (var c in effective)
+        {
+            var rate = await rateService.GetRate(c.Currency, month, year);
+            var amountNok = Math.Round(c.Amount * rate, 2);
+            results.Add(new EffectiveCostResponse(
+                c.Id, c.Description, c.Amount, c.Currency, amountNok,
+                c.Category, c.Recurring, c.Month, c.Year,
+                c.EndMonth, c.EndYear, c.Notes));
+        }
+
+        return Ok(results);
     }
 
     [HttpGet("{id}")]
@@ -90,6 +96,7 @@ public class CostsController(LedgerDbContext db) : ControllerBase
 
         cost.Description = updated.Description;
         cost.Amount = updated.Amount;
+        cost.Currency = updated.Currency;
         cost.Category = updated.Category;
         cost.Month = updated.Month;
         cost.Year = updated.Year;
@@ -114,3 +121,17 @@ public class CostsController(LedgerDbContext db) : ControllerBase
         return NoContent();
     }
 }
+
+public record EffectiveCostResponse(
+    int Id,
+    string Description,
+    decimal Amount,
+    Currency Currency,
+    decimal AmountNok,
+    CostCategory Category,
+    bool Recurring,
+    int Month,
+    int Year,
+    int? EndMonth,
+    int? EndYear,
+    string? Notes);

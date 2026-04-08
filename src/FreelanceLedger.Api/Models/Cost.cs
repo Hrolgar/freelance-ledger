@@ -5,6 +5,7 @@ public class Cost
     public int Id { get; set; }
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public Currency Currency { get; set; }
     public CostCategory Category { get; set; }
     public bool Recurring { get; set; }
 

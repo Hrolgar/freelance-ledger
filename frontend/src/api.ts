@@ -1,6 +1,7 @@
 import type {
   Cost,
   CostInput,
+  EffectiveCost,
   ExchangeRate,
   ExchangeRateInput,
   Investment,
@@ -109,7 +110,7 @@ export const deleteTip = (projectId: number, id: number) =>
 
 export const getCosts = () => request<Cost[]>('/costs')
 export const getEffectiveCosts = (month: number, year: number) =>
-  request<Cost[]>(`/costs/effective${query({ month, year })}`)
+  request<EffectiveCost[]>(`/costs/effective${query({ month, year })}`)
 export const createCost = (data: CostInput) =>
   request<Cost>('/costs', { method: 'POST', body: JSON.stringify(data) })
 export const updateCost = (id: number, data: CostInput) =>

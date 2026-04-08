@@ -45,6 +45,7 @@ export interface Cost {
   id: number
   description: string
   amount: number
+  currency: Currency
   category: CostCategory
   month: number
   year: number
@@ -52,6 +53,10 @@ export interface Cost {
   endMonth: number | null
   endYear: number | null
   notes: string | null
+}
+
+export interface EffectiveCost extends Cost {
+  amountNok: number
 }
 
 export interface Investment {
