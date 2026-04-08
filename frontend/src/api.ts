@@ -1,0 +1,127 @@
+import type {
+  Cost,
+  CostInput,
+  ExchangeRate,
+  ExchangeRateInput,
+  Investment,
+  InvestmentInput,
+  Milestone,
+  MilestoneInput,
+  Pipeline,
+  Project,
+  ProjectInput,
+  ProjectSummary,
+  Tip,
+  TipInput,
+  YearOverview,
+} from './types'
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init?.headers ?? {}),
+    },
+    ...init,
+  })
+
+  if (!response.ok) {
+    const fallback = `Request failed with status ${response.status}`
+
+    try {
+      const problem = (await response.json()) as { title?: string; detail?: string }
+      throw new Error(problem.detail ?? problem.title ?? fallback)
+    } catch {
+      throw new Error(fallback)
+    }
+  }
+
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  return (await response.json()) as T
+}
+
+function query(params: Record<string, string | number | undefined>) {
+  const search = new URLSearchParams()
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') {
+      search.set(key, String(value))
+    }
+  })
+
+  const value = search.toString()
+  return value ? `?${value}` : ''
+}
+
+export const getDashboardYear = (year: number) =>
+  request<YearOverview>(`/dashboard/year-overview${query({ year })}`)
+
+export const getPipeline = () => request<Pipeline>('/dashboard/pipeline')
+
+export const getProjects = () => request<Project[]>('/projects')
+export const getProject = (id: number) => request<Project>(`/projects/${id}`)
+export const getProjectSummary = (id: number) => request<ProjectSummary>(`/projects/${id}/summary`)
+export const createProject = (data: ProjectInput) =>
+  request<Project>('/projects', { method: 'POST', body: JSON.stringify(data) })
+export const updateProject = (id: number, data: ProjectInput) =>
+  request<Project>(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteProject = (id: number) => request<void>(`/projects/${id}`, { method: 'DELETE' })
+
+export const getMilestones = (projectId: number) => request<Milestone[]>(`/projects/${projectId}/milestones`)
+export const createMilestone = (projectId: number, data: MilestoneInput) =>
+  request<Milestone>(`/projects/${projectId}/milestones`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+export const updateMilestone = (projectId: number, id: number, data: MilestoneInput) =>
+  request<Milestone>(`/projects/${projectId}/milestones/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+export const deleteMilestone = (projectId: number, id: number) =>
+  request<void>(`/projects/${projectId}/milestones/${id}`, { method: 'DELETE' })
+
+export const getTips = (projectId: number) => request<Tip[]>(`/projects/${projectId}/tips`)
+export const createTip = (projectId: number, data: TipInput) =>
+  request<Tip>(`/projects/${projectId}/tips`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+export const updateTip = (projectId: number, id: number, data: TipInput) =>
+  request<Tip>(`/projects/${projectId}/tips/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+export const deleteTip = (projectId: number, id: number) =>
+  request<void>(`/projects/${projectId}/tips/${id}`, { method: 'DELETE' })
+
+export const getCosts = (params?: { month?: number; year?: number }) =>
+  request<Cost[]>(`/costs${query(params ?? {})}`)
+export const createCost = (data: CostInput) =>
+  request<Cost>('/costs', { method: 'POST', body: JSON.stringify(data) })
+export const updateCost = (id: number, data: CostInput) =>
+  request<Cost>(`/costs/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteCost = (id: number) => request<void>(`/costs/${id}`, { method: 'DELETE' })
+
+export const getInvestments = (params?: { year?: number }) =>
+  request<Investment[]>(`/investments${query(params ?? {})}`)
+export const createInvestment = (data: InvestmentInput) =>
+  request<Investment>('/investments', { method: 'POST', body: JSON.stringify(data) })
+export const updateInvestment = (id: number, data: InvestmentInput) =>
+  request<Investment>(`/investments/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteInvestment = (id: number) =>
+  request<void>(`/investments/${id}`, { method: 'DELETE' })
+
+export const getExchangeRates = (params?: { month?: number; year?: number }) =>
+  request<ExchangeRate[]>(`/exchange-rates${query(params ?? {})}`)
+export const createExchangeRate = (data: ExchangeRateInput) =>
+  request<ExchangeRate>('/exchange-rates', { method: 'POST', body: JSON.stringify(data) })
+export const upsertExchangeRate = (data: ExchangeRateInput) =>
+  request<ExchangeRate>('/exchange-rates', { method: 'PUT', body: JSON.stringify(data) })
+export const deleteExchangeRate = (id: number) =>
+  request<void>(`/exchange-rates/${id}`, { method: 'DELETE' })
