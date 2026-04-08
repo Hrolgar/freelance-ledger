@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getEffectiveCosts, getExchangeRates, getProjects } from '../api'
-import { AppCard, EmptyState, ErrorState, PageIntro, SectionHeading, Select, StatCard } from '../components/ui'
+import { AppCard, Button, EmptyState, ErrorState, PageIntro, SectionHeading } from '../components/ui'
 import { formatCurrency } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
 import type { EffectiveCost, ExchangeRate, Project } from '../types'
@@ -8,17 +8,13 @@ import { MONTH_FULL_NAMES } from '../types'
 
 function projectRevenueForMonth(project: Project, year: number, month: number) {
   const prefix = `${year}-${String(month).padStart(2, '0')}`
-
   const milestoneRevenue = project.milestones
     .filter((m) => m.status === 'Paid' && m.datePaid?.startsWith(prefix))
     .reduce((sum, m) => sum + m.amount, 0)
-
   const tipRevenue = project.tips
     .filter((t) => t.date.startsWith(prefix))
     .reduce((sum, t) => sum + t.amount, 0)
-
   const gross = milestoneRevenue + tipRevenue
-
   return {
     projectId: project.id,
     clientName: project.clientName,
@@ -30,14 +26,11 @@ function projectRevenueForMonth(project: Project, year: number, month: number) {
   }
 }
 
-/** Convert an amount from one currency to the main currency using rates */
 function convert(amount: number, fromCurrency: string, mainCurrency: string, rates: ExchangeRate[]): number | null {
   if (fromCurrency === mainCurrency) return amount
-  // rates are: 1 <currency> = X NOK
   const fromRate = fromCurrency === 'NOK' ? 1 : rates.find((r) => r.currency === fromCurrency)?.rate
   const toRate = mainCurrency === 'NOK' ? 1 : rates.find((r) => r.currency === mainCurrency)?.rate
   if (!fromRate || !toRate) return null
-  // amount in NOK, then to target
   return (amount * fromRate) / toRate
 }
 
@@ -50,7 +43,6 @@ function MoneyCell({ amount, currency, mainCurrency, rates, className = '' }: {
 }) {
   const converted = convert(amount, currency, mainCurrency, rates)
   const hasConversion = converted !== null && currency !== mainCurrency
-
   return (
     <td className={`px-4 py-2.5 text-right font-mono ${className}`}>
       {hasConversion ? (
@@ -67,6 +59,62 @@ function MoneyCell({ amount, currency, mainCurrency, rates, className = '' }: {
   )
 }
 
+/** Simple donut chart using SVG */
+function DonutChart({ revenue, costs, profit, currency }: {
+  revenue: number
+  costs: number
+  profit: number
+  currency: string
+}) {
+  const total = revenue + costs
+  if (total === 0) return null
+
+  const revPct = revenue / total
+  const costPct = costs / total
+  const r = 52
+  const circ = 2 * Math.PI * r
+  const revLen = circ * revPct
+  const costLen = circ * costPct
+
+  return (
+    <div className="flex items-center gap-6">
+      <div className="relative h-36 w-36 shrink-0">
+        <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+          {/* Revenue arc */}
+          <circle cx="60" cy="60" r={r} fill="none" stroke="#3b82f6" strokeWidth="12"
+            strokeDasharray={`${revLen} ${circ}`} strokeLinecap="round" />
+          {/* Costs arc */}
+          <circle cx="60" cy="60" r={r} fill="none" stroke="#ef4444" strokeWidth="12"
+            strokeDasharray={`${costLen} ${circ}`} strokeDashoffset={-revLen} strokeLinecap="round" />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[10px] font-medium text-slate-500">Profit</span>
+          <span className="font-mono text-sm font-semibold text-slate-100">{formatCurrency(profit, currency)}</span>
+        </div>
+      </div>
+      <div className="grid gap-2 text-sm">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+          <span className="text-slate-400">Revenue</span>
+          <span className="ml-auto font-mono text-slate-200">{formatCurrency(revenue, currency)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+          <span className="text-slate-400">Costs</span>
+          <span className="ml-auto font-mono text-slate-200">{formatCurrency(costs, currency)}</span>
+        </div>
+        <div className="mt-1 border-t border-slate-700 pt-2 flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          <span className="text-slate-400">Net Profit</span>
+          <span className={`ml-auto font-mono font-medium ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {formatCurrency(profit, currency)}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Monthly() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -77,8 +125,6 @@ export default function Monthly() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [mainCurrency] = useMainCurrency()
-
-  const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i)
 
   const load = async () => {
     setLoading(true)
@@ -101,6 +147,15 @@ export default function Monthly() {
 
   useEffect(() => { void load() }, [month, year])
 
+  const prev = () => {
+    if (month === 1) { setMonth(12); setYear(y => y - 1) }
+    else setMonth(m => m - 1)
+  }
+  const next = () => {
+    if (month === 12) { setMonth(1); setYear(y => y + 1) }
+    else setMonth(m => m + 1)
+  }
+
   const revenueRows = useMemo(
     () =>
       projects
@@ -110,13 +165,11 @@ export default function Monthly() {
     [month, projects, year],
   )
 
-  // Convert totals to main currency
   const totalRevenueMain = revenueRows.reduce((sum, r) => {
     const c = convert(r.net, r.currency, mainCurrency, rates)
     return sum + (c ?? r.net)
   }, 0)
   const totalCostsNok = costs.reduce((sum, c) => sum + c.amountNok, 0)
-  // Convert NOK total to main currency if needed
   const totalCostsMain = mainCurrency === 'NOK'
     ? totalCostsNok
     : (() => {
@@ -129,29 +182,29 @@ export default function Monthly() {
     <div className="space-y-6">
       <PageIntro
         title="Monthly P&L"
-        description={`Revenue, costs, and profit for ${MONTH_FULL_NAMES[month - 1]} ${year}. Hover amounts to see ${mainCurrency} equivalent.`}
+        description={`Hover amounts to see ${mainCurrency} equivalent.`}
         action={
-          <div className="flex gap-2">
-            <Select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-36">
-              {MONTH_FULL_NAMES.map((name, i) => (
-                <option key={name} value={i + 1}>{name}</option>
-              ))}
-            </Select>
-            <Select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-24">
-              {years.map((y) => <option key={y} value={y}>{y}</option>)}
-            </Select>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" className="px-2" onClick={prev}>
+              <span className="text-lg">‹</span>
+            </Button>
+            <span className="min-w-[140px] text-center text-sm font-medium text-slate-200">
+              {MONTH_FULL_NAMES[month - 1]} {year}
+            </span>
+            <Button variant="ghost" className="px-2" onClick={next}>
+              <span className="text-lg">›</span>
+            </Button>
           </div>
         }
       />
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      {!loading && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard label="Revenue" value={formatCurrency(totalRevenueMain, mainCurrency)} />
-          <StatCard label="Costs" value={formatCurrency(totalCostsMain, mainCurrency)} />
-          <StatCard label="Net Profit" value={formatCurrency(profit, mainCurrency)} />
-        </div>
+      {/* Donut chart */}
+      {!loading && (totalRevenueMain > 0 || totalCostsMain > 0) && (
+        <AppCard className="p-5">
+          <DonutChart revenue={totalRevenueMain} costs={totalCostsMain} profit={profit} currency={mainCurrency} />
+        </AppCard>
       )}
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -175,10 +228,7 @@ export default function Monthly() {
                 {revenueRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-8">
-                      <EmptyState
-                        title="No paid revenue this month"
-                        description="Paid milestones and tips appear here."
-                      />
+                      <EmptyState title="No paid revenue this month" description="Paid milestones and tips appear here." />
                     </td>
                   </tr>
                 ) : (
@@ -198,7 +248,7 @@ export default function Monthly() {
         </AppCard>
 
         <AppCard>
-          <SectionHeading title="Costs" description="Operating costs for this month." />
+          <SectionHeading title="Costs" />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -206,13 +256,12 @@ export default function Monthly() {
                   <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
                   <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Cat</th>
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">NOK</th>
                 </tr>
               </thead>
               <tbody>
                 {costs.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8">
+                    <td colSpan={3} className="px-4 py-8">
                       <EmptyState title="No costs this month" description="Add costs in the Costs page." />
                     </td>
                   </tr>
@@ -221,12 +270,7 @@ export default function Monthly() {
                     <tr key={cost.id} className="border-b border-slate-700/50 last:border-0">
                       <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-slate-400">
-                        {formatCurrency(cost.amount, cost.currency)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-slate-200">
-                        {formatCurrency(cost.amountNok, 'NOK')}
-                      </td>
+                      <MoneyCell amount={cost.amount} currency={cost.currency} mainCurrency={mainCurrency} rates={rates} className="text-slate-300" />
                     </tr>
                   ))
                 )}
