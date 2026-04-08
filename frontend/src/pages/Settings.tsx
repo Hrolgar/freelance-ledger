@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { autoFetchRates, getExchangeRates } from '../api'
 import { AppCard, Button, ErrorState, PageIntro, SectionHeading, Select } from '../components/ui'
 import { useMainCurrency } from '../lib/useMainCurrency'
+import { useMyTimezone } from '../lib/useMyTimezone'
 import type { ExchangeRate } from '../types'
-import { CURRENCIES, MONTH_NAMES } from '../types'
+import { CURRENCIES, MONTH_NAMES, TIMEZONES } from '../types'
 
 export default function Settings() {
   const [rates, setRates] = useState<ExchangeRate[]>([])
@@ -11,6 +12,7 @@ export default function Settings() {
   const [error, setError] = useState<string | null>(null)
   const [fetching, setFetching] = useState<string | null>(null)
   const [mainCurrency, setMainCurrency] = useMainCurrency()
+  const [myTimezone, setMyTimezone] = useMyTimezone()
 
   const load = async () => {
     setLoading(true)
@@ -73,20 +75,32 @@ export default function Settings() {
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      {/* Main currency */}
+      {/* Preferences */}
       <AppCard>
-        <SectionHeading title="Display Currency" description="All totals and conversions use this currency." />
-        <div className="flex items-center gap-3 p-4">
-          <Select
-            value={mainCurrency}
-            onChange={(e) => setMainCurrency(e.target.value as typeof mainCurrency)}
-            className="w-32"
-          >
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </Select>
-          <span className="text-sm text-slate-400">
-            Dashboard and monthly views convert to {mainCurrency}.
-          </span>
+        <SectionHeading title="Preferences" />
+        <div className="grid gap-4 p-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs text-slate-500 mb-1.5">Display Currency</p>
+            <Select
+              value={mainCurrency}
+              onChange={(e) => setMainCurrency(e.target.value as typeof mainCurrency)}
+              className="w-full"
+            >
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+            <p className="mt-1 text-xs text-slate-500">Totals and conversions use this currency.</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 mb-1.5">My Timezone</p>
+            <Select
+              value={myTimezone}
+              onChange={(e) => setMyTimezone(e.target.value)}
+              className="w-full"
+            >
+              {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+            </Select>
+            <p className="mt-1 text-xs text-slate-500">Client clocks show offset relative to this.</p>
+          </div>
         </div>
       </AppCard>
 

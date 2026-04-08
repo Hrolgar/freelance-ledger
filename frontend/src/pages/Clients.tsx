@@ -5,11 +5,14 @@ import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Selec
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { formatCurrency, formatDate } from '../lib/format'
+import { getTimezoneOffset, useMyTimezone } from '../lib/useMyTimezone'
 import type { Client, ClientInput } from '../types'
 import { TIMEZONES } from '../types'
 
 function ClientClock({ timezone }: { timezone: string }) {
+  const [myTz] = useMyTimezone()
   const [time, setTime] = useState('')
+  const [offset, setOffset] = useState('')
 
   useEffect(() => {
     const update = () => {
@@ -18,17 +21,23 @@ function ClientClock({ timezone }: { timezone: string }) {
         const timeStr = now.toLocaleTimeString('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit' })
         const dateStr = now.toLocaleDateString('en-GB', { timeZone: timezone, weekday: 'short' })
         setTime(`${dateStr} ${timeStr}`)
+        setOffset(getTimezoneOffset(timezone, myTz))
       } catch { setTime(timezone) }
     }
     update()
     const interval = setInterval(update, 30000)
     return () => clearInterval(interval)
-  }, [timezone])
+  }, [timezone, myTz])
 
   return (
-    <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-300">
+    <span className="group relative rounded bg-slate-800 px-3 py-1.5 text-slate-300 cursor-help">
       <span className="text-slate-500">{timezone.split('/').pop()?.replace('_', ' ')}</span>
       <span className="ml-2 font-mono text-blue-300">{time}</span>
+      {offset && (
+        <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-1.5 whitespace-nowrap rounded bg-slate-700 px-2 py-1 text-xs text-blue-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+          {offset}
+        </span>
+      )}
     </span>
   )
 }

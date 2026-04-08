@@ -1,23 +1,32 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { getTimezoneOffset, useMyTimezone } from '../lib/useMyTimezone'
 
 function ClientTimezone({ timezone }: { timezone: string }) {
+  const [myTz] = useMyTimezone()
   const [time, setTime] = useState('')
+  const [offset, setOffset] = useState('')
   useEffect(() => {
     const update = () => {
       try {
         const now = new Date()
         setTime(now.toLocaleTimeString('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', weekday: 'short' }))
+        setOffset(getTimezoneOffset(timezone, myTz))
       } catch { setTime('') }
     }
     update()
     const id = setInterval(update, 30000)
     return () => clearInterval(id)
-  }, [timezone])
+  }, [timezone, myTz])
   const city = timezone.split('/').pop()?.replace('_', ' ') ?? timezone
   return (
-    <span className="rounded bg-slate-800 px-3 py-1.5 text-xs text-slate-400">
+    <span className="group relative cursor-help rounded bg-slate-800 px-3 py-1.5 text-xs text-slate-400">
       {city} <span className="font-mono text-blue-300">{time}</span>
+      {offset && (
+        <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-slate-700 px-2 py-1 text-xs text-blue-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+          {offset}
+        </span>
+      )}
     </span>
   )
 }
