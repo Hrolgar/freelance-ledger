@@ -118,8 +118,8 @@ function ClientList() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {clients.map((client) => {
+            const projectCurrency = client.projects[0]?.currency ?? 'NOK'
             const paid = client.projects.flatMap(p => p.milestones).filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0)
-            const mainCurrency = client.projects[0]?.currency ?? 'NOK'
             return (
               <Link key={client.id} to={`/clients/${client.id}`}>
                 <AppCard className="p-4 transition-colors hover:border-blue-500/50">
@@ -139,8 +139,8 @@ function ClientList() {
                     {client.freelancerId && ' · Freelancer'}
                     {client.upworkId && ' · Upwork'}
                   </p>
-                  <div className="mt-3 font-mono text-lg font-semibold text-slate-100">
-                    {formatCurrency(paid, mainCurrency)}
+                  <div className="mt-3 text-lg font-semibold text-slate-100">
+                    <MoneyAmount amount={paid} currency={projectCurrency} />
                     <span className="ml-1 text-xs font-normal text-slate-500">paid</span>
                   </div>
                 </AppCard>
