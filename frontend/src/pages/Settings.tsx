@@ -1,59 +1,66 @@
 import { useEffect, useState } from 'react'
-import { deleteExchangeRate, getExchangeRates, upsertExchangeRate } from '../api'
-import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading } from '../components/ui'
-import type { ExchangeRateInput } from '../types'
-import { CURRENCIES } from '../types'
-
-const now = new Date()
-
-const emptyRate: ExchangeRateInput = {
-  currency: 'USD',
-  month: now.getMonth() + 1,
-  year: now.getFullYear(),
-  rate: 0,
-}
+import { autoFetchRates, getExchangeRates } from '../api'
+import { AppCard, Button, ErrorState, PageIntro, SectionHeading, Select } from '../components/ui'
+import { useMainCurrency } from '../lib/useMainCurrency'
+import type { ExchangeRate } from '../types'
+import { CURRENCIES, MONTH_NAMES } from '../types'
 
 export default function Settings() {
-  const [rates, setRates] = useState<Array<ExchangeRateInput & { id: number }>>([])
-  const [draft, setDraft] = useState<ExchangeRateInput>(emptyRate)
+  const [rates, setRates] = useState<ExchangeRate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [fetching, setFetching] = useState<string | null>(null)
+  const [mainCurrency, setMainCurrency] = useMainCurrency()
 
   const load = async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await getExchangeRates()
-      setRates(data)
+      setRates(await getExchangeRates())
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Failed to load exchange rates.')
+      setError(caught instanceof Error ? caught.message : 'Failed to load rates.')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    void load()
-  }, [])
+  useEffect(() => { void load() }, [])
 
-  const handleUpsert = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    try {
-      await upsertExchangeRate(draft)
-      setDraft(emptyRate)
-      await load()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Failed to save exchange rate.')
+  // Group rates by year-month
+  const grouped = rates.reduce<Record<string, ExchangeRate[]>>((acc, r) => {
+    const key = `${r.year}-${String(r.month).padStart(2, '0')}`
+    ;(acc[key] ??= []).push(r)
+    return acc
+  }, {})
+
+  const sortedKeys = Object.keys(grouped).sort().reverse()
+
+  const now = new Date()
+  const currentMonth = now.getMonth() + 1
+  const currentYear = now.getFullYear()
+
+  // Months that could be fetched (current and past, up to 12 months back)
+  const fetchableMonths: Array<{ month: number; year: number; label: string }> = []
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(currentYear, currentMonth - 1 - i, 1)
+    const m = d.getMonth() + 1
+    const y = d.getFullYear()
+    const key = `${y}-${String(m).padStart(2, '0')}`
+    if (!grouped[key] || grouped[key].length < 5) {
+      fetchableMonths.push({ month: m, year: y, label: `${MONTH_NAMES[m - 1]} ${y}` })
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Delete this exchange rate?')) return
+  const handleFetch = async (month: number, year: number) => {
+    const key = `${year}-${month}`
+    setFetching(key)
     try {
-      await deleteExchangeRate(id)
+      await autoFetchRates(month, year)
       await load()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Failed to delete exchange rate.')
+      setError(caught instanceof Error ? caught.message : 'Failed to fetch rates.')
+    } finally {
+      setFetching(null)
     }
   }
 
@@ -61,104 +68,92 @@ export default function Settings() {
     <div className="space-y-6">
       <PageIntro
         title="Settings"
-        description="Monthly exchange rates used when calculating NOK equivalents."
+        description="Exchange rates and display preferences."
       />
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <AppCard>
-          <SectionHeading
-            title="Exchange Rates"
-            description="One rate per currency, month, and year."
-          />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-700 text-left">
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Currency</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Month</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Year</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Rate to NOK</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {!loading && rates.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8">
-                      <EmptyState
-                        title="No exchange rates configured"
-                        description="Add rates so the ledger has NOK reference values for each month."
-                      />
-                    </td>
-                  </tr>
-                ) : null}
-                {rates.map((rate) => (
-                  <tr key={rate.id} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 font-mono font-medium text-slate-100">{rate.currency}</td>
-                    <td className="px-4 py-2.5 text-slate-400">{rate.month}</td>
-                    <td className="px-4 py-2.5 text-slate-400">{rate.year}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-slate-200">
-                      {rate.rate.toFixed(4)}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <Button variant="danger" className="px-2 text-xs" onClick={() => void handleDelete(rate.id)}>
-                        Delete
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </AppCard>
+      {/* Main currency */}
+      <AppCard>
+        <SectionHeading title="Display Currency" description="All totals and conversions use this currency." />
+        <div className="flex items-center gap-3 p-4">
+          <Select
+            value={mainCurrency}
+            onChange={(e) => setMainCurrency(e.target.value as typeof mainCurrency)}
+            className="w-32"
+          >
+            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </Select>
+          <span className="text-sm text-slate-400">
+            Dashboard and monthly views convert to {mainCurrency}.
+          </span>
+        </div>
+      </AppCard>
 
-        <AppCard>
-          <SectionHeading title="Upsert Rate" description="Create or update the rate for a currency/month/year." />
-          <form className="grid gap-3 p-4" onSubmit={handleUpsert}>
-            <Field label="Currency">
-              <Select
-                value={draft.currency}
-                onChange={(e) => setDraft((c) => ({ ...c, currency: e.target.value as ExchangeRateInput['currency'] }))}
-              >
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </Select>
-            </Field>
-            <div className="grid gap-3 grid-cols-2">
-              <Field label="Month">
-                <Input
-                  type="number"
-                  min="1"
-                  max="12"
-                  value={draft.month}
-                  onChange={(e) => setDraft((c) => ({ ...c, month: Number(e.target.value) }))}
-                />
-              </Field>
-              <Field label="Year">
-                <Input
-                  type="number"
-                  min="2020"
-                  value={draft.year}
-                  onChange={(e) => setDraft((c) => ({ ...c, year: Number(e.target.value) }))}
-                />
-              </Field>
-            </div>
-            <Field label="Rate to NOK">
-              <Input
-                type="number"
-                min="0"
-                step="0.0001"
-                value={draft.rate}
-                onChange={(e) => setDraft((c) => ({ ...c, rate: Number(e.target.value) }))}
-              />
-            </Field>
-            <div className="flex justify-end">
-              <Button type="submit">Upsert Rate</Button>
-            </div>
-          </form>
-        </AppCard>
-      </div>
+      {/* Exchange rates */}
+      <AppCard>
+        <SectionHeading
+          title="Exchange Rates"
+          description="Auto-fetched from ECB via frankfurter.app. Rates are final for past months."
+          action={
+            fetchableMonths.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Fetch missing:</span>
+                {fetchableMonths.slice(0, 3).map(({ month, year, label }) => (
+                  <Button
+                    key={`${year}-${month}`}
+                    variant="secondary"
+                    className="text-xs"
+                    disabled={fetching !== null}
+                    onClick={() => void handleFetch(month, year)}
+                  >
+                    {fetching === `${year}-${month}` ? 'Fetching...' : label}
+                  </Button>
+                ))}
+              </div>
+            ) : null
+          }
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700 text-left">
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Month</th>
+                {['GBP', 'USD', 'EUR', 'CAD', 'INR'].map((c) => (
+                  <th key={c} className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">
+                    1 {c} =
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">Loading...</td></tr>
+              )}
+              {!loading && sortedKeys.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">No rates yet. Click a fetch button above.</td></tr>
+              )}
+              {sortedKeys.map((key) => {
+                const group = grouped[key]
+                const [y, m] = key.split('-').map(Number)
+                const rateMap = Object.fromEntries(group.map((r) => [r.currency, r.rate]))
+                return (
+                  <tr key={key} className="border-b border-slate-700/50 last:border-0">
+                    <td className="px-4 py-2.5 font-medium text-slate-200">
+                      {MONTH_NAMES[m - 1]} {y}
+                    </td>
+                    {['GBP', 'USD', 'EUR', 'CAD', 'INR'].map((c) => (
+                      <td key={c} className="px-4 py-2.5 text-right font-mono text-slate-300">
+                        {rateMap[c] !== undefined ? `${rateMap[c].toFixed(4)} NOK` : '—'}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </AppCard>
     </div>
   )
 }

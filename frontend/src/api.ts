@@ -132,6 +132,8 @@ export const upsertExchangeRate = (data: ExchangeRateInput) =>
   request<ExchangeRate>('/exchange-rates', { method: 'PUT', body: JSON.stringify(data) })
 export const deleteExchangeRate = (id: number) =>
   request<void>(`/exchange-rates/${id}`, { method: 'DELETE' })
+export const autoFetchRates = (month: number, year: number) =>
+  request<ExchangeRate[]>(`/exchange-rates/auto-fetch${query({ month, year })}`, { method: 'POST' })
 
 export const api = {
   getDashboardYear,
