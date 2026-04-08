@@ -21,7 +21,9 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
 
         var allCosts = await db.Costs.AsNoTracking().ToListAsync();
 
-        // Auto-fetch rates for months that have activity
+        // Preload all cached rates in one query, then fetch missing ones
+        await rateService.PreloadYear(year);
+
         var activeMonths = new HashSet<int>();
         foreach (var p in projects)
         {

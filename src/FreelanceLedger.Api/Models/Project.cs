@@ -3,6 +3,8 @@ namespace FreelanceLedger.Api.Models;
 public class Project
 {
     public int Id { get; set; }
+    public int? ClientId { get; set; }
+    public Client? Client { get; set; }
     public string ClientName { get; set; } = string.Empty;
     public string ProjectName { get; set; } = string.Empty;
     public Platform Platform { get; set; }
