@@ -5,7 +5,7 @@ import { ProjectStatusBadge } from '../components/StatusBadge'
 import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
-import { calculateProjectGrossPaid, calculateProjectGrossPipeline, calculatePipelineValue, calculateProjectRevenue, isoDate } from '../lib/format'
+import { calculateProjectGrossPaid, calculateProjectGrossPipeline, calculatePipelineValue, calculateProjectRevenue, formatDate, isoDate } from '../lib/format'
 import type { Client, ClientInput, Project, ProjectInput } from '../types'
 import { CURRENCIES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
@@ -156,6 +156,7 @@ export default function Projects() {
                 <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Platform</th>
                 <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Cur</th>
                 <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Status</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Awarded</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Paid</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Pipeline</th>
                 <th className="px-4 py-2.5" />
@@ -164,7 +165,7 @@ export default function Projects() {
             <tbody>
               {!loading && sortedProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8">
+                  <td colSpan={9} className="px-4 py-8">
                     <EmptyState title="No projects yet" description="Click '+ Add Project' to get started." />
                   </td>
                 </tr>
@@ -176,6 +177,7 @@ export default function Projects() {
                   <td className="px-4 py-2.5 text-slate-500">{project.platform}</td>
                   <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{project.currency}</td>
                   <td className="px-4 py-2.5"><ProjectStatusBadge status={project.status} /></td>
+                  <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(project.dateAwarded)}</td>
                   <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectGrossPaid(project)} currency={project.currency} /></td>
                   <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectGrossPipeline(project)} currency={project.currency} /></td>
                   <td className="px-4 py-2.5 text-right">
