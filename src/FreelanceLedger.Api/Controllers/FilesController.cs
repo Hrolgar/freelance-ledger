@@ -76,7 +76,7 @@ public class FilesController(LedgerDbContext db, IConfiguration config) : Contro
     }
 
     [HttpGet("{fileId:int}/download")]
-    public async Task<IActionResult> Download(int projectId, int fileId)
+    public async Task<IActionResult> Download(int projectId, int fileId, [FromQuery] bool inline = false)
     {
         var record = await db.ProjectFiles.AsNoTracking()
             .FirstOrDefaultAsync(f => f.Id == fileId && f.ProjectId == projectId);
@@ -88,6 +88,12 @@ public class FilesController(LedgerDbContext db, IConfiguration config) : Contro
             return Problem(title: "Gone", detail: "File missing on disk.", statusCode: 410);
 
         var stream = System.IO.File.OpenRead(path);
+        if (inline)
+        {
+            var safeName = record.OriginalFilename.Replace("\"", "_");
+            Response.Headers.Append("Content-Disposition", $"inline; filename=\"{safeName}\"");
+            return File(stream, record.ContentType);
+        }
         return File(stream, record.ContentType, record.OriginalFilename);
     }
 

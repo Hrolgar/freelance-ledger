@@ -4,6 +4,7 @@ import { useMyTimezone } from './lib/useMyTimezone'
 import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
 import ProjectDetail from './pages/ProjectDetail'
+import FileViewer from './pages/FileViewer'
 import Monthly from './pages/Monthly'
 import Costs from './pages/Costs'
 import Clients from './pages/Clients'
@@ -91,6 +92,7 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
+        <Route path="/projects/:projectId/files/:fileId/view" element={<FileViewer />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/clients/:id" element={<Clients />} />
         <Route path="/monthly" element={<Monthly />} />
