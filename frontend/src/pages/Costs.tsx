@@ -12,7 +12,6 @@ import {
   updateInvestment,
 } from '../api'
 import { Modal } from '../components/Modal'
-import { MoneyAmount } from '../components/MoneyAmount'
 import {
   AppCard,
   Button,
@@ -27,11 +26,12 @@ import {
   StatCard,
   Textarea,
 } from '../components/ui'
-import { formatCurrency } from '../lib/format'
+import { formatCurrency, getRateForMonth } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
 import type {
   Cost,
   CostInput,
+  Currency,
   EffectiveCost,
   ExchangeRate,
   Investment,
@@ -99,10 +99,32 @@ function activeForMonth(cost: Cost, m: number, y: number): boolean {
   return cost.endYear * 12 + cost.endMonth >= picked
 }
 
-function toNok(amount: number, currency: string, rates: ExchangeRate[]): number {
-  if (currency === 'NOK') return amount
-  const rate = rates.find((r) => r.currency === currency)?.rate
-  return rate ? amount * rate : 0
+function CostMoney({ amount, currency, month, year, rates, mainCurrency, className = '' }: {
+  amount: number
+  currency: Currency
+  month: number
+  year: number
+  rates: ExchangeRate[]
+  mainCurrency: Currency
+  className?: string
+}) {
+  if (currency === mainCurrency) {
+    return <span className={`font-mono ${className}`}>{formatCurrency(amount, currency)}</span>
+  }
+  const fromRate = getRateForMonth(rates, currency, month, year)
+  const toRate = mainCurrency === 'NOK' ? 1 : getRateForMonth(rates, mainCurrency as Currency, month, year)
+  if (fromRate == null || toRate == null) {
+    return <span className={`font-mono ${className}`}>{formatCurrency(amount, currency)}</span>
+  }
+  const converted = (amount * fromRate) / toRate
+  return (
+    <span className={`group relative cursor-help border-b border-dashed border-slate-600 font-mono ${className}`}>
+      {formatCurrency(amount, currency)}
+      <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-slate-700 px-2 py-1 text-xs font-medium text-blue-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+        {formatCurrency(converted, mainCurrency)}
+      </span>
+    </span>
+  )
 }
 
 function TypeBadge({ type }: { type: 'Subscription' | 'Expense' | 'Investment' }) {
@@ -176,9 +198,12 @@ export default function Costs() {
   // Derived: active recurring (started, not ended)
   const activeRecurring = useMemo(() => costs.filter(isCurrentlyActive), [costs])
 
-  // KPI 1: active monthly burn in NOK
+  // KPI 1: active monthly burn in NOK — forward-looking, use current month's rate
   const activeBurnNok = useMemo(
-    () => activeRecurring.reduce((s, c) => s + toNok(c.amount, c.currency, rates), 0),
+    () => activeRecurring.reduce((s, c) => {
+      const rate = getRateForMonth(rates, c.currency as Currency, currentMonth, currentYear)
+      return s + (rate !== null ? c.amount * rate : 0)
+    }, 0),
     [activeRecurring, rates],
   )
 
@@ -193,15 +218,15 @@ export default function Costs() {
     [investments, month, year],
   )
 
-  // KPI 2: this month's spend in NOK
+  // KPI 2: this month's spend in NOK — convert at selected month's rate
   const thisMonthNok = useMemo(() => {
-    const costNok = [...thisMonthRecurring, ...thisMonthOneTime].reduce(
-      (s, c) => s + toNok(c.amount, c.currency, rates),
-      0,
-    )
+    const costNok = [...thisMonthRecurring, ...thisMonthOneTime].reduce((s, c) => {
+      const rate = getRateForMonth(rates, c.currency as Currency, month, year)
+      return s + (rate !== null ? c.amount * rate : 0)
+    }, 0)
     const invNok = thisMonthInvestments.reduce((s, i) => s + i.amount * i.nokRate, 0)
     return costNok + invNok
-  }, [thisMonthRecurring, thisMonthOneTime, thisMonthInvestments, rates])
+  }, [thisMonthRecurring, thisMonthOneTime, thisMonthInvestments, rates, month, year])
 
   // KPI 3: YTD (effective costs API result + investments)
   const ytdInvestmentsNok = useMemo(
@@ -350,7 +375,7 @@ export default function Costs() {
           <tr key={currency} className="border-t border-slate-700/50 bg-slate-800/20">
             <td className="px-4 py-2 text-xs text-slate-500" colSpan={3}>{currency} total</td>
             <td className="px-4 py-2 text-right">
-              <MoneyAmount amount={total} currency={currency} />
+              <CostMoney amount={total} currency={currency as Currency} month={month} year={year} rates={rates} mainCurrency={mainCurrency as Currency} />
             </td>
             <td />
           </tr>
@@ -467,7 +492,7 @@ export default function Costs() {
                     <td className="px-4 py-2.5"><TypeBadge type="Subscription" /></td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <MoneyAmount amount={cost.amount} currency={cost.currency} />
+                      <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={month} year={year} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
@@ -486,7 +511,7 @@ export default function Costs() {
                     <td className="px-4 py-2.5"><TypeBadge type="Expense" /></td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <MoneyAmount amount={cost.amount} currency={cost.currency} />
+                      <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={cost.month} year={cost.year} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
@@ -505,7 +530,7 @@ export default function Costs() {
                     <td className="px-4 py-2.5"><TypeBadge type="Investment" /></td>
                     <td className="px-4 py-2.5 text-xs text-slate-500">{inv.category}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <MoneyAmount amount={inv.amount} currency={inv.currency} />
+                      <CostMoney amount={inv.amount} currency={inv.currency as Currency} month={inv.month} year={inv.year} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
@@ -553,7 +578,7 @@ export default function Costs() {
                     <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
                     <td className="px-4 py-2.5 text-xs text-slate-400">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
                     <td className="px-4 py-2.5 text-right">
-                      <MoneyAmount amount={cost.amount} currency={cost.currency} />
+                      <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
@@ -582,7 +607,7 @@ export default function Costs() {
                   <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
                     <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total / month</td>
                     <td className="px-4 py-2.5 text-right">
-                      <MoneyAmount amount={total} currency={currency} />
+                      <CostMoney amount={total} currency={currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
                     <td />
                   </tr>
@@ -627,7 +652,7 @@ export default function Costs() {
                       <td className="px-4 py-2.5 text-xs text-slate-600">{cost.category}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-600">{formatPeriod(cost)}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <MoneyAmount amount={cost.amount} currency={cost.currency} className="text-slate-500" />
+                        <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} className="text-slate-500" />
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">
@@ -647,7 +672,7 @@ export default function Costs() {
                       <td className="px-4 py-2.5 text-xs text-slate-600">{cost.category}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-600">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <MoneyAmount amount={cost.amount} currency={cost.currency} className="text-slate-500" />
+                        <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={cost.month} year={cost.year} rates={rates} mainCurrency={mainCurrency as Currency} className="text-slate-500" />
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">
@@ -667,7 +692,7 @@ export default function Costs() {
                       <td className="px-4 py-2.5 text-xs text-slate-600">{inv.category}</td>
                       <td className="px-4 py-2.5 text-xs text-slate-600">{MONTH_NAMES[inv.month - 1]} {inv.year}</td>
                       <td className="px-4 py-2.5 text-right">
-                        <MoneyAmount amount={inv.amount} currency={inv.currency} className="text-slate-500" />
+                        <CostMoney amount={inv.amount} currency={inv.currency as Currency} month={inv.month} year={inv.year} rates={rates} mainCurrency={mainCurrency as Currency} className="text-slate-500" />
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">

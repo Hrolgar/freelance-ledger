@@ -1,4 +1,4 @@
-import type { Currency, Milestone, MilestoneStatus, Project, ProjectStatus } from '../types'
+import type { Currency, ExchangeRate, Milestone, MilestoneStatus, Project, ProjectStatus } from '../types'
 
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' })
 
@@ -118,4 +118,23 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+/**
+ * Look up a rate for a specific month/year. Falls back to the most recent
+ * available rate for that currency if the specific month isn't in the dataset.
+ */
+export function getRateForMonth(
+  rates: ExchangeRate[],
+  currency: Currency,
+  month: number,
+  year: number,
+): number | null {
+  if (currency === 'NOK') return 1
+  const exact = rates.find(r => r.currency === currency && r.month === month && r.year === year)
+  if (exact) return exact.rate
+  const matches = rates.filter(r => r.currency === currency)
+  if (matches.length === 0) return null
+  matches.sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month))
+  return matches[0].rate
 }
