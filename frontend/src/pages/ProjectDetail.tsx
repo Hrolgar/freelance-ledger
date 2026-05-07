@@ -47,7 +47,7 @@ import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
-import { formatCurrency, formatDate, getNextMilestoneOrder, isoDate } from '../lib/format'
+import { formatCurrency, formatDate, getNextMilestoneOrder, isMilestoneOverdue, isoDate } from '../lib/format'
 import type { Client, Milestone, MilestoneInput, MilestonePatchRequest, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
 import { CURRENCIES, MILESTONE_STATUSES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
@@ -544,7 +544,12 @@ export default function ProjectDetail() {
                   </tr>
                 ) : (
                   project.milestones.map((milestone) => (
-                    <tr key={milestone.id} className="border-b border-slate-700/50 last:border-0">
+                    <tr
+                      key={milestone.id}
+                      className={`border-b border-slate-700/50 last:border-0 ${
+                        isMilestoneOverdue(milestone) ? 'bg-amber-500/5 border-l-2 border-l-amber-500/60' : ''
+                      }`}
+                    >
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-slate-100">{milestone.name}</p>
                         {milestone.description && (
@@ -555,9 +560,18 @@ export default function ProjectDetail() {
                         <MoneyAmount amount={milestone.amount} currency={milestone.currency} />
                       </td>
                       <td className="px-4 py-2.5">
-                        <MilestoneStatusBadge status={milestone.status} />
+                        <div className="flex items-center gap-1.5">
+                          <MilestoneStatusBadge status={milestone.status} />
+                          {isMilestoneOverdue(milestone) && (
+                            <span className="inline-flex items-center rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                              Overdue
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-2.5 text-slate-400 text-xs">{formatDate(milestone.dateDue)}</td>
+                      <td className={`px-4 py-2.5 text-xs ${
+                        isMilestoneOverdue(milestone) ? 'text-amber-400 font-medium' : 'text-slate-400'
+                      }`}>{formatDate(milestone.dateDue)}</td>
                       <td className="px-4 py-2.5 text-slate-400 text-xs">{formatDate(milestone.datePaid)}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">
