@@ -151,9 +151,9 @@ function ClientList() {
                     {client.freelancerId && ' · Freelancer'}
                     {client.upworkId && ' · Upwork'}
                   </p>
-                  <div className="mt-3 text-lg font-semibold text-slate-100">
+                  <div className="mt-3 flex items-baseline gap-1.5 text-lg font-semibold text-slate-100">
                     <MoneyAmount amount={paid} currency={projectCurrency} />
-                    <span className="ml-1 text-xs font-normal text-slate-500">paid</span>
+                    <span className="text-xs font-normal text-slate-500">paid</span>
                   </div>
                 </AppCard>
               </Link>

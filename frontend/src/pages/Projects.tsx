@@ -5,7 +5,7 @@ import { ProjectStatusBadge } from '../components/StatusBadge'
 import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
-import { calculatePipelineValue, calculateProjectRevenue, isoDate } from '../lib/format'
+import { calculateProjectGrossPaid, calculateProjectGrossPipeline, calculatePipelineValue, calculateProjectRevenue, isoDate } from '../lib/format'
 import type { Client, ClientInput, Project, ProjectInput } from '../types'
 import { CURRENCIES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
@@ -146,7 +146,7 @@ export default function Projects() {
       )}
 
       <AppCard>
-        <SectionHeading title="All Projects" />
+        <SectionHeading title="All Projects" description="Amounts shown before platform fee." />
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -176,8 +176,8 @@ export default function Projects() {
                   <td className="px-4 py-2.5 text-slate-500">{project.platform}</td>
                   <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{project.currency}</td>
                   <td className="px-4 py-2.5"><ProjectStatusBadge status={project.status} /></td>
-                  <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectRevenue(project)} currency={project.currency} /></td>
-                  <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculatePipelineValue(project)} currency={project.currency} /></td>
+                  <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectGrossPaid(project)} currency={project.currency} /></td>
+                  <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectGrossPipeline(project)} currency={project.currency} /></td>
                   <td className="px-4 py-2.5 text-right">
                     <Button variant="ghost" className="px-2 text-xs" onClick={(e) => { e.stopPropagation(); void handleDelete(project.id) }}>Delete</Button>
                   </td>

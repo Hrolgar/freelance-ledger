@@ -115,7 +115,10 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             .OrderByDescending(project => project.NetValue)
             .ToList();
 
-        return Ok(new PipelineResponse(projects.Sum(project => project.NetValue), projects));
+        return Ok(new PipelineResponse(
+            projects.Sum(project => project.NetValue),
+            projects.Sum(project => project.GrossValue),
+            projects));
     }
 }
 
@@ -137,4 +140,7 @@ public record PipelineProjectResponse(
     decimal GrossValue,
     decimal NetValue);
 
-public record PipelineResponse(decimal TotalPipelineValue, IReadOnlyList<PipelineProjectResponse> Projects);
+public record PipelineResponse(
+    decimal TotalPipelineValue,
+    decimal TotalPipelineGrossValue,
+    IReadOnlyList<PipelineProjectResponse> Projects);

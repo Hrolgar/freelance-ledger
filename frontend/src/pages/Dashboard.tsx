@@ -70,8 +70,8 @@ export default function Dashboard() {
             <StatCard label="Net Profit" value={formatCurrency(overview.totalProfit, 'NOK')} />
             <StatCard
               label="Pipeline"
-              value={formatCurrency(pipeline?.totalPipelineValue ?? 0, 'NOK')}
-              hint={pipeline ? `${pipeline.projects.length} open projects` : undefined}
+              value={formatCurrency(pipeline?.totalPipelineGrossValue ?? 0, 'NOK')}
+              hint={pipeline ? `${pipeline.projects.length} open projects · before fee` : 'before fee'}
             />
           </div>
 
