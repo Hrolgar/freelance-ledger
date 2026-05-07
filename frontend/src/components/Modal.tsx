@@ -5,9 +5,10 @@ interface ModalProps {
   onClose: () => void
   children: ReactNode
   size?: 'sm' | 'md' | 'lg'
+  nested?: boolean
 }
 
-export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
+export function Modal({ title, onClose, children, size = 'md', nested }: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -19,7 +20,7 @@ export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
   const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className={`fixed inset-0 flex items-center justify-center p-4 ${nested ? 'z-[60]' : 'z-50'}`}>
       {/* Overlay — no backdrop-blur */}
       <div className="absolute inset-0 bg-black/70" onClick={onClose} aria-hidden />
 
