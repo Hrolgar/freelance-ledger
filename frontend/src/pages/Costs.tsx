@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createCost,
   createInvestment,
@@ -6,20 +6,50 @@ import {
   deleteInvestment,
   getCosts,
   getEffectiveCosts,
+  getExchangeRates,
   getInvestments,
   updateCost,
   updateInvestment,
 } from '../api'
 import { Modal } from '../components/Modal'
-import { AppCard, Button, Checkbox, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
+import { MoneyAmount } from '../components/MoneyAmount'
+import {
+  AppCard,
+  Button,
+  Checkbox,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  PageIntro,
+  Select,
+  SectionHeading,
+  StatCard,
+  Textarea,
+} from '../components/ui'
 import { formatCurrency } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
-import type { Cost, CostInput, EffectiveCost, Investment, InvestmentInput, InvestmentCategory } from '../types'
-import { COST_CATEGORIES_UI, CURRENCIES, INVESTMENT_CATEGORIES, MONTH_NAMES } from '../types'
+import type {
+  Cost,
+  CostInput,
+  EffectiveCost,
+  ExchangeRate,
+  Investment,
+  InvestmentCategory,
+  InvestmentInput,
+} from '../types'
+import {
+  COST_CATEGORIES_UI,
+  CURRENCIES,
+  INVESTMENT_CATEGORIES,
+  MONTH_FULL_NAMES,
+  MONTH_NAMES,
+} from '../types'
 
 const now = new Date()
 const currentYear = now.getFullYear()
 const currentMonth = now.getMonth() + 1
+const threeMonthsAgo = currentYear * 12 + currentMonth - 3
 
 const emptyCost: CostInput = {
   description: '',
@@ -54,20 +84,52 @@ function formatPeriod(cost: Cost) {
   return `${start} → ongoing`
 }
 
-function isEnded(cost: Cost): boolean {
-  if (!cost.endMonth || !cost.endYear) return false
-  return cost.endYear * 12 + cost.endMonth < currentYear * 12 + currentMonth
+function isCurrentlyActive(cost: Cost): boolean {
+  if (!cost.recurring) return false
+  if (cost.year * 12 + cost.month > currentYear * 12 + currentMonth) return false
+  if (cost.endMonth && cost.endYear && cost.endYear * 12 + cost.endMonth < currentYear * 12 + currentMonth) return false
+  return true
 }
 
-function isActiveRecurring(cost: Cost): boolean {
+function activeForMonth(cost: Cost, m: number, y: number): boolean {
   if (!cost.recurring) return false
+  const picked = y * 12 + m
+  if (cost.year * 12 + cost.month > picked) return false
   if (!cost.endMonth || !cost.endYear) return true
-  return cost.endYear * 12 + cost.endMonth >= currentYear * 12 + currentMonth
+  return cost.endYear * 12 + cost.endMonth >= picked
+}
+
+function toNok(amount: number, currency: string, rates: ExchangeRate[]): number {
+  if (currency === 'NOK') return amount
+  const rate = rates.find((r) => r.currency === currency)?.rate
+  return rate ? amount * rate : 0
+}
+
+function TypeBadge({ type }: { type: 'Subscription' | 'Expense' | 'Investment' }) {
+  const styles = {
+    Subscription: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
+    Expense: 'bg-slate-700/40 text-slate-300 border-slate-600/50',
+    Investment: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  }
+  return (
+    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${styles[type]}`}>
+      {type}
+    </span>
+  )
+}
+
+function NotesChip({ notes }: { notes: string }) {
+  return (
+    <span title={notes} className="ml-2 inline-flex cursor-help items-center rounded bg-blue-500/15 px-1 text-[10px] font-bold text-blue-300">
+      ⓘ
+    </span>
+  )
 }
 
 export default function Costs() {
   const [costs, setCosts] = useState<Cost[]>([])
   const [investments, setInvestments] = useState<Investment[]>([])
+  const [rates, setRates] = useState<ExchangeRate[]>([])
   const [costDraft, setCostDraft] = useState<CostInput>(emptyCost)
   const [investmentDraft, setInvestmentDraft] = useState<InvestmentInput>(emptyInvestment)
   const [editingCostId, setEditingCostId] = useState<number | null>(null)
@@ -75,18 +137,23 @@ export default function Costs() {
   const [showCostModal, setShowCostModal] = useState(false)
   const [showInvestmentModal, setShowInvestmentModal] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [ytdCostsNok, setYtdCostsNok] = useState<number>(0)
+  const [month, setMonth] = useState(currentMonth)
+  const [year, setYear] = useState(currentYear)
+  const [showArchived, setShowArchived] = useState(false)
+  const [ytdCostsOnlyNok, setYtdCostsOnlyNok] = useState(0)
   const [mainCurrency] = useMainCurrency()
 
   const load = async () => {
     setError(null)
     try {
-      const [costData, investmentData] = await Promise.all([
+      const [costData, investmentData, ratesData] = await Promise.all([
         getCosts(),
         getInvestments(),
+        getExchangeRates(),
       ])
       setCosts(costData)
       setInvestments(investmentData)
+      setRates(ratesData)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load costs.')
     }
@@ -94,32 +161,81 @@ export default function Costs() {
 
   useEffect(() => { void load() }, [])
 
-  // Load YTD costs in parallel (months 1..currentMonth)
+  // YTD costs via effective costs API (handles recurring expansion and NOK conversion server-side)
   useEffect(() => {
     const months = Array.from({ length: currentMonth }, (_, i) => i + 1)
-    void Promise.allSettled(months.map((m) => getEffectiveCosts(m, currentYear))).then(
-      (results) => {
-        const total = results
-          .filter((r): r is PromiseFulfilledResult<EffectiveCost[]> => r.status === 'fulfilled')
-          .flatMap((r) => r.value)
-          .reduce((s, c) => s + c.amountNok, 0)
-        setYtdCostsNok(total)
-      }
-    )
+    void Promise.allSettled(months.map((m) => getEffectiveCosts(m, currentYear))).then((results) => {
+      const total = results
+        .filter((r): r is PromiseFulfilledResult<EffectiveCost[]> => r.status === 'fulfilled')
+        .flatMap((r) => r.value)
+        .reduce((s, c) => s + c.amountNok, 0)
+      setYtdCostsOnlyNok(total)
+    })
   }, [])
 
-  const recurringCosts = costs.filter((c) => c.recurring)
-  const oneTimeCosts = costs.filter((c) => !c.recurring)
+  // Derived: active recurring (started, not ended)
+  const activeRecurring = useMemo(() => costs.filter(isCurrentlyActive), [costs])
 
-  // KPI computations from local data
-  const activeRecurring = costs.filter(isActiveRecurring)
-  const recurringMonthMain = activeRecurring
-    .filter((c) => c.currency === mainCurrency)
-    .reduce((s, c) => s + c.amount, 0)
-  const activeSubCount = activeRecurring.length
-  const ytdInvestmentsNok = investments
-    .filter((i) => i.year === currentYear)
-    .reduce((s, i) => s + i.amount * i.nokRate, 0)
+  // KPI 1: active monthly burn in NOK
+  const activeBurnNok = useMemo(
+    () => activeRecurring.reduce((s, c) => s + toNok(c.amount, c.currency, rates), 0),
+    [activeRecurring, rates],
+  )
+
+  // This month section items
+  const thisMonthRecurring = useMemo(() => costs.filter((c) => activeForMonth(c, month, year)), [costs, month, year])
+  const thisMonthOneTime = useMemo(
+    () => costs.filter((c) => !c.recurring && c.month === month && c.year === year),
+    [costs, month, year],
+  )
+  const thisMonthInvestments = useMemo(
+    () => investments.filter((i) => i.month === month && i.year === year),
+    [investments, month, year],
+  )
+
+  // KPI 2: this month's spend in NOK
+  const thisMonthNok = useMemo(() => {
+    const costNok = [...thisMonthRecurring, ...thisMonthOneTime].reduce(
+      (s, c) => s + toNok(c.amount, c.currency, rates),
+      0,
+    )
+    const invNok = thisMonthInvestments.reduce((s, i) => s + i.amount * i.nokRate, 0)
+    return costNok + invNok
+  }, [thisMonthRecurring, thisMonthOneTime, thisMonthInvestments, rates])
+
+  // KPI 3: YTD (effective costs API result + investments)
+  const ytdInvestmentsNok = useMemo(
+    () => investments
+      .filter((i) => i.year === currentYear && i.month <= currentMonth)
+      .reduce((s, i) => s + i.amount * i.nokRate, 0),
+    [investments],
+  )
+  const ytdTotalNok = ytdCostsOnlyNok + ytdInvestmentsNok
+
+  // Archived items
+  const archivedRecurring = useMemo(
+    () => costs.filter((c) => c.recurring && c.endMonth && c.endYear && c.endYear * 12 + c.endMonth < currentYear * 12 + currentMonth),
+    [costs],
+  )
+  const archivedOneTime = useMemo(
+    () => costs.filter((c) => !c.recurring && c.year * 12 + c.month < threeMonthsAgo),
+    [costs],
+  )
+  const archivedInvestments = useMemo(
+    () => investments.filter((i) => i.year * 12 + i.month < threeMonthsAgo),
+    [investments],
+  )
+  const totalArchived = archivedRecurring.length + archivedOneTime.length + archivedInvestments.length
+
+  // Month navigation
+  const prev = () => {
+    if (month === 1) { setMonth(12); setYear((y) => y - 1) }
+    else setMonth((m) => m - 1)
+  }
+  const next = () => {
+    if (month === 12) { setMonth(1); setYear((y) => y + 1) }
+    else setMonth((m) => m + 1)
+  }
 
   const handleCostSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -219,11 +335,67 @@ export default function Costs() {
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Failed to delete.') }
   }
 
+  // Per-currency footer rows for a mixed cost+investment list
+  function thisMonthFooter() {
+    const byCurrency: Record<string, number> = {}
+    for (const c of [...thisMonthRecurring, ...thisMonthOneTime]) {
+      byCurrency[c.currency] = (byCurrency[c.currency] ?? 0) + c.amount
+    }
+    for (const i of thisMonthInvestments) {
+      byCurrency[i.currency] = (byCurrency[i.currency] ?? 0) + i.amount
+    }
+    return (
+      <>
+        {Object.entries(byCurrency).map(([currency, total]) => (
+          <tr key={currency} className="border-t border-slate-700/50 bg-slate-800/20">
+            <td className="px-4 py-2 text-xs text-slate-500" colSpan={3}>{currency} total</td>
+            <td className="px-4 py-2 text-right">
+              <MoneyAmount amount={total} currency={currency} />
+            </td>
+            <td />
+          </tr>
+        ))}
+        <tr className="border-t-2 border-slate-700 bg-slate-800/30">
+          <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total (NOK)</td>
+          <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
+            {formatCurrency(thisMonthNok, 'NOK')}
+          </td>
+          <td />
+        </tr>
+      </>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <PageIntro
         title="Costs & Investments"
-        description="Manage recurring subscriptions, one-time costs, and capital investments."
+        description="Subscriptions, one-time expenses, and investments."
+        action={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              className="text-xs"
+              onClick={() => { setEditingCostId(null); setCostDraft({ ...emptyCost, recurring: true }); setShowCostModal(true) }}
+            >
+              + Subscription
+            </Button>
+            <Button
+              variant="secondary"
+              className="text-xs"
+              onClick={() => { setEditingCostId(null); setCostDraft({ ...emptyCost, recurring: false }); setShowCostModal(true) }}
+            >
+              + Expense
+            </Button>
+            <Button
+              variant="secondary"
+              className="text-xs"
+              onClick={() => { setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment); setShowInvestmentModal(true) }}
+            >
+              + Investment
+            </Button>
+          </div>
+        }
       />
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
@@ -231,166 +403,297 @@ export default function Costs() {
       {/* KPI strip */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label={`Recurring/mo (${mainCurrency})`}
-          value={formatCurrency(recurringMonthMain, mainCurrency)}
-          hint={`${activeSubCount} active subscription${activeSubCount !== 1 ? 's' : ''}`}
+          label="Active monthly burn"
+          value={formatCurrency(activeBurnNok, 'NOK')}
+          hint={`${activeRecurring.length} subscription${activeRecurring.length !== 1 ? 's' : ''}`}
         />
         <StatCard
-          label="YTD costs"
-          value={formatCurrency(ytdCostsNok, 'NOK')}
-          hint={`Jan–${MONTH_NAMES[currentMonth - 1]} ${currentYear}`}
+          label="This month's spend"
+          value={formatCurrency(thisMonthNok, 'NOK')}
+          hint="subscriptions + expenses + investments"
         />
         <StatCard
-          label="YTD investments"
-          value={formatCurrency(ytdInvestmentsNok, 'NOK')}
-          hint={`${currentYear}`}
+          label="YTD spend"
+          value={formatCurrency(ytdTotalNok, 'NOK')}
+          hint="year to date"
         />
         <StatCard
           label="Active subscriptions"
-          value={activeSubCount}
+          value={activeRecurring.length}
+          hint="currently billing"
         />
       </div>
 
-      {/* Recurring costs */}
+      {/* Section 1: This Month */}
       <AppCard>
-        <SectionHeading title="Recurring Costs" description="Auto-applied to every month from start date."
-          action={<Button variant="secondary" className="text-xs" onClick={() => { setEditingCostId(null); setCostDraft({ ...emptyCost, recurring: true }); setShowCostModal(true) }}>+ Add</Button>}
-        />
+        <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+          <p className="text-sm font-medium text-slate-200">This Month</p>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" className="px-2" onClick={prev}>
+              <span className="text-lg">‹</span>
+            </Button>
+            <span className="min-w-[130px] text-center text-sm font-medium text-slate-200">
+              {MONTH_FULL_NAMES[month - 1]} {year}
+            </span>
+            <Button variant="ghost" className="px-2" onClick={next}>
+              <span className="text-lg">›</span>
+            </Button>
+          </div>
+        </div>
+
+        {thisMonthRecurring.length === 0 && thisMonthOneTime.length === 0 && thisMonthInvestments.length === 0 ? (
+          <div className="px-4 py-8">
+            <EmptyState title="Nothing this month" description="No subscriptions, expenses, or investments for this period." />
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-700 text-left">
                   <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Type</th>
                   <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Period</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount/mo</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody>
-                {recurringCosts.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8">
-                    <EmptyState title="No recurring costs" description="Add subscriptions like Claude Max, Freelancer Plus, etc." />
-                  </td></tr>
-                ) : recurringCosts.map((cost) => {
-                  const ended = isEnded(cost)
-                  return (
-                    <tr key={cost.id} className={`border-b border-slate-700/50 last:border-0${ended ? ' opacity-50' : ''}`}>
-                      <td className="px-4 py-2.5 text-slate-200">
+                {thisMonthRecurring.map((cost) => (
+                  <tr key={`r-${cost.id}`} className="border-b border-slate-700/50 last:border-0">
+                    <td className="px-4 py-2.5 text-slate-200">
+                      {cost.description}
+                      {cost.notes && <NotesChip notes={cost.notes} />}
+                    </td>
+                    <td className="px-4 py-2.5"><TypeBadge type="Subscription" /></td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <MoneyAmount amount={cost.amount} currency={cost.currency} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
+                        <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {thisMonthOneTime.map((cost) => (
+                  <tr key={`o-${cost.id}`} className="border-b border-slate-700/50 last:border-0">
+                    <td className="px-4 py-2.5 text-slate-200">
+                      {cost.description}
+                      {cost.notes && <NotesChip notes={cost.notes} />}
+                    </td>
+                    <td className="px-4 py-2.5"><TypeBadge type="Expense" /></td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <MoneyAmount amount={cost.amount} currency={cost.currency} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
+                        <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {thisMonthInvestments.map((inv) => (
+                  <tr key={`i-${inv.id}`} className="border-b border-slate-700/50 last:border-0">
+                    <td className="px-4 py-2.5 text-slate-200">
+                      {inv.description}
+                      {inv.notes && <NotesChip notes={inv.notes} />}
+                    </td>
+                    <td className="px-4 py-2.5"><TypeBadge type="Investment" /></td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{inv.category}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <MoneyAmount amount={inv.amount} currency={inv.currency} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { editInvestment(inv); setShowInvestmentModal(true) }}>Edit</Button>
+                        <Button variant="danger" className="px-2 text-xs" onClick={() => void removeInvestment(inv.id)}>Del</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {thisMonthFooter()}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AppCard>
+
+      {/* Section 2: Active Subscriptions */}
+      <AppCard>
+        <SectionHeading title="Active Subscriptions" description="Currently billing every month." />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700 text-left">
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Started</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount/mo</th>
+                <th className="px-4 py-2.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {activeRecurring.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8">
+                    <EmptyState title="No active subscriptions" description="Add subscriptions like Claude Max, Freelancer Plus, etc." />
+                  </td>
+                </tr>
+              ) : (
+                activeRecurring.map((cost) => (
+                  <tr key={cost.id} className="border-b border-slate-700/50 last:border-0">
+                    <td className="px-4 py-2.5 text-slate-200">
+                      {cost.description}
+                      {cost.notes && <NotesChip notes={cost.notes} />}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-400">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <MoneyAmount amount={cost.amount} currency={cost.currency} />
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex justify-end gap-1">
+                        {!cost.endMonth && (
+                          <Button
+                            variant="ghost"
+                            className="px-2 text-xs text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                            onClick={() => void handleEndNow(cost)}
+                          >
+                            End now
+                          </Button>
+                        )}
+                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
+                        <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+              {activeRecurring.length > 0 && (() => {
+                const byCurrency = activeRecurring.reduce<Record<string, number>>((acc, c) => {
+                  acc[c.currency] = (acc[c.currency] ?? 0) + c.amount
+                  return acc
+                }, {})
+                return Object.entries(byCurrency).map(([currency, total]) => (
+                  <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
+                    <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total / month</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <MoneyAmount amount={total} currency={currency} />
+                    </td>
+                    <td />
+                  </tr>
+                ))
+              })()}
+            </tbody>
+          </table>
+        </div>
+      </AppCard>
+
+      {/* Section 3: Archived (hidden if empty) */}
+      {totalArchived > 0 && (
+        <AppCard>
+          <button
+            className="flex w-full items-center justify-between border-b border-slate-700 px-4 py-3 text-left transition-colors hover:bg-slate-800/30"
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            <p className="text-sm font-medium text-slate-400">Archived ({totalArchived} items)</p>
+            <span className="text-xs text-slate-500">{showArchived ? 'hide' : 'show'}</span>
+          </button>
+          {showArchived && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700 text-left">
+                    <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Type</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
+                    <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Period</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {archivedRecurring.map((cost) => (
+                    <tr key={`ar-${cost.id}`} className="border-b border-slate-700/50 last:border-0">
+                      <td className="px-4 py-2.5 text-slate-500">
                         {cost.description}
-                        {ended && (
-                          <span className="ml-2 inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">Ended</span>
-                        )}
-                        {cost.notes && (
-                          <span title={cost.notes} className="ml-2 inline-flex items-center rounded bg-blue-500/15 px-1 text-[10px] font-bold text-blue-300 cursor-help">i</span>
-                        )}
+                        {cost.notes && <NotesChip notes={cost.notes} />}
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-400">{formatPeriod(cost)}</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(cost.amount, cost.currency)}</td>
+                      <td className="px-4 py-2.5"><TypeBadge type="Subscription" /></td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{cost.category}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{formatPeriod(cost)}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <MoneyAmount amount={cost.amount} currency={cost.currency} className="text-slate-500" />
+                      </td>
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">
-                          {cost.recurring && !cost.endMonth && (
-                            <Button
-                              variant="ghost"
-                              className="px-2 text-xs text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
-                              onClick={() => void handleEndNow(cost)}
-                            >
-                              End now
-                            </Button>
-                          )}
                           <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
                           <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
                         </div>
                       </td>
                     </tr>
-                  )
-                })}
-                {recurringCosts.length > 0 && (() => {
-                  const byCurrency = recurringCosts.reduce<Record<string, number>>((acc, c) => {
-                    acc[c.currency] = (acc[c.currency] ?? 0) + c.amount
-                    return acc
-                  }, {})
-                  return Object.entries(byCurrency).map(([currency, total]) => (
-                    <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
-                      <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total / month</td>
-                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
-                        {formatCurrency(total, currency as Cost['currency'])}
+                  ))}
+                  {archivedOneTime.map((cost) => (
+                    <tr key={`ao-${cost.id}`} className="border-b border-slate-700/50 last:border-0">
+                      <td className="px-4 py-2.5 text-slate-500">
+                        {cost.description}
+                        {cost.notes && <NotesChip notes={cost.notes} />}
                       </td>
-                      <td />
+                      <td className="px-4 py-2.5"><TypeBadge type="Expense" /></td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{cost.category}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <MoneyAmount amount={cost.amount} currency={cost.currency} className="text-slate-500" />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
+                          <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
+                        </div>
+                      </td>
                     </tr>
-                  ))
-                })()}
-              </tbody>
-            </table>
-          </div>
-
-        {/* One-time costs below recurring */}
-        {oneTimeCosts.length > 0 && (
-          <>
-            <SectionHeading title="One-Time Costs" description="Charged to a specific month only."
-              action={<Button variant="secondary" className="text-xs" onClick={() => { setEditingCostId(null); setCostDraft({ ...emptyCost, recurring: false }); setShowCostModal(true) }}>+ Add</Button>}
-            />
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700 text-left">
-                      <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
-                      <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
-                      <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Month</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
-                      <th className="px-4 py-2.5" />
+                  ))}
+                  {archivedInvestments.map((inv) => (
+                    <tr key={`ai-${inv.id}`} className="border-b border-slate-700/50 last:border-0">
+                      <td className="px-4 py-2.5 text-slate-500">
+                        {inv.description}
+                        {inv.notes && <NotesChip notes={inv.notes} />}
+                      </td>
+                      <td className="px-4 py-2.5"><TypeBadge type="Investment" /></td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{inv.category}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-600">{MONTH_NAMES[inv.month - 1]} {inv.year}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <MoneyAmount amount={inv.amount} currency={inv.currency} className="text-slate-500" />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" className="px-2 text-xs" onClick={() => { editInvestment(inv); setShowInvestmentModal(true) }}>Edit</Button>
+                          <Button variant="danger" className="px-2 text-xs" onClick={() => void removeInvestment(inv.id)}>Del</Button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {oneTimeCosts.map((cost) => (
-                      <tr key={cost.id} className="border-b border-slate-700/50 last:border-0">
-                        <td className="px-4 py-2.5 text-slate-200">
-                          {cost.description}
-                          {cost.notes && (
-                            <span title={cost.notes} className="ml-2 inline-flex items-center rounded bg-blue-500/15 px-1 text-[10px] font-bold text-blue-300 cursor-help">i</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
-                        <td className="px-4 py-2.5 text-xs text-slate-400">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
-                        <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(cost.amount, cost.currency)}</td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
-                            <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {(() => {
-                      const byCurrency = oneTimeCosts.reduce<Record<string, number>>((acc, c) => {
-                        acc[c.currency] = (acc[c.currency] ?? 0) + c.amount
-                        return acc
-                      }, {})
-                      return Object.entries(byCurrency).map(([currency, total]) => (
-                        <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
-                          <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total</td>
-                          <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
-                            {formatCurrency(total, currency as Cost['currency'])}
-                          </td>
-                          <td />
-                        </tr>
-                      ))
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </AppCard>
+      )}
 
       {showCostModal && (
-        <Modal title={editingCostId ? 'Edit Cost' : 'Add Cost'} onClose={() => { setShowCostModal(false); setEditingCostId(null); setCostDraft(emptyCost) }}>
+        <Modal
+          title={editingCostId ? 'Edit Cost' : 'Add Cost'}
+          onClose={() => { setShowCostModal(false); setEditingCostId(null); setCostDraft(emptyCost) }}
+        >
           <form className="grid gap-3" onSubmit={handleCostSave}>
             <Field label="Description" required>
               <Input required value={costDraft.description} onChange={(e) => setCostDraft((c) => ({ ...c, description: e.target.value }))} />
             </Field>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid grid-cols-3 gap-3">
               <Field label="Amount">
                 <Input type="number" min="0" step="0.01" value={costDraft.amount} onChange={(e) => setCostDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
               </Field>
@@ -409,7 +712,7 @@ export default function Costs() {
               <Checkbox checked={costDraft.recurring} onChange={(e) => setCostDraft((c) => ({ ...c, recurring: e.target.checked, endMonth: null, endYear: null }))} />
               Recurring monthly
             </label>
-            <div className="grid gap-3 grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
               <Field label={costDraft.recurring ? 'Start month' : 'Month'}>
                 <Select value={costDraft.month} onChange={(e) => setCostDraft((c) => ({ ...c, month: Number(e.target.value) }))}>
                   {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
@@ -420,7 +723,7 @@ export default function Costs() {
               </Field>
             </div>
             {costDraft.recurring && (
-              <div className="grid gap-3 grid-cols-2">
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="End month (blank = ongoing)">
                   <Select value={costDraft.endMonth ?? ''} onChange={(e) => setCostDraft((c) => ({ ...c, endMonth: e.target.value ? Number(e.target.value) : null }))}>
                     <option value="">Ongoing</option>
@@ -443,72 +746,17 @@ export default function Costs() {
         </Modal>
       )}
 
-      {/* Investments */}
-      <AppCard>
-        <SectionHeading title="Investments" description="One-time purchases, not in monthly P&L."
-          action={<Button variant="secondary" className="text-xs" onClick={() => { setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment); setShowInvestmentModal(true) }}>+ Add</Button>}
-        />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-700 text-left">
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Month</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">NOK at purchase</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {investments.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-8">
-                    <EmptyState title="No investments" description="Track exam fees, hardware, etc." />
-                  </td></tr>
-                ) : investments.map((inv) => (
-                  <tr key={inv.id} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 text-slate-200">
-                      {inv.description}
-                      {inv.notes && (
-                        <span title={inv.notes} className="ml-2 inline-flex items-center rounded bg-blue-500/15 px-1 text-[10px] font-bold text-blue-300 cursor-help">i</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{inv.category}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400">{MONTH_NAMES[inv.month - 1]} {inv.year}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-slate-200">{formatCurrency(inv.amount, inv.currency)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-400">{formatCurrency(inv.amount * inv.nokRate, 'NOK')}</td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { editInvestment(inv); setShowInvestmentModal(true) }}>Edit</Button>
-                        <Button variant="danger" className="px-2 text-xs" onClick={() => void removeInvestment(inv.id)}>Del</Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {investments.length > 0 && (() => {
-                  const nokTotal = investments.reduce((s, inv) => s + inv.amount * inv.nokRate, 0)
-                  return (
-                    <tr className="border-t-2 border-slate-700 bg-slate-800/30">
-                      <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={4}>Total (NOK at purchase)</td>
-                      <td className="px-4 py-2.5 text-right font-mono text-sm font-semibold text-slate-300">
-                        {formatCurrency(nokTotal, 'NOK')}
-                      </td>
-                      <td />
-                    </tr>
-                  )
-                })()}
-              </tbody>
-            </table>
-          </div>
-      </AppCard>
-
       {showInvestmentModal && (
-        <Modal title={editingInvestmentId ? 'Edit Investment' : 'Add Investment'} onClose={() => { setShowInvestmentModal(false); setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment) }} size="md">
+        <Modal
+          title={editingInvestmentId ? 'Edit Investment' : 'Add Investment'}
+          onClose={() => { setShowInvestmentModal(false); setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment) }}
+          size="md"
+        >
           <form className="grid gap-3" onSubmit={handleInvestmentSave}>
             <Field label="Description" required>
               <Input required value={investmentDraft.description} onChange={(e) => setInvestmentDraft((c) => ({ ...c, description: e.target.value }))} />
             </Field>
-            <div className="grid gap-3 grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
               <Field label="Amount">
                 <Input type="number" min="0" step="0.01" value={investmentDraft.amount} onChange={(e) => setInvestmentDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
               </Field>
@@ -518,7 +766,7 @@ export default function Costs() {
                 </Select>
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
               <Field label="Category">
                 <Select value={investmentDraft.category} onChange={(e) => setInvestmentDraft((c) => ({ ...c, category: e.target.value as InvestmentCategory }))}>
                   {INVESTMENT_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
@@ -528,7 +776,7 @@ export default function Costs() {
                 <Input type="number" min="0" step="0.0001" value={investmentDraft.nokRate} onChange={(e) => setInvestmentDraft((c) => ({ ...c, nokRate: Number(e.target.value) }))} />
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-2">
+            <div className="grid grid-cols-2 gap-3">
               <Field label="Month">
                 <Select value={investmentDraft.month} onChange={(e) => setInvestmentDraft((c) => ({ ...c, month: Number(e.target.value) }))}>
                   {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
