@@ -45,7 +45,7 @@ import {
 } from '../api'
 import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
-import { MilestoneStatusBadge, ProjectStatusBadge } from '../components/StatusBadge'
+import { MilestoneStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
 import { formatCurrency, formatDate, getNextMilestoneOrder, isoDate } from '../lib/format'
 import type { Client, Milestone, MilestoneInput, MilestonePatchRequest, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
@@ -279,6 +279,7 @@ export default function ProjectDetail() {
   }
 
   const feeIsLocked = projectDraft.platform === 'Freelancer' || projectDraft.platform === 'Upwork'
+  const paidCount = project.milestones.filter(m => m.status === 'Paid').length
 
   const handleQuickMarkPaid = async (milestone: Milestone) => {
     const today = new Date().toISOString().slice(0, 10)
@@ -292,6 +293,23 @@ export default function ProjectDetail() {
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to mark paid.')
+    }
+  }
+
+  const handleMarkProjectPaid = async () => {
+    if (!project) return
+    setSavingProject(true)
+    try {
+      await updateProject(projectId, {
+        ...projectDraft,
+        status: 'Paid',
+        dateCompleted: projectDraft.dateCompleted ?? new Date().toISOString().slice(0, 10),
+      })
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to update status.')
+    } finally {
+      setSavingProject(false)
     }
   }
 
@@ -320,6 +338,21 @@ export default function ProjectDetail() {
           <StatCard label="Pipeline Total" value={<MoneyAmount amount={summary.pipelineTotal} currency={summary.currency} />} hint="before fee" />
           <StatCard label="Fees" value={<MoneyAmount amount={summary.fee} currency={summary.currency} />} hint="deducted" />
           <StatCard label="Net Revenue" value={<MoneyAmount amount={summary.net} currency={summary.currency} />} hint="after fee" />
+        </div>
+      )}
+
+      {project.milestones.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>Milestone progress</span>
+            <span className="font-mono">{paidCount} / {project.milestones.length}</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded bg-slate-800">
+            <div
+              className="h-full rounded bg-emerald-500 transition-all"
+              style={{ width: `${(paidCount / project.milestones.length) * 100}%` }}
+            />
+          </div>
         </div>
       )}
 
@@ -420,8 +453,7 @@ export default function ProjectDetail() {
                 onChange={(e) => setProjectDraft((c) => ({ ...c, notes: e.target.value || null }))}
               />
             </Field>
-            <div className="flex items-center justify-between gap-4">
-              <ProjectStatusBadge status={projectDraft.status} />
+            <div className="flex justify-end">
               <Button type="submit" disabled={savingProject}>
                 {savingProject ? 'Saving…' : 'Save Changes'}
               </Button>
@@ -443,7 +475,9 @@ export default function ProjectDetail() {
             </div>
             <div className="flex items-center justify-between py-2.5">
               <dt className="text-slate-400">Milestones</dt>
-              <dd className="text-slate-200">{project.milestones.length}</dd>
+              <dd className="text-slate-200">
+                {paidCount} / {project.milestones.length} paid
+              </dd>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <dt className="text-slate-400">Tips</dt>
@@ -458,6 +492,23 @@ export default function ProjectDetail() {
           </dl>
         </AppCard>
       </div>
+
+      {project.milestones.length > 0 &&
+        project.milestones.every(m => m.status === 'Paid') &&
+        project.status !== 'Paid' && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+            <p className="text-sm text-emerald-300">
+              All milestones paid. Mark project as Paid?
+            </p>
+            <Button
+              variant="secondary"
+              className="text-xs"
+              onClick={() => void handleMarkProjectPaid()}
+            >
+              Mark Paid
+            </Button>
+          </div>
+        )}
 
       {/* Milestones */}
       <AppCard>
@@ -513,7 +564,7 @@ export default function ProjectDetail() {
                           {milestone.status !== 'Paid' && (
                             <Button
                               variant="ghost"
-                              className="px-2 text-xs text-green-400 hover:text-green-300"
+                              className="px-2 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
                               onClick={() => void handleQuickMarkPaid(milestone)}
                             >
                               Mark Paid
