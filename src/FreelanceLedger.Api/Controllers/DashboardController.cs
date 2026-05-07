@@ -123,16 +123,25 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             .OrderByDescending(project => project.UnpaidNet)
             .ToList();
 
-        var totalUnpaidNet = projects.Sum(p => p.UnpaidNet);
-        var totalUnpaidGross = projects.Sum(p => p.UnpaidGross);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await rateService.PreloadYear(today.Year);
+
+        decimal totalUnpaidNetNok = 0;
+        decimal totalUnpaidGrossNok = 0;
+        foreach (var project in projects)
+        {
+            var rate = await rateService.GetRate(project.Currency, today.Month, today.Year);
+            totalUnpaidNetNok += project.UnpaidNet * rate;
+            totalUnpaidGrossNok += project.UnpaidGross * rate;
+        }
 
         var byStatus = projects
             .GroupBy(p => p.Status)
             .ToDictionary(g => g.Key, g => g.Count());
 
         return Ok(new PipelineResponse(
-            totalUnpaidNet,
-            totalUnpaidGross,
+            Math.Round(totalUnpaidNetNok, 2),
+            Math.Round(totalUnpaidGrossNok, 2),
             projects,
             byStatus));
     }

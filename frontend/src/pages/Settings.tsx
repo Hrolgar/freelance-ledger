@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { autoFetchRates, getExchangeRates } from '../api'
-import { AppCard, Button, ErrorState, PageIntro, SectionHeading, Select } from '../components/ui'
+import { AppCard, Button, ErrorState, Field, Input, PageIntro, SectionHeading, Select } from '../components/ui'
 import { useMainCurrency } from '../lib/useMainCurrency'
 import { useMyTimezone } from '../lib/useMyTimezone'
 import type { ExchangeRate } from '../types'
@@ -13,6 +13,7 @@ export default function Settings() {
   const [fetching, setFetching] = useState<string | null>(null)
   const [mainCurrency, setMainCurrency] = useMainCurrency()
   const [myTimezone, setMyTimezone] = useMyTimezone()
+  const [exportYear, setExportYear] = useState(new Date().getFullYear())
 
   const load = async () => {
     setLoading(true)
@@ -101,6 +102,32 @@ export default function Settings() {
             </Select>
             <p className="mt-1 text-xs text-slate-500">Client clocks show offset relative to this.</p>
           </div>
+        </div>
+      </AppCard>
+
+      {/* Export */}
+      <AppCard>
+        <SectionHeading
+          title="Export"
+          description="Download a CSV of all paid milestones and tips for a given year. Hand it to your accountant."
+        />
+        <div className="flex items-end gap-3 p-4">
+          <Field label="Year">
+            <Input
+              type="number"
+              min="2020"
+              max="2099"
+              value={exportYear}
+              onChange={(e) => setExportYear(Number(e.target.value))}
+              className="w-28"
+            />
+          </Field>
+          <Button
+            variant="secondary"
+            onClick={() => window.open(`/api/export/year/${exportYear}/paid-milestones.csv`, '_blank')}
+          >
+            Download CSV
+          </Button>
         </div>
       </AppCard>
 
