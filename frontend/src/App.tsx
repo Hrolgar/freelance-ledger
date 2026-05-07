@@ -66,21 +66,13 @@ function AppShell() {
         style={{ borderRight: '1px solid var(--border-faint)', background: 'var(--bg-base)' }}
       >
         <div className="px-6 pt-7 pb-6" style={{ borderBottom: '1px solid var(--border-faint)' }}>
-          <div className="flex items-baseline gap-2">
-            <span
-              className="text-[28px] leading-none font-semibold tracking-tight"
-              style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}
-            >
-              Ledger
-            </span>
-            <span
-              className="text-[11px] font-medium uppercase tracking-[0.2em]"
-              style={{ color: 'var(--accent)' }}
-            >
-              N°1
-            </span>
-          </div>
-          <p className="mt-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>Freelance · 2026</p>
+          <span
+            className="text-[28px] leading-none font-semibold tracking-tight"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}
+          >
+            Ledger
+          </span>
+          <p className="mt-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>Freelance · 2026</p>
         </div>
 
         <nav className="flex-1 px-3 py-5 overflow-y-auto">
