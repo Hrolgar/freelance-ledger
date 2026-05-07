@@ -7,21 +7,21 @@
 }
 
 :root {
-  /* Surfaces — clear hierarchy via elevation, not borders */
-  --bg-base: #0f1115;
-  --bg-surface: #1a1d23;
-  --bg-elevated: #232730;
-  --bg-overlay: #2c313b;
+  /* Surfaces — clear hierarchy via elevation. Each step is visibly distinct. */
+  --bg-base: #0c0d11;
+  --bg-surface: #1d2027;
+  --bg-elevated: #2a2e37;
+  --bg-overlay: #363b46;
 
   /* Text — warm whites, multiple steps */
-  --text-primary: #e8e6e0;
-  --text-secondary: #a39d92;
-  --text-tertiary: #6f6a62;
-  --text-disabled: #4a463f;
+  --text-primary: #ece9e3;
+  --text-secondary: #a8a298;
+  --text-tertiary: #797368;
+  --text-disabled: #4f4a42;
 
-  /* Borders — used sparingly */
-  --border-faint: #262a32;
-  --border-default: #353a44;
+  /* Borders — visible enough to define cards on dark */
+  --border-faint: #2e323b;
+  --border-default: #404553;
 
   /* Semantic — data states */
   --paid: #5fad7e;
