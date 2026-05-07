@@ -181,7 +181,7 @@ export const deleteProjectFile = (projectId: number, fileId: number) =>
   request<void>(`/projects/${projectId}/files/${fileId}`, { method: 'DELETE' })
 
 export const projectFileDownloadUrl = (projectId: number, fileId: number, inline = false) =>
-  `${API_BASE}/projects/${projectId}/files/${fileId}/download${inline ? '?inline=1' : ''}`
+  `${API_BASE}/projects/${projectId}/files/${fileId}/download${inline ? '?inline=true' : ''}`
 
 export const api = {
   getPlatforms,
