@@ -15,6 +15,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         var projects = await db.Projects
             .AsNoTracking()
             .Include(p => p.Client)
+            .Include(p => p.Platform)
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
             .ToListAsync();
@@ -28,6 +29,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         var project = await db.Projects
             .AsNoTracking()
             .Include(p => p.Client)
+            .Include(p => p.Platform)
             .Include(p => p.Milestones.OrderBy(m => m.SortOrder))
             .Include(p => p.Tips)
             .FirstOrDefaultAsync(p => p.Id == id);
@@ -96,7 +98,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
 
         project.ClientName = updated.ClientName;
         project.ProjectName = updated.ProjectName;
-        project.Platform = updated.Platform;
+        project.PlatformId = updated.PlatformId;
         project.Currency = updated.Currency;
         project.FeePercentage = updated.FeePercentage;
         project.InitialFullPrice = updated.InitialFullPrice;

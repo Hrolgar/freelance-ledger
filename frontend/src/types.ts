@@ -1,8 +1,17 @@
-export type Platform = 'Freelancer' | 'Upwork' | 'Direct' | 'Other'
 export type Currency = 'GBP' | 'USD' | 'EUR' | 'CAD' | 'INR' | 'NOK'
 export type ProjectStatus = 'Quoted' | 'Awarded' | 'InProgress' | 'Completed' | 'Paid'
 export type MilestoneStatus = 'Pending' | 'Funded' | 'Released' | 'Paid' | 'Disputed'
 export type CostCategory = 'Software' | 'Hardware' | 'Internet' | 'Office' | 'Other'
+
+export interface Platform {
+  id: number
+  name: string
+  defaultFeePercentage: number
+  isLocked: boolean
+  notes: string | null
+}
+
+export type PlatformInput = Omit<Platform, 'id'>
 
 export interface Client {
   id: number
@@ -26,7 +35,8 @@ export interface Project {
   client: Client | null
   clientName: string
   projectName: string
-  platform: Platform
+  platformId: number | null
+  platform: Platform | null
   currency: Currency
   feePercentage: number
   initialFullPrice: number | null
@@ -145,7 +155,7 @@ export interface ProjectSummary {
   currency: Currency
 }
 
-export type ProjectInput = Omit<Project, 'id' | 'milestones' | 'tips'>
+export type ProjectInput = Omit<Project, 'id' | 'milestones' | 'tips' | 'client' | 'platform'> & { platformId: number | null }
 export type MilestoneInput = Omit<Milestone, 'id' | 'projectId'>
 export type TipInput = Omit<Tip, 'id' | 'projectId'>
 export type CostInput = Omit<Cost, 'id'>
@@ -167,7 +177,6 @@ export interface MilestonePatchRequest {
 }
 
 export const CURRENCIES: Currency[] = ['GBP', 'USD', 'EUR', 'CAD', 'INR', 'NOK']
-export const PLATFORMS: Platform[] = ['Freelancer', 'Upwork', 'Direct', 'Other']
 export const PROJECT_STATUSES: ProjectStatus[] = [
   'Quoted',
   'Awarded',
@@ -279,7 +288,6 @@ export const TIMEZONES = [
 ]
 
 export const currencies = CURRENCIES
-export const platforms = PLATFORMS
 export const projectStatuses = PROJECT_STATUSES
 export const milestoneStatuses = MILESTONE_STATUSES
 export const costCategories = COST_CATEGORIES

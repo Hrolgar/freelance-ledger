@@ -12,6 +12,8 @@ import type {
   MilestoneInput,
   MilestonePatchRequest,
   Pipeline,
+  Platform,
+  PlatformInput,
   Project,
   ProjectInput,
   ProjectSummary,
@@ -61,6 +63,15 @@ function query(params: Record<string, string | number | undefined>) {
   const value = search.toString()
   return value ? `?${value}` : ''
 }
+
+// Platforms
+export const getPlatforms = () => request<Platform[]>('/platforms')
+export const getPlatform = (id: number) => request<Platform>(`/platforms/${id}`)
+export const createPlatform = (data: PlatformInput) =>
+  request<Platform>('/platforms', { method: 'POST', body: JSON.stringify(data) })
+export const updatePlatform = (id: number, data: PlatformInput) =>
+  request<Platform>(`/platforms/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deletePlatform = (id: number) => request<void>(`/platforms/${id}`, { method: 'DELETE' })
 
 // Clients
 export const getClients = () => request<Client[]>('/clients')
@@ -149,6 +160,11 @@ export const autoFetchRates = (month: number, year: number) =>
   request<ExchangeRate[]>(`/exchange-rates/auto-fetch${query({ month, year })}`, { method: 'POST' })
 
 export const api = {
+  getPlatforms,
+  getPlatform,
+  createPlatform,
+  updatePlatform,
+  deletePlatform,
   getDashboardYear,
   getYearOverview,
   getPipeline,

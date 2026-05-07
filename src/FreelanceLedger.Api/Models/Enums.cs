@@ -1,13 +1,5 @@
 namespace FreelanceLedger.Api.Models;
 
-public enum Platform
-{
-    Freelancer,
-    Upwork,
-    Direct,
-    Other
-}
-
 public enum Currency
 {
     GBP,

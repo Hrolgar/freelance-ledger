@@ -20,6 +20,7 @@ public class ExportController(LedgerDbContext db, ExchangeRateService rateServic
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
             .Include(p => p.Client)
+            .Include(p => p.Platform)
             .ToListAsync();
 
         await rateService.PreloadYear(year);
@@ -27,7 +28,7 @@ public class ExportController(LedgerDbContext db, ExchangeRateService rateServic
         var sb = new StringBuilder();
         sb.AppendLine("Date,Type,Project,Client,Platform,Currency,Gross,Fee Pct,Fee Amount,Net,Net NOK");
 
-        var rows = new List<(DateOnly date, string type, string projectName, string clientName, Platform platform, Currency currency, decimal gross, decimal feePct, decimal feeAmount, decimal net, decimal netNok)>();
+        var rows = new List<(DateOnly date, string type, string projectName, string clientName, string platformName, Currency currency, decimal gross, decimal feePct, decimal feeAmount, decimal net, decimal netNok)>();
 
         foreach (var project in projects)
         {
@@ -38,7 +39,7 @@ public class ExportController(LedgerDbContext db, ExchangeRateService rateServic
                 var net = m.Amount - feeAmount;
                 var rate = await rateService.GetRate(project.Currency, m.DatePaid!.Value.Month, m.DatePaid.Value.Year);
                 var clientName = project.Client?.Name ?? project.ClientName;
-                rows.Add((m.DatePaid.Value, "Milestone", $"{project.ProjectName} - {m.Name}", clientName, project.Platform, project.Currency, m.Amount, project.FeePercentage, feeAmount, net, net * rate));
+                rows.Add((m.DatePaid.Value, "Milestone", $"{project.ProjectName} - {m.Name}", clientName, project.Platform?.Name ?? "", project.Currency, m.Amount, project.FeePercentage, feeAmount, net, net * rate));
             }
 
             // Tips
@@ -48,7 +49,7 @@ public class ExportController(LedgerDbContext db, ExchangeRateService rateServic
                 var net = t.Amount - feeAmount;
                 var rate = await rateService.GetRate(t.Currency, t.Date.Month, t.Date.Year);
                 var clientName = project.Client?.Name ?? project.ClientName;
-                rows.Add((t.Date, "Tip", project.ProjectName, clientName, project.Platform, t.Currency, t.Amount, project.FeePercentage, feeAmount, net, net * rate));
+                rows.Add((t.Date, "Tip", project.ProjectName, clientName, project.Platform?.Name ?? "", t.Currency, t.Amount, project.FeePercentage, feeAmount, net, net * rate));
             }
         }
 
@@ -58,7 +59,7 @@ public class ExportController(LedgerDbContext db, ExchangeRateService rateServic
             sb.Append(EscapeCsv(row.type)).Append(',');
             sb.Append(EscapeCsv(row.projectName)).Append(',');
             sb.Append(EscapeCsv(row.clientName)).Append(',');
-            sb.Append(row.platform).Append(',');
+            sb.Append(EscapeCsv(row.platformName)).Append(',');
             sb.Append(row.currency).Append(',');
             sb.Append(row.gross.ToString("F2", CultureInfo.InvariantCulture)).Append(',');
             sb.Append(row.feePct.ToString("F1", CultureInfo.InvariantCulture)).Append(',');
