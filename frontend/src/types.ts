@@ -133,6 +133,9 @@ export interface ProjectSummary {
   gross: number
   fee: number
   net: number
+  pipelineTotal: number
+  outstanding: number
+  outstandingNet: number
   currency: Currency
 }
 
@@ -154,6 +157,7 @@ export type ExchangeRatePayload = ExchangeRateInput
 export interface MilestonePatchRequest {
   status?: MilestoneStatus
   datePaid?: string | null
+  dateDue?: string | null
 }
 
 export const CURRENCIES: Currency[] = ['GBP', 'USD', 'EUR', 'CAD', 'INR', 'NOK']
@@ -196,27 +200,76 @@ export const MONTH_FULL_NAMES = [
 ]
 
 export const TIMEZONES = [
-  'Europe/London',
-  'Europe/Oslo',
-  'Europe/Berlin',
-  'Europe/Paris',
-  'Europe/Moscow',
-  'America/New_York',
+  'Africa/Accra',
+  'Africa/Addis_Ababa',
+  'Africa/Algiers',
+  'Africa/Cairo',
+  'Africa/Casablanca',
+  'Africa/Johannesburg',
+  'Africa/Lagos',
+  'Africa/Nairobi',
+  'America/Anchorage',
+  'America/Argentina/Buenos_Aires',
+  'America/Bogota',
+  'America/Caracas',
   'America/Chicago',
   'America/Denver',
+  'America/Halifax',
+  'America/Lima',
   'America/Los_Angeles',
-  'America/Toronto',
+  'America/Mexico_City',
+  'America/New_York',
+  'America/Phoenix',
+  'America/Santiago',
   'America/Sao_Paulo',
-  'Asia/Kolkata',
+  'America/Toronto',
+  'America/Vancouver',
+  'Asia/Almaty',
+  'Asia/Baku',
+  'Asia/Bangkok',
   'Asia/Dubai',
+  'Asia/Ho_Chi_Minh',
+  'Asia/Hong_Kong',
+  'Asia/Jakarta',
+  'Asia/Jerusalem',
+  'Asia/Karachi',
+  'Asia/Kolkata',
+  'Asia/Kuala_Lumpur',
+  'Asia/Manila',
   'Asia/Riyadh',
+  'Asia/Seoul',
   'Asia/Shanghai',
-  'Asia/Tokyo',
   'Asia/Singapore',
+  'Asia/Taipei',
+  'Asia/Tashkent',
+  'Asia/Tbilisi',
+  'Asia/Tehran',
+  'Asia/Tokyo',
+  'Asia/Yerevan',
   'Australia/Sydney',
+  'Europe/Amsterdam',
+  'Europe/Athens',
+  'Europe/Berlin',
+  'Europe/Bucharest',
+  'Europe/Dublin',
+  'Europe/Helsinki',
+  'Europe/Istanbul',
+  'Europe/Kyiv',
+  'Europe/Lisbon',
+  'Europe/London',
+  'Europe/Madrid',
+  'Europe/Moscow',
+  'Europe/Oslo',
+  'Europe/Paris',
+  'Europe/Prague',
+  'Europe/Rome',
+  'Europe/Stockholm',
+  'Europe/Vienna',
+  'Europe/Warsaw',
   'Pacific/Auckland',
-  'Africa/Cairo',
-  'Africa/Lagos',
+  'Pacific/Fiji',
+  'Pacific/Guam',
+  'Pacific/Honolulu',
 ]
 
 export const currencies = CURRENCIES

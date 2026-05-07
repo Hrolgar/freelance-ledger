@@ -90,6 +90,9 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
         if (patch.DatePaid.HasValue)
             milestone.DatePaid = patch.DatePaid.Value;
 
+        if (patch.DateDue.HasValue)
+            milestone.DateDue = patch.DateDue.Value;
+
         await db.SaveChangesAsync();
         return Ok(milestone);
     }
@@ -109,4 +112,4 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
     }
 }
 
-public record MilestonePatchRequest(MilestoneStatus? Status, DateOnly? DatePaid);
+public record MilestonePatchRequest(MilestoneStatus? Status, DateOnly? DatePaid, DateOnly? DateDue);
