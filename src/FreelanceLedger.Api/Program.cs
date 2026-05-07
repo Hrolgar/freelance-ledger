@@ -21,6 +21,8 @@ builder.Services
     });
 builder.Services.AddHttpClient<ExchangeRateService>();
 builder.Services.AddScoped<ExchangeRateService>();
+builder.Services.AddHostedService<BackupHostedService>();
+builder.Services.AddHealthChecks().AddDbContextCheck<LedgerDbContext>();
 builder.Services.AddOpenApi();
 
 builder.Services.AddCors(options =>
@@ -57,6 +59,7 @@ app.UseStaticFiles();
 
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 // SPA fallback — any non-API route serves the React app
 app.MapFallbackToFile("index.html");
