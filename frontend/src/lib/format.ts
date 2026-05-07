@@ -96,3 +96,20 @@ export function milestoneStatusTone(status: MilestoneStatus) {
       return 'bg-slate-700/60 text-slate-400 border border-slate-600/50'
   }
 }
+
+/** True if a milestone has a due date in the past and is not yet Paid. */
+export function isMilestoneOverdue(milestone: Milestone, today = new Date()): boolean {
+  if (milestone.status === 'Paid') return false
+  if (!milestone.dateDue) return false
+  const due = new Date(milestone.dateDue)
+  // Compare date-only (strip time)
+  due.setHours(0, 0, 0, 0)
+  const now = new Date(today)
+  now.setHours(0, 0, 0, 0)
+  return due.getTime() < now.getTime()
+}
+
+/** Count overdue milestones on a project. */
+export function projectOverdueCount(project: Project): number {
+  return project.milestones.filter(m => isMilestoneOverdue(m)).length
+}
