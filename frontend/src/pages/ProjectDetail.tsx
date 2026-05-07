@@ -38,6 +38,7 @@ import {
   getClients,
   getProject,
   getProjectSummary,
+  patchMilestone,
   updateMilestone,
   updateProject,
   updateTip,
@@ -47,7 +48,7 @@ import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge, ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
 import { formatCurrency, formatDate, getNextMilestoneOrder, isoDate } from '../lib/format'
-import type { Client, Milestone, MilestoneInput, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
+import type { Client, Milestone, MilestoneInput, MilestonePatchRequest, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
 import { CURRENCIES, MILESTONE_STATUSES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
 const emptyProjectDraft: ProjectInput = {
@@ -277,6 +278,23 @@ export default function ProjectDetail() {
     return <ErrorState message="Project not found." onRetry={() => navigate('/projects')} />
   }
 
+  const feeIsLocked = projectDraft.platform === 'Freelancer' || projectDraft.platform === 'Upwork'
+
+  const handleQuickMarkPaid = async (milestone: Milestone) => {
+    const today = new Date().toISOString().slice(0, 10)
+    const patch: MilestonePatchRequest = {
+      status: 'Paid',
+      datePaid: milestone.datePaid ?? today,
+      dateDue: milestone.dateDue ?? today,
+    }
+    try {
+      await patchMilestone(milestone.id, patch)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to mark paid.')
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -297,9 +315,9 @@ export default function ProjectDetail() {
       {/* Summary stats */}
       {summary && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Paid Milestones" value={<MoneyAmount amount={summary.paidMilestoneTotal} currency={summary.currency} />} />
-          <StatCard label="Tips" value={<MoneyAmount amount={summary.tipTotal} currency={summary.currency} />} />
-          <StatCard label="Fees" value={<MoneyAmount amount={summary.fee} currency={summary.currency} />} />
+          <StatCard label="Paid" value={<MoneyAmount amount={summary.paidMilestoneTotal + summary.tipTotal} currency={summary.currency} />} />
+          <StatCard label="Outstanding" value={<MoneyAmount amount={summary.outstandingNet} currency={summary.currency} />} />
+          <StatCard label="Pipeline Total" value={<MoneyAmount amount={summary.pipelineTotal} currency={summary.currency} />} />
           <StatCard label="Net Revenue" value={<MoneyAmount amount={summary.net} currency={summary.currency} />} />
         </div>
       )}
@@ -336,7 +354,14 @@ export default function ProjectDetail() {
               <Field label="Platform">
                 <Select
                   value={projectDraft.platform}
-                  onChange={(e) => setProjectDraft((c) => ({ ...c, platform: e.target.value as Project['platform'] }))}
+                  onChange={(e) => {
+                    const platform = e.target.value as Project['platform']
+                    setProjectDraft((c) => {
+                      const next = { ...c, platform }
+                      if (platform === 'Freelancer' || platform === 'Upwork') next.feePercentage = 10
+                      return next
+                    })
+                  }}
                 >
                   {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </Select>
@@ -356,8 +381,10 @@ export default function ProjectDetail() {
                   max="100"
                   step="0.1"
                   value={projectDraft.feePercentage}
+                  disabled={feeIsLocked}
                   onChange={(e) => setProjectDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))}
                 />
+                {feeIsLocked && <p className="mt-1 text-xs text-slate-500">Locked at 10% for Freelancer/Upwork.</p>}
               </Field>
             </div>
             <div className="grid gap-3 grid-cols-3">
@@ -482,6 +509,15 @@ export default function ProjectDetail() {
                       <td className="px-4 py-2.5 text-slate-400 text-xs">{formatDate(milestone.datePaid)}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex justify-end gap-1">
+                          {milestone.status !== 'Paid' && (
+                            <Button
+                              variant="ghost"
+                              className="px-2 text-xs text-green-400 hover:text-green-300"
+                              onClick={() => void handleQuickMarkPaid(milestone)}
+                            >
+                              Mark Paid
+                            </Button>
+                          )}
                           <Button variant="ghost" className="px-2 text-xs" onClick={() => { loadMilestoneIntoForm(milestone); setShowMilestoneModal(true) }}>
                             Edit
                           </Button>
@@ -519,7 +555,18 @@ export default function ProjectDetail() {
             </div>
             <div className="grid gap-3 grid-cols-3">
               <Field label="Status">
-                <Select value={milestoneDraft.status} onChange={(e) => setMilestoneDraft((c) => ({ ...c, status: e.target.value as Milestone['status'] }))}>
+                <Select value={milestoneDraft.status} onChange={(e) => {
+                  const status = e.target.value as Milestone['status']
+                  setMilestoneDraft((c) => {
+                    const next = { ...c, status }
+                    if (status === 'Paid') {
+                      const today = new Date().toISOString().slice(0, 10)
+                      if (!next.datePaid) next.datePaid = today
+                      if (!next.dateDue) next.dateDue = today
+                    }
+                    return next
+                  })
+                }}>
                   {MILESTONE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </Field>
