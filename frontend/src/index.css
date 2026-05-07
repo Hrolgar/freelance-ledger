@@ -1,36 +1,57 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500;600&display=swap');
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @theme {
   --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
 :root {
-  --color-bg: #0f1117;
-  --color-surface: #1e293b;
-  --color-surface-raised: #243447;
-  --color-accent: #3b82f6;
-  --color-accent-hover: #2563eb;
-  --color-text: #e2e8f0;
-  --color-muted: #94a3b8;
-  --color-border: #334155;
-  --radius: 6px;
+  /* Surfaces — clear hierarchy via elevation, not borders */
+  --bg-base: #0f1115;
+  --bg-surface: #1a1d23;
+  --bg-elevated: #232730;
+  --bg-overlay: #2c313b;
+
+  /* Text — warm whites, multiple steps */
+  --text-primary: #e8e6e0;
+  --text-secondary: #a39d92;
+  --text-tertiary: #6f6a62;
+  --text-disabled: #4a463f;
+
+  /* Borders — used sparingly */
+  --border-faint: #262a32;
+  --border-default: #353a44;
+
+  /* Semantic — data states */
+  --paid: #5fad7e;
+  --pending: #c89942;
+  --overdue: #c97264;
+  --info: #7a9bc4;
+
+  /* Accent — chrome only */
+  --accent: #6ba299;
+  --accent-soft: #6ba29920;
+  --accent-hover: #7eb5ac;
 }
 
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
-body {
-  background-color: var(--color-bg);
-  color: var(--color-text);
+html, body {
+  background: var(--bg-base);
+  color: var(--text-primary);
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
+  font-feature-settings: 'cv02', 'cv03', 'cv11';
+  letter-spacing: -0.005em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+.tnum, .font-mono { font-variant-numeric: tabular-nums; }
 
 @keyframes shimmer {
   0% { background-position: -400px 0; }
@@ -40,11 +61,11 @@ body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    var(--color-surface) 25%,
-    var(--color-surface-raised) 50%,
-    var(--color-surface) 75%
+    var(--bg-surface) 25%,
+    var(--bg-elevated) 50%,
+    var(--bg-surface) 75%
   );
   background-size: 800px 100%;
   animation: shimmer 1.5s infinite linear;
-  border-radius: var(--radius);
+  border-radius: 6px;
 }

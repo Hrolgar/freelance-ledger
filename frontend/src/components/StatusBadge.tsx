@@ -1,30 +1,29 @@
 import type { MilestoneStatus, ProjectStatus } from '../types'
 
-// Color coding per spec:
-// green = paid, yellow = pending/funded, red = disputed, blue = in-progress, gray = quoted/awarded
-
-const PROJECT_STATUS_STYLES: Record<ProjectStatus, string> = {
-  Quoted: 'bg-slate-700/60 text-slate-400 border-slate-600/50',
-  Awarded: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-  InProgress: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  Completed: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
-  Paid: 'bg-green-500/15 text-green-400 border-green-500/30',
+const PROJECT_STATUS_DOT: Record<ProjectStatus, string> = {
+  Quoted: 'bg-[var(--text-tertiary)]',
+  Awarded: 'bg-[var(--pending)]',
+  InProgress: 'bg-[var(--info)]',
+  Completed: 'bg-[var(--paid)]',
+  Paid: 'bg-[var(--paid)]',
 }
 
-const MILESTONE_STATUS_STYLES: Record<MilestoneStatus, string> = {
-  Pending: 'bg-slate-700/60 text-slate-400 border-slate-600/50',
-  Funded: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-  Released: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
-  Paid: 'bg-green-500/15 text-green-400 border-green-500/30',
-  Disputed: 'bg-red-500/15 text-red-400 border-red-500/30',
+const MILESTONE_STATUS_DOT: Record<MilestoneStatus, string> = {
+  Pending: 'bg-[var(--text-tertiary)]',
+  Funded: 'bg-[var(--pending)]',
+  Released: 'bg-[var(--info)]',
+  Paid: 'bg-[var(--paid)]',
+  Disputed: 'bg-[var(--overdue)]',
 }
 
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
   const label = status === 'InProgress' ? 'In Progress' : status
   return (
     <span
-      className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${PROJECT_STATUS_STYLES[status]}`}
+      className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
+      style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
     >
+      <span className={`size-1.5 rounded-full ${PROJECT_STATUS_DOT[status]}`} />
       {label}
     </span>
   )
@@ -33,8 +32,10 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
 export function MilestoneStatusBadge({ status }: { status: MilestoneStatus }) {
   return (
     <span
-      className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${MILESTONE_STATUS_STYLES[status]}`}
+      className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
+      style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
     >
+      <span className={`size-1.5 rounded-full ${MILESTONE_STATUS_DOT[status]}`} />
       {status}
     </span>
   )
