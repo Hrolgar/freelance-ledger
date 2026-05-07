@@ -38,6 +38,9 @@ export default function Projects() {
   const [showAddProject, setShowAddProject] = useState(false)
   const [showNewClient, setShowNewClient] = useState(false)
   const [newClient, setNewClient] = useState<ClientInput>(emptyNewClient)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'All' | Project['status']>('All')
+  const [currencyFilter, setCurrencyFilter] = useState<'All' | Project['currency']>('All')
 
   const load = async () => {
     setLoading(true)
@@ -70,10 +73,18 @@ export default function Projects() {
     }
   }
 
-  const sortedProjects = useMemo(
-    () => [...projects].sort((a, b) => b.id - a.id),
-    [projects],
-  )
+  const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return projects
+      .filter(p => statusFilter === 'All' || p.status === statusFilter)
+      .filter(p => currencyFilter === 'All' || p.currency === currencyFilter)
+      .filter(p => {
+        if (!q) return true
+        const clientName = (p.client?.name ?? p.clientName).toLowerCase()
+        return p.projectName.toLowerCase().includes(q) || clientName.includes(q)
+      })
+      .sort((a, b) => b.id - a.id)
+  }, [projects, search, statusFilter, currencyFilter])
 
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -147,6 +158,45 @@ export default function Projects() {
 
       <AppCard>
         <SectionHeading title="All Projects" description="Amounts shown before platform fee." />
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-700 bg-slate-800/30">
+          <Input
+            type="search"
+            placeholder="Search project or client..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-56"
+          />
+          <Select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as 'All' | Project['status'])}
+            className="w-36"
+          >
+            <option value="All">All statuses</option>
+            {PROJECT_STATUSES.map(s => (
+              <option key={s} value={s}>{s === 'InProgress' ? 'In Progress' : s}</option>
+            ))}
+          </Select>
+          <Select
+            value={currencyFilter}
+            onChange={(e) => setCurrencyFilter(e.target.value as 'All' | Project['currency'])}
+            className="w-28"
+          >
+            <option value="All">All cur</option>
+            {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </Select>
+          <span className="ml-auto text-xs text-slate-500">
+            Showing {filteredProjects.length} of {projects.length}
+          </span>
+          {(search || statusFilter !== 'All' || currencyFilter !== 'All') && (
+            <Button
+              variant="ghost"
+              className="text-xs"
+              onClick={() => { setSearch(''); setStatusFilter('All'); setCurrencyFilter('All') }}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -163,14 +213,17 @@ export default function Projects() {
               </tr>
             </thead>
             <tbody>
-              {!loading && sortedProjects.length === 0 ? (
+              {!loading && filteredProjects.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-8">
-                    <EmptyState title="No projects yet" description="Click '+ Add Project' to get started." />
+                    <EmptyState
+                      title={projects.length === 0 ? "No projects yet" : "No projects match these filters"}
+                      description={projects.length === 0 ? "Click '+ Add Project' to get started." : "Try clearing filters or adjusting the search."}
+                    />
                   </td>
                 </tr>
               ) : null}
-              {sortedProjects.map((project) => (
+              {filteredProjects.map((project) => (
                 <tr key={project.id} className="cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors hover:bg-slate-700/30" onClick={() => navigate(`/projects/${project.id}`)}>
                   <td className="px-4 py-2.5 text-slate-300">{project.client?.name ?? project.clientName}</td>
                   <td className="px-4 py-2.5 font-medium text-slate-100">{project.projectName}</td>
