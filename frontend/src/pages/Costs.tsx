@@ -199,6 +199,21 @@ export default function Costs() {
                     </td>
                   </tr>
                 ))}
+                {recurringCosts.length > 0 && (() => {
+                  const byCurrency = recurringCosts.reduce<Record<string, number>>((acc, c) => {
+                    acc[c.currency] = (acc[c.currency] ?? 0) + c.amount
+                    return acc
+                  }, {})
+                  return Object.entries(byCurrency).map(([currency, total]) => (
+                    <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
+                      <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total / month</td>
+                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
+                        <MoneyAmount amount={total} currency={currency as Cost['currency']} />
+                      </td>
+                      <td />
+                    </tr>
+                  ))
+                })()}
               </tbody>
             </table>
           </div>
@@ -235,6 +250,21 @@ export default function Costs() {
                         </td>
                       </tr>
                     ))}
+                    {(() => {
+                      const byCurrency = oneTimeCosts.reduce<Record<string, number>>((acc, c) => {
+                        acc[c.currency] = (acc[c.currency] ?? 0) + c.amount
+                        return acc
+                      }, {})
+                      return Object.entries(byCurrency).map(([currency, total]) => (
+                        <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
+                          <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total</td>
+                          <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
+                            <MoneyAmount amount={total} currency={currency as Cost['currency']} />
+                          </td>
+                          <td />
+                        </tr>
+                      ))
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -336,6 +366,26 @@ export default function Costs() {
                     </td>
                   </tr>
                 ))}
+                {investments.length > 0 && (() => {
+                  const byCurrency = investments.reduce<Record<string, { amount: number; nok: number }>>((acc, inv) => {
+                    const e = acc[inv.currency] ??= { amount: 0, nok: 0 }
+                    e.amount += inv.amount
+                    e.nok += inv.amount * inv.nokRate
+                    return acc
+                  }, {})
+                  return Object.entries(byCurrency).map(([currency, t]) => (
+                    <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
+                      <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={2}>Total</td>
+                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
+                        <MoneyAmount amount={t.amount} currency={currency as Investment['currency']} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono text-sm font-semibold text-slate-300">
+                        <MoneyAmount amount={t.nok} currency="NOK" />
+                      </td>
+                      <td />
+                    </tr>
+                  ))
+                })()}
               </tbody>
             </table>
           </div>

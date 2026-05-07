@@ -8,7 +8,8 @@ import { calculateProjectRevenue, formatCurrency, formatMonth } from '../lib/for
 import type { Pipeline, Project, YearOverview } from '../types'
 
 export default function Dashboard() {
-  const year = new Date().getFullYear()
+  const now = new Date()
+  const [year, setYear] = useState(now.getFullYear())
   const [overview, setOverview] = useState<YearOverview | null>(null)
   const [pipeline, setPipeline] = useState<Pipeline | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
@@ -51,11 +52,14 @@ export default function Dashboard() {
       <PageIntro
         title={`${year} Dashboard`}
         description="Revenue, costs, and pipeline for the current year."
-        action={
-          <Link to="/projects">
-            <Button>New project</Button>
-          </Link>
-        }
+        action={(
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" className="px-2" onClick={() => setYear(y => y - 1)}>‹</Button>
+            <span className="text-sm font-medium text-slate-200 min-w-[60px] text-center">{year}</span>
+            <Button variant="ghost" className="px-2" onClick={() => setYear(y => y + 1)}>›</Button>
+            <Link to="/projects"><Button>New project</Button></Link>
+          </div>
+        )}
       />
 
       {loading && <LoadingState label="Loading dashboard" />}
