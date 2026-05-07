@@ -36,6 +36,7 @@ import {
   deleteMilestone,
   deleteTip,
   getClients,
+  getPlatforms,
   getProject,
   getProjectSummary,
   patchMilestone,
@@ -48,14 +49,14 @@ import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
 import { formatCurrency, formatDate, getNextMilestoneOrder, isMilestoneOverdue, isoDate } from '../lib/format'
-import type { Client, Milestone, MilestoneInput, MilestonePatchRequest, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
-import { CURRENCIES, MILESTONE_STATUSES, PLATFORMS, PROJECT_STATUSES } from '../types'
+import type { Client, Milestone, MilestoneInput, MilestonePatchRequest, Platform, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
+import { CURRENCIES, MILESTONE_STATUSES, PROJECT_STATUSES } from '../types'
 
 const emptyProjectDraft: ProjectInput = {
   clientId: null,
   clientName: '',
   projectName: '',
-  platform: 'Direct',
+  platformId: null,
   currency: 'USD',
   feePercentage: 0,
   initialFullPrice: null,
@@ -90,6 +91,7 @@ export default function ProjectDetail() {
 
   const [project, setProject] = useState<Project | null>(null)
   const [clients, setClients] = useState<Client[]>([])
+  const [platforms, setPlatforms] = useState<Platform[]>([])
   const [summary, setSummary] = useState<ProjectSummary | null>(null)
   const [projectDraft, setProjectDraft] = useState<ProjectInput>(emptyProjectDraft)
   const [milestoneDraft, setMilestoneDraft] = useState<MilestoneInput>(emptyMilestoneDraft)
@@ -108,12 +110,14 @@ export default function ProjectDetail() {
     setLoading(true)
     setError(null)
     try {
-      const [projectData, summaryData, clientsData] = await Promise.all([
+      const [projectData, summaryData, clientsData, platformsData] = await Promise.all([
         getProject(projectId),
         getProjectSummary(projectId),
         getClients(),
+        getPlatforms(),
       ])
       setClients(clientsData)
+      setPlatforms(platformsData)
 
       const orderedMilestones = [...projectData.milestones].sort((a, b) => a.sortOrder - b.sortOrder)
       const orderedTips = [...projectData.tips].sort((a, b) => b.date.localeCompare(a.date))
@@ -125,7 +129,7 @@ export default function ProjectDetail() {
         clientId: hydrated.clientId,
         clientName: hydrated.clientName,
         projectName: hydrated.projectName,
-        platform: hydrated.platform,
+        platformId: hydrated.platformId,
         currency: hydrated.currency,
         feePercentage: hydrated.feePercentage,
         initialFullPrice: hydrated.initialFullPrice,
@@ -280,7 +284,8 @@ export default function ProjectDetail() {
     return <ErrorState message="Project not found." onRetry={() => navigate('/projects')} />
   }
 
-  const feeIsLocked = projectDraft.platform === 'Freelancer' || projectDraft.platform === 'Upwork'
+  const selectedPlatform = platforms.find(p => p.id === projectDraft.platformId)
+  const feeIsLocked = selectedPlatform?.isLocked ?? false
   const paidCount = project.milestones.filter(m => m.status === 'Paid').length
 
   const handleQuickMarkPaid = async (milestone: Milestone) => {
@@ -326,7 +331,7 @@ export default function ProjectDetail() {
 
       <PageIntro
         title={project.projectName}
-        description={`${project.client?.name ?? project.clientName} · ${project.platform} · ${project.currency} · ${project.feePercentage}% fee`}
+        description={`${project.client?.name ?? project.clientName} · ${project.platform?.name ?? '—'} · ${project.currency} · ${project.feePercentage}% fee`}
         action={project.client?.timezone ? <ClientTimezone timezone={project.client.timezone} /> : undefined}
       />
 
@@ -424,17 +429,19 @@ export default function ProjectDetail() {
             <div className="grid gap-3 grid-cols-3">
               <Field label="Platform">
                 <Select
-                  value={projectDraft.platform}
+                  value={projectDraft.platformId ?? ''}
                   onChange={(e) => {
-                    const platform = e.target.value as Project['platform']
-                    setProjectDraft((c) => {
-                      const next = { ...c, platform }
-                      if (platform === 'Freelancer' || platform === 'Upwork') next.feePercentage = 10
-                      return next
-                    })
+                    const id = Number(e.target.value)
+                    const platform = platforms.find(p => p.id === id)
+                    setProjectDraft((c) => ({
+                      ...c,
+                      platformId: id || null,
+                      feePercentage: platform?.defaultFeePercentage ?? c.feePercentage,
+                    }))
                   }}
                 >
-                  {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  <option value="">Select platform...</option>
+                  {platforms.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </Select>
               </Field>
               <Field label="Currency">
@@ -455,7 +462,7 @@ export default function ProjectDetail() {
                   disabled={feeIsLocked}
                   onChange={(e) => setProjectDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))}
                 />
-                {feeIsLocked && <p className="mt-1 text-xs text-slate-500">Locked at 10% for Freelancer/Upwork.</p>}
+                {feeIsLocked && <p className="mt-1 text-xs text-slate-500">Locked by platform.</p>}
               </Field>
             </div>
             <div className="grid gap-3 grid-cols-3">

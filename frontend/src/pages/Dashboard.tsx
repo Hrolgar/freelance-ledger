@@ -156,7 +156,7 @@ export default function Dashboard() {
                         <td className="px-4 py-3">
                           <Link to={`/projects/${project.id}`} className="block">
                             <p className="font-medium text-slate-100">{project.projectName}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">{project.clientName} · {project.platform}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{project.clientName} · {project.platform?.name ?? '—'}</p>
                           </Link>
                         </td>
                         <td className="px-4 py-3">

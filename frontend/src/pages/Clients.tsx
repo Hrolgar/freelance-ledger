@@ -318,7 +318,7 @@ function ClientDetail() {
                       <Link to={`/projects/${p.id}`} className="font-medium text-slate-100 hover:text-blue-400">{p.projectName}</Link>
                     </td>
                     <td className="px-4 py-2.5"><ProjectStatusBadge status={p.status} /></td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{p.platform}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{p.platform?.name ?? '—'}</td>
                     <td className="px-4 py-2.5 text-sm text-slate-400">{formatDate(p.dateAwarded)}</td>
                     <td className="px-4 py-2.5 text-right font-mono text-slate-400">
                       {p.milestones.filter(m => m.status === 'Paid').length}/{p.milestones.length}

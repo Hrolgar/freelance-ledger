@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createClient, createProject, deleteProject, getClients, getProjects } from '../api'
+import { createClient, createProject, deleteProject, getClients, getPlatforms, getProjects } from '../api'
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { calculateProjectGrossPaid, calculateProjectGrossPipeline, calculatePipelineValue, calculateProjectRevenue, formatDate, isoDate, projectOverdueCount } from '../lib/format'
-import type { Client, ClientInput, Project, ProjectInput } from '../types'
-import { CURRENCIES, PLATFORMS, PROJECT_STATUSES } from '../types'
+import type { Client, ClientInput, Platform, Project, ProjectInput } from '../types'
+import { CURRENCIES, PROJECT_STATUSES } from '../types'
 
 const emptyProject: ProjectInput = {
   clientId: null,
   clientName: '',
   projectName: '',
-  platform: 'Direct',
+  platformId: null,
   currency: 'USD',
   feePercentage: 0,
   initialFullPrice: null,
@@ -32,6 +32,7 @@ export default function Projects() {
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [platforms, setPlatforms] = useState<Platform[]>([])
   const [draft, setDraft] = useState<ProjectInput>(emptyProject)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -47,9 +48,10 @@ export default function Projects() {
     setLoading(true)
     setError(null)
     try {
-      const [projectData, clientData] = await Promise.all([getProjects(), getClients()])
+      const [projectData, clientData, platformData] = await Promise.all([getProjects(), getClients(), getPlatforms()])
       setProjects(projectData)
       setClients(clientData)
+      setPlatforms(platformData)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load projects.')
     } finally {
@@ -240,7 +242,7 @@ export default function Projects() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-slate-500">{project.platform}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{project.platform?.name ?? '—'}</td>
                   <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{project.currency}</td>
                   <td className="px-4 py-2.5"><ProjectStatusBadge status={project.status} /></td>
                   <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(project.dateAwarded)}</td>
@@ -275,15 +277,17 @@ export default function Projects() {
             </div>
             <div className="grid gap-3 grid-cols-3">
               <Field label="Platform">
-                <Select value={draft.platform} onChange={(e) => {
-                  const platform = e.target.value as Project['platform']
-                  setDraft((c) => {
-                    const next = { ...c, platform }
-                    if (platform === 'Freelancer' || platform === 'Upwork') next.feePercentage = 10
-                    return next
-                  })
+                <Select value={draft.platformId ?? ''} onChange={(e) => {
+                  const id = Number(e.target.value)
+                  const platform = platforms.find(p => p.id === id)
+                  setDraft(c => ({
+                    ...c,
+                    platformId: id || null,
+                    feePercentage: platform?.defaultFeePercentage ?? c.feePercentage,
+                  }))
                 }}>
-                  {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  <option value="">Select platform...</option>
+                  {platforms.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </Select>
               </Field>
               <Field label="Currency">
@@ -292,8 +296,16 @@ export default function Projects() {
                 </Select>
               </Field>
               <Field label="Fee %">
-                <Input type="number" min="0" max="100" step="0.1" value={draft.feePercentage} disabled={draft.platform === 'Freelancer' || draft.platform === 'Upwork'} onChange={(e) => setDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))} />
-                {(draft.platform === 'Freelancer' || draft.platform === 'Upwork') && <p className="mt-1 text-xs text-slate-500">Locked at 10% for Freelancer/Upwork.</p>}
+                {(() => {
+                  const selectedPlatform = platforms.find(p => p.id === draft.platformId)
+                  const feeIsLocked = selectedPlatform?.isLocked ?? false
+                  return (
+                    <>
+                      <Input type="number" min="0" max="100" step="0.1" value={draft.feePercentage} disabled={feeIsLocked} onChange={(e) => setDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))} />
+                      {feeIsLocked && <p className="mt-1 text-xs text-slate-500">Locked by platform.</p>}
+                    </>
+                  )
+                })()}
               </Field>
             </div>
             <div className="grid gap-3 grid-cols-3">

@@ -1,33 +1,84 @@
 import { useEffect, useState } from 'react'
-import { autoFetchRates, getExchangeRates } from '../api'
+import { autoFetchRates, createPlatform, deletePlatform, getExchangeRates, getPlatforms, updatePlatform } from '../api'
 import { AppCard, Button, ErrorState, Field, Input, PageIntro, SectionHeading, Select } from '../components/ui'
+import { Modal } from '../components/Modal'
 import { useMainCurrency } from '../lib/useMainCurrency'
 import { useMyTimezone } from '../lib/useMyTimezone'
-import type { ExchangeRate } from '../types'
+import type { ExchangeRate, Platform, PlatformInput } from '../types'
 import { CURRENCIES, MONTH_NAMES, TIMEZONES } from '../types'
+
+const emptyPlatform: PlatformInput = { name: '', defaultFeePercentage: 0, isLocked: false, notes: null }
 
 export default function Settings() {
   const [rates, setRates] = useState<ExchangeRate[]>([])
+  const [platforms, setPlatforms] = useState<Platform[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetching, setFetching] = useState<string | null>(null)
   const [mainCurrency, setMainCurrency] = useMainCurrency()
   const [myTimezone, setMyTimezone] = useMyTimezone()
   const [exportYear, setExportYear] = useState(new Date().getFullYear())
+  const [showPlatformModal, setShowPlatformModal] = useState(false)
+  const [editingPlatform, setEditingPlatform] = useState<Platform | null>(null)
+  const [platformDraft, setPlatformDraft] = useState<PlatformInput>(emptyPlatform)
+  const [savingPlatform, setSavingPlatform] = useState(false)
 
   const load = async () => {
     setLoading(true)
     setError(null)
     try {
-      setRates(await getExchangeRates())
+      const [ratesData, platformsData] = await Promise.all([getExchangeRates(), getPlatforms()])
+      setRates(ratesData)
+      setPlatforms(platformsData)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Failed to load rates.')
+      setError(caught instanceof Error ? caught.message : 'Failed to load settings.')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { void load() }, [])
+
+  const openAddPlatform = () => {
+    setEditingPlatform(null)
+    setPlatformDraft(emptyPlatform)
+    setShowPlatformModal(true)
+  }
+
+  const openEditPlatform = (p: Platform) => {
+    setEditingPlatform(p)
+    setPlatformDraft({ name: p.name, defaultFeePercentage: p.defaultFeePercentage, isLocked: p.isLocked, notes: p.notes })
+    setShowPlatformModal(true)
+  }
+
+  const handleSavePlatform = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingPlatform(true)
+    try {
+      if (editingPlatform) {
+        const updated = await updatePlatform(editingPlatform.id, platformDraft)
+        setPlatforms(prev => prev.map(p => p.id === updated.id ? updated : p))
+      } else {
+        const created = await createPlatform(platformDraft)
+        setPlatforms(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+      }
+      setShowPlatformModal(false)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to save platform.')
+    } finally {
+      setSavingPlatform(false)
+    }
+  }
+
+  const handleDeletePlatform = async (p: Platform) => {
+    if (!window.confirm(`Delete platform '${p.name}'?`)) return
+    try {
+      await deletePlatform(p.id)
+      setPlatforms(prev => prev.filter(pl => pl.id !== p.id))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to delete platform.')
+    }
+  }
 
   // Group rates by year-month
   const grouped = rates.reduce<Record<string, ExchangeRate[]>>((acc, r) => {
@@ -102,6 +153,71 @@ export default function Settings() {
             </Select>
             <p className="mt-1 text-xs text-slate-500">Client clocks show offset relative to this.</p>
           </div>
+        </div>
+      </AppCard>
+
+      {/* Platforms */}
+      {showPlatformModal && (
+        <Modal title={editingPlatform ? 'Edit Platform' : 'Add Platform'} onClose={() => setShowPlatformModal(false)} size="md">
+          <form className="grid gap-3" onSubmit={handleSavePlatform}>
+            <Field label="Name" required>
+              <Input required value={platformDraft.name} onChange={(e) => setPlatformDraft(d => ({ ...d, name: e.target.value }))} />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Default Fee %">
+                <Input type="number" min="0" max="100" step="0.1" value={platformDraft.defaultFeePercentage} onChange={(e) => setPlatformDraft(d => ({ ...d, defaultFeePercentage: Number(e.target.value) }))} />
+              </Field>
+              <Field label="Lock fee for new projects">
+                <div className="flex items-center gap-2 pt-2">
+                  <input type="checkbox" id="isLocked" checked={platformDraft.isLocked} onChange={(e) => setPlatformDraft(d => ({ ...d, isLocked: e.target.checked }))} className="h-4 w-4 accent-blue-500" />
+                  <label htmlFor="isLocked" className="text-sm text-slate-300">Locked</label>
+                </div>
+              </Field>
+            </div>
+            <Field label="Notes">
+              <Input value={platformDraft.notes ?? ''} onChange={(e) => setPlatformDraft(d => ({ ...d, notes: e.target.value || null }))} />
+            </Field>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="secondary" onClick={() => setShowPlatformModal(false)}>Cancel</Button>
+              <Button type="submit" disabled={savingPlatform}>{savingPlatform ? 'Saving...' : editingPlatform ? 'Save' : 'Add Platform'}</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      <AppCard>
+        <SectionHeading title="Platforms" description="Editable list of platforms with default fees." action={<Button onClick={openAddPlatform}>+ Add Platform</Button>} />
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700 text-left">
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Name</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Default Fee %</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Locked</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Notes</th>
+                <th className="px-4 py-2.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {platforms.length === 0 && !loading && (
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No platforms yet.</td></tr>
+              )}
+              {platforms.map((p) => (
+                <tr key={p.id} className="border-b border-slate-700/50 last:border-0">
+                  <td className="px-4 py-2.5 font-medium text-slate-100">{p.name}</td>
+                  <td className="px-4 py-2.5 font-mono text-slate-300">{p.defaultFeePercentage}%</td>
+                  <td className="px-4 py-2.5">
+                    {p.isLocked ? <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-300">Locked</span> : <span className="text-slate-500 text-xs">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-400 text-xs">{p.notes ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button className="px-2 text-xs text-slate-500 hover:text-blue-400" onClick={() => openEditPlatform(p)}>Edit</button>
+                    <button className="px-2 text-xs text-slate-500 hover:text-red-400" onClick={() => void handleDeletePlatform(p)}>×</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </AppCard>
 

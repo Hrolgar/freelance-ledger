@@ -6,6 +6,7 @@ namespace FreelanceLedger.Api.Data;
 public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbContext(options)
 {
     public DbSet<Client> Clients => Set<Client>();
+    public DbSet<Platform> Platforms => Set<Platform>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Milestone> Milestones => Set<Milestone>();
     public DbSet<Tip> Tips => Set<Tip>();
@@ -24,10 +25,21 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<Platform>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.DefaultFeePercentage).HasPrecision(5, 2);
+            e.HasIndex(p => p.Name).IsUnique();
+        });
+
         modelBuilder.Entity<Project>(e =>
         {
             e.HasKey(p => p.Id);
             e.Property(p => p.FeePercentage).HasPrecision(5, 2);
+            e.HasOne(p => p.Platform)
+                .WithMany(pl => pl.Projects)
+                .HasForeignKey(p => p.PlatformId)
+                .OnDelete(DeleteBehavior.Restrict);
             e.HasMany(p => p.Milestones)
                 .WithOne(m => m.Project)
                 .HasForeignKey(m => m.ProjectId)

@@ -7,7 +7,8 @@ public class Project
     public Client? Client { get; set; }
     public string ClientName { get; set; } = string.Empty;
     public string ProjectName { get; set; } = string.Empty;
-    public Platform Platform { get; set; }
+    public int? PlatformId { get; set; }
+    public Platform? Platform { get; set; }
     public Currency Currency { get; set; }
     public decimal FeePercentage { get; set; }
     public decimal? InitialFullPrice { get; set; }
