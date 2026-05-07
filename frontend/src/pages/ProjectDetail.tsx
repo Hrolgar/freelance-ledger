@@ -30,6 +30,8 @@ function ClientTimezone({ timezone }: { timezone: string }) {
     </span>
   )
 }
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   createMilestone,
   createTip,
@@ -420,6 +422,15 @@ export default function ProjectDetail() {
           </div>
         )
       })()}
+
+      {project.notes && (
+        <AppCard>
+          <SectionHeading title="Notes" />
+          <div className="p-4 text-sm text-slate-300 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:text-slate-100 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-slate-100 [&_h2]:mt-4 [&_h2]:mb-2 [&_p]:mb-2 [&_a]:text-blue-400 [&_a]:underline [&_code]:bg-slate-800 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-slate-900 [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{project.notes}</ReactMarkdown>
+          </div>
+        </AppCard>
+      )}
 
       {/* Project details + summary */}
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
