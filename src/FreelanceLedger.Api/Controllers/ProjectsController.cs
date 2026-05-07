@@ -60,6 +60,10 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         var fee = gross * (project.FeePercentage / 100m);
         var net = gross - fee;
 
+        var pipelineTotal = project.Milestones.Sum(m => m.Amount) + tipTotal;
+        var outstanding = pipelineTotal - paidMilestoneTotal - tipTotal;
+        var outstandingNet = outstanding - (outstanding * project.FeePercentage / 100m);
+
         return Ok(new ProjectSummaryResponse(
             id,
             paidMilestoneTotal,
@@ -67,6 +71,9 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
             gross,
             fee,
             net,
+            pipelineTotal,
+            outstanding,
+            outstandingNet,
             project.Currency));
     }
 
@@ -120,4 +127,7 @@ public record ProjectSummaryResponse(
     decimal Gross,
     decimal Fee,
     decimal Net,
+    decimal PipelineTotal,
+    decimal Outstanding,
+    decimal OutstandingNet,
     Currency Currency);
