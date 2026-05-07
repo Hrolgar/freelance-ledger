@@ -5,7 +5,7 @@ import { ProjectStatusBadge } from '../components/StatusBadge'
 import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
-import { calculateProjectRevenue, isoDate } from '../lib/format'
+import { calculatePipelineValue, calculateProjectRevenue, isoDate } from '../lib/format'
 import type { Client, ClientInput, Project, ProjectInput } from '../types'
 import { CURRENCIES, PLATFORMS, PROJECT_STATUSES } from '../types'
 
@@ -156,14 +156,15 @@ export default function Projects() {
                 <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Platform</th>
                 <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Cur</th>
                 <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Status</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Revenue</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Paid</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Pipeline</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
               {!loading && sortedProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8">
+                  <td colSpan={8} className="px-4 py-8">
                     <EmptyState title="No projects yet" description="Click '+ Add Project' to get started." />
                   </td>
                 </tr>
@@ -176,6 +177,7 @@ export default function Projects() {
                   <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{project.currency}</td>
                   <td className="px-4 py-2.5"><ProjectStatusBadge status={project.status} /></td>
                   <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectRevenue(project)} currency={project.currency} /></td>
+                  <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculatePipelineValue(project)} currency={project.currency} /></td>
                   <td className="px-4 py-2.5 text-right">
                     <Button variant="ghost" className="px-2 text-xs" onClick={(e) => { e.stopPropagation(); void handleDelete(project.id) }}>Delete</Button>
                   </td>
@@ -205,7 +207,14 @@ export default function Projects() {
             </div>
             <div className="grid gap-3 grid-cols-3">
               <Field label="Platform">
-                <Select value={draft.platform} onChange={(e) => setDraft((c) => ({ ...c, platform: e.target.value as Project['platform'] }))}>
+                <Select value={draft.platform} onChange={(e) => {
+                  const platform = e.target.value as Project['platform']
+                  setDraft((c) => {
+                    const next = { ...c, platform }
+                    if (platform === 'Freelancer' || platform === 'Upwork') next.feePercentage = 10
+                    return next
+                  })
+                }}>
                   {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </Select>
               </Field>
@@ -215,7 +224,8 @@ export default function Projects() {
                 </Select>
               </Field>
               <Field label="Fee %">
-                <Input type="number" min="0" max="100" step="0.1" value={draft.feePercentage} onChange={(e) => setDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))} />
+                <Input type="number" min="0" max="100" step="0.1" value={draft.feePercentage} disabled={draft.platform === 'Freelancer' || draft.platform === 'Upwork'} onChange={(e) => setDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))} />
+                {(draft.platform === 'Freelancer' || draft.platform === 'Upwork') && <p className="mt-1 text-xs text-slate-500">Locked at 10% for Freelancer/Upwork.</p>}
               </Field>
             </div>
             <div className="grid gap-3 grid-cols-3">
