@@ -123,6 +123,7 @@ export interface PipelineProject {
 
 export interface Pipeline {
   totalPipelineValue: number
+  totalPipelineGrossValue: number
   projects: PipelineProject[]
 }
 

@@ -46,6 +46,22 @@ export function calculatePipelineValue(project: Project) {
   return gross - gross * (project.feePercentage / 100)
 }
 
+/** Gross paid: paid milestones + tips, no fee deducted. */
+export function calculateProjectGrossPaid(project: Project) {
+  const paidMilestones = project.milestones
+    .filter((m) => m.status === 'Paid')
+    .reduce((sum, m) => sum + m.amount, 0)
+  const tips = project.tips.reduce((sum, t) => sum + t.amount, 0)
+  return paidMilestones + tips
+}
+
+/** Gross pipeline: all milestones (any status) + tips, no fee deducted. */
+export function calculateProjectGrossPipeline(project: Project) {
+  const milestones = project.milestones.reduce((sum, m) => sum + m.amount, 0)
+  const tips = project.tips.reduce((sum, t) => sum + t.amount, 0)
+  return milestones + tips
+}
+
 export function getNextMilestoneOrder(milestones: Milestone[]) {
   return milestones.reduce((max, milestone) => Math.max(max, milestone.sortOrder), 0) + 1
 }
