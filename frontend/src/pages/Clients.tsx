@@ -4,7 +4,7 @@ import { getClients, getClient, createClient, updateClient, deleteClient } from 
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { MoneyAmount } from '../components/MoneyAmount'
-import { formatDate, calculatePipelineValue } from '../lib/format'
+import { formatDate } from '../lib/format'
 import { COUNTRIES } from '../lib/countries'
 import { getTimezoneOffset, useMyTimezone } from '../lib/useMyTimezone'
 import type { Client, ClientInput } from '../types'
@@ -324,7 +324,7 @@ function ClientDetail() {
                       {p.milestones.filter(m => m.status === 'Paid').length}/{p.milestones.length}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-slate-300">
-                      <MoneyAmount amount={calculatePipelineValue(p)} currency={p.currency} />
+                      <MoneyAmount amount={pipelineGross} currency={p.currency} />
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-amber-400">
                       <MoneyAmount amount={outstandingGross} currency={p.currency} />
@@ -336,6 +336,42 @@ function ClientDetail() {
                 )
               })}
             </tbody>
+            {client.projects.length > 0 && (() => {
+              const byCurrency = new Map<string, { pipeline: number; outstanding: number; paid: number }>()
+              for (const p of client.projects) {
+                const cur = p.currency
+                const pipelineGross = p.milestones.reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
+                const paidGross = p.milestones.filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
+                const outstandingGross = pipelineGross - paidGross
+                const existing = byCurrency.get(cur) ?? { pipeline: 0, outstanding: 0, paid: 0 }
+                byCurrency.set(cur, {
+                  pipeline: existing.pipeline + pipelineGross,
+                  outstanding: existing.outstanding + outstandingGross,
+                  paid: existing.paid + paidGross,
+                })
+              }
+              return (
+                <tfoot>
+                  {[...byCurrency.entries()].map(([currency, totals]) => (
+                    <tr key={currency} className="border-t-2 border-slate-600 bg-slate-800/40">
+                      <td className="px-4 py-2.5 text-xs font-semibold text-slate-400">
+                        {byCurrency.size > 1 ? `Total (${currency})` : 'Total'}
+                      </td>
+                      <td colSpan={4} />
+                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-200">
+                        <MoneyAmount amount={totals.pipeline} currency={currency} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-amber-300">
+                        <MoneyAmount amount={totals.outstanding} currency={currency} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
+                        <MoneyAmount amount={totals.paid} currency={currency} />
+                      </td>
+                    </tr>
+                  ))}
+                </tfoot>
+              )
+            })()}
           </table>
         </div>
       </AppCard>

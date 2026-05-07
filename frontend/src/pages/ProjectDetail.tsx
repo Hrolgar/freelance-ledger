@@ -263,8 +263,8 @@ export default function ProjectDetail() {
       <div className="space-y-4">
         <div className="skeleton h-8 w-48" />
         <div className="skeleton h-16" />
-        <div className="grid gap-3 sm:grid-cols-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="skeleton h-16" />)}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {[...Array(5)].map((_, i) => <div key={i} className="skeleton h-16" />)}
         </div>
       </div>
     )
@@ -314,11 +314,12 @@ export default function ProjectDetail() {
 
       {/* Summary stats */}
       {summary && (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Paid" value={<MoneyAmount amount={summary.paidMilestoneTotal + summary.tipTotal} currency={summary.currency} />} />
-          <StatCard label="Outstanding" value={<MoneyAmount amount={summary.outstandingNet} currency={summary.currency} />} />
-          <StatCard label="Pipeline Total" value={<MoneyAmount amount={summary.pipelineTotal} currency={summary.currency} />} />
-          <StatCard label="Net Revenue" value={<MoneyAmount amount={summary.net} currency={summary.currency} />} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <StatCard label="Paid" value={<MoneyAmount amount={summary.paidMilestoneTotal + summary.tipTotal} currency={summary.currency} />} hint="before fee" />
+          <StatCard label="Outstanding" value={<MoneyAmount amount={summary.outstanding} currency={summary.currency} />} hint="before fee" />
+          <StatCard label="Pipeline Total" value={<MoneyAmount amount={summary.pipelineTotal} currency={summary.currency} />} hint="before fee" />
+          <StatCard label="Fees" value={<MoneyAmount amount={summary.fee} currency={summary.currency} />} hint="deducted" />
+          <StatCard label="Net Revenue" value={<MoneyAmount amount={summary.net} currency={summary.currency} />} hint="after fee" />
         </div>
       )}
 
