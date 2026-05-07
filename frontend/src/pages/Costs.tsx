@@ -109,18 +109,18 @@ function CostMoney({ amount, currency, month, year, rates, mainCurrency, classNa
   className?: string
 }) {
   if (currency === mainCurrency) {
-    return <span className={`font-mono ${className}`}>{formatCurrency(amount, currency)}</span>
+    return <span className={`font-mono tabular-nums ${className}`}>{formatCurrency(amount, currency)}</span>
   }
   const fromRate = getRateForMonth(rates, currency, month, year)
   const toRate = mainCurrency === 'NOK' ? 1 : getRateForMonth(rates, mainCurrency as Currency, month, year)
   if (fromRate == null || toRate == null) {
-    return <span className={`font-mono ${className}`}>{formatCurrency(amount, currency)}</span>
+    return <span className={`font-mono tabular-nums ${className}`}>{formatCurrency(amount, currency)}</span>
   }
   const converted = (amount * fromRate) / toRate
   return (
-    <span className={`group relative cursor-help border-b border-dashed border-slate-600 font-mono ${className}`}>
+    <span className={`group relative cursor-help border-b border-dashed border-[var(--border-default)] font-mono tabular-nums ${className}`}>
       {formatCurrency(amount, currency)}
-      <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-slate-700 px-2 py-1 text-xs font-medium text-blue-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+      <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
         {formatCurrency(converted, mainCurrency)}
       </span>
     </span>
@@ -129,9 +129,9 @@ function CostMoney({ amount, currency, month, year, rates, mainCurrency, classNa
 
 function TypeBadge({ type }: { type: 'Subscription' | 'Expense' | 'Investment' }) {
   const styles = {
-    Subscription: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-    Expense: 'bg-slate-700/40 text-slate-300 border-slate-600/50',
-    Investment: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+    Subscription: 'bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/20',
+    Expense: 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] border-[var(--border-faint)]',
+    Investment: 'bg-[var(--paid)]/15 text-[var(--paid)] border-[var(--paid)]/20',
   }
   return (
     <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium ${styles[type]}`}>
@@ -142,7 +142,7 @@ function TypeBadge({ type }: { type: 'Subscription' | 'Expense' | 'Investment' }
 
 function NotesChip({ notes }: { notes: string }) {
   return (
-    <span title={notes} className="ml-2 inline-flex cursor-help items-center rounded bg-blue-500/15 px-1 text-[10px] font-bold text-blue-300">
+    <span title={notes} className="ml-2 inline-flex cursor-help items-center rounded bg-[var(--accent-soft)] px-1 text-[10px] font-bold text-[var(--accent)]">
       ⓘ
     </span>
   )
@@ -195,10 +195,9 @@ export default function Costs() {
     })
   }, [])
 
-  // Derived: active recurring (started, not ended)
   const activeRecurring = useMemo(() => costs.filter(isCurrentlyActive), [costs])
 
-  // KPI 1: active monthly burn in NOK — forward-looking, use current month's rate
+  // KPI 1: active monthly burn in NOK
   const activeBurnNok = useMemo(
     () => activeRecurring.reduce((s, c) => {
       const rate = getRateForMonth(rates, c.currency as Currency, currentMonth, currentYear)
@@ -207,7 +206,6 @@ export default function Costs() {
     [activeRecurring, rates],
   )
 
-  // This month section items
   const thisMonthRecurring = useMemo(() => costs.filter((c) => activeForMonth(c, month, year)), [costs, month, year])
   const thisMonthOneTime = useMemo(
     () => costs.filter((c) => !c.recurring && c.month === month && c.year === year),
@@ -218,7 +216,7 @@ export default function Costs() {
     [investments, month, year],
   )
 
-  // KPI 2: this month's spend in NOK — convert at selected month's rate
+  // KPI 2: this month's spend in NOK
   const thisMonthNok = useMemo(() => {
     const costNok = [...thisMonthRecurring, ...thisMonthOneTime].reduce((s, c) => {
       const rate = getRateForMonth(rates, c.currency as Currency, month, year)
@@ -228,7 +226,6 @@ export default function Costs() {
     return costNok + invNok
   }, [thisMonthRecurring, thisMonthOneTime, thisMonthInvestments, rates, month, year])
 
-  // KPI 3: YTD (effective costs API result + investments)
   const ytdInvestmentsNok = useMemo(
     () => investments
       .filter((i) => i.year === currentYear && i.month <= currentMonth)
@@ -237,7 +234,6 @@ export default function Costs() {
   )
   const ytdTotalNok = ytdCostsOnlyNok + ytdInvestmentsNok
 
-  // Archived items
   const archivedRecurring = useMemo(
     () => costs.filter((c) => c.recurring && c.endMonth && c.endYear && c.endYear * 12 + c.endMonth < currentYear * 12 + currentMonth),
     [costs],
@@ -252,7 +248,6 @@ export default function Costs() {
   )
   const totalArchived = archivedRecurring.length + archivedOneTime.length + archivedInvestments.length
 
-  // Month navigation
   const prev = () => {
     if (month === 1) { setMonth(12); setYear((y) => y - 1) }
     else setMonth((m) => m - 1)
@@ -360,7 +355,6 @@ export default function Costs() {
     catch (caught) { setError(caught instanceof Error ? caught.message : 'Failed to delete.') }
   }
 
-  // Per-currency footer rows for a mixed cost+investment list
   function thisMonthFooter() {
     const byCurrency: Record<string, number> = {}
     for (const c of [...thisMonthRecurring, ...thisMonthOneTime]) {
@@ -372,17 +366,17 @@ export default function Costs() {
     return (
       <>
         {Object.entries(byCurrency).map(([currency, total]) => (
-          <tr key={currency} className="border-t border-slate-700/50 bg-slate-800/20">
-            <td className="px-4 py-2 text-xs text-slate-500" colSpan={3}>{currency} total</td>
+          <tr key={currency} className="border-t border-[var(--border-faint)] bg-[var(--bg-surface)]/50">
+            <td className="px-4 py-2 text-xs text-[var(--text-tertiary)]" colSpan={3}>{currency} total</td>
             <td className="px-4 py-2 text-right">
               <CostMoney amount={total} currency={currency as Currency} month={month} year={year} rates={rates} mainCurrency={mainCurrency as Currency} />
             </td>
             <td />
           </tr>
         ))}
-        <tr className="border-t-2 border-slate-700 bg-slate-800/30">
-          <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total (NOK)</td>
-          <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
+        <tr className="border-t-2 border-[var(--border-default)] bg-[var(--bg-surface)]">
+          <td className="px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]" colSpan={3}>Total (NOK)</td>
+          <td className="px-4 py-2.5 text-right font-mono tabular-nums font-semibold text-[var(--text-primary)]">
             {formatCurrency(thisMonthNok, 'NOK')}
           </td>
           <td />
@@ -451,13 +445,13 @@ export default function Costs() {
 
       {/* Section 1: This Month */}
       <AppCard>
-        <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-          <p className="text-sm font-medium text-slate-200">This Month</p>
+        <div className="flex items-center justify-between border-b border-[var(--border-faint)] px-4 py-3">
+          <p className="text-sm font-medium text-[var(--text-primary)]">This Month</p>
           <div className="flex items-center gap-1">
             <Button variant="ghost" className="px-2" onClick={prev}>
               <span className="text-lg">‹</span>
             </Button>
-            <span className="min-w-[130px] text-center text-sm font-medium text-slate-200">
+            <span className="min-w-[130px] text-center text-sm font-medium text-[var(--text-primary)]">
               {MONTH_FULL_NAMES[month - 1]} {year}
             </span>
             <Button variant="ghost" className="px-2" onClick={next}>
@@ -474,27 +468,27 @@ export default function Costs() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-700 text-left">
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Type</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
-                  <th className="px-4 py-2.5" />
+                <tr className="border-b border-[var(--border-faint)] text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Description</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Type</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Category</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Amount</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
                 {thisMonthRecurring.map((cost) => (
-                  <tr key={`r-${cost.id}`} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 text-slate-200">
+                  <tr key={`r-${cost.id}`} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                    <td className="px-4 py-3 text-[var(--text-primary)]">
                       {cost.description}
                       {cost.notes && <NotesChip notes={cost.notes} />}
                     </td>
-                    <td className="px-4 py-2.5"><TypeBadge type="Subscription" /></td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-3"><TypeBadge type="Subscription" /></td>
+                    <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{cost.category}</td>
+                    <td className="px-4 py-3 text-right">
                       <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={month} year={year} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
                         <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
@@ -503,17 +497,17 @@ export default function Costs() {
                   </tr>
                 ))}
                 {thisMonthOneTime.map((cost) => (
-                  <tr key={`o-${cost.id}`} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 text-slate-200">
+                  <tr key={`o-${cost.id}`} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                    <td className="px-4 py-3 text-[var(--text-primary)]">
                       {cost.description}
                       {cost.notes && <NotesChip notes={cost.notes} />}
                     </td>
-                    <td className="px-4 py-2.5"><TypeBadge type="Expense" /></td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-3"><TypeBadge type="Expense" /></td>
+                    <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{cost.category}</td>
+                    <td className="px-4 py-3 text-right">
                       <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={cost.month} year={cost.year} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
                         <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
@@ -522,17 +516,17 @@ export default function Costs() {
                   </tr>
                 ))}
                 {thisMonthInvestments.map((inv) => (
-                  <tr key={`i-${inv.id}`} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 text-slate-200">
+                  <tr key={`i-${inv.id}`} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                    <td className="px-4 py-3 text-[var(--text-primary)]">
                       {inv.description}
                       {inv.notes && <NotesChip notes={inv.notes} />}
                     </td>
-                    <td className="px-4 py-2.5"><TypeBadge type="Investment" /></td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{inv.category}</td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-3"><TypeBadge type="Investment" /></td>
+                    <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{inv.category}</td>
+                    <td className="px-4 py-3 text-right">
                       <CostMoney amount={inv.amount} currency={inv.currency as Currency} month={inv.month} year={inv.year} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" className="px-2 text-xs" onClick={() => { editInvestment(inv); setShowInvestmentModal(true) }}>Edit</Button>
                         <Button variant="danger" className="px-2 text-xs" onClick={() => void removeInvestment(inv.id)}>Del</Button>
@@ -553,12 +547,12 @@ export default function Costs() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-left">
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Started</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount/mo</th>
-                <th className="px-4 py-2.5" />
+              <tr className="border-b border-[var(--border-faint)] text-left">
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Description</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Category</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Started</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Amount/mo</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -570,17 +564,17 @@ export default function Costs() {
                 </tr>
               ) : (
                 activeRecurring.map((cost) => (
-                  <tr key={cost.id} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 text-slate-200">
+                  <tr key={cost.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                    <td className="px-4 py-3 text-[var(--text-primary)]">
                       {cost.description}
                       {cost.notes && <NotesChip notes={cost.notes} />}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{cost.category}</td>
+                    <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
+                    <td className="px-4 py-3 text-right">
                       <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         {!cost.endMonth && (
                           <Button
@@ -604,8 +598,8 @@ export default function Costs() {
                   return acc
                 }, {})
                 return Object.entries(byCurrency).map(([currency, total]) => (
-                  <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
-                    <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={3}>Total / month</td>
+                  <tr key={currency} className="border-t-2 border-[var(--border-default)] bg-[var(--bg-surface)]">
+                    <td className="px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]" colSpan={3}>Total / month</td>
                     <td className="px-4 py-2.5 text-right">
                       <CostMoney amount={total} currency={currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} />
                     </td>
@@ -622,39 +616,39 @@ export default function Costs() {
       {totalArchived > 0 && (
         <AppCard>
           <button
-            className="flex w-full items-center justify-between border-b border-slate-700 px-4 py-3 text-left transition-colors hover:bg-slate-800/30"
+            className="flex w-full items-center justify-between border-b border-[var(--border-faint)] px-4 py-3 text-left transition-colors hover:bg-[var(--bg-elevated)]"
             onClick={() => setShowArchived((v) => !v)}
           >
-            <p className="text-sm font-medium text-slate-400">Archived ({totalArchived} items)</p>
-            <span className="text-xs text-slate-500">{showArchived ? 'hide' : 'show'}</span>
+            <p className="text-sm font-medium text-[var(--text-secondary)]">Archived ({totalArchived} items)</p>
+            <span className="text-xs text-[var(--text-tertiary)]">{showArchived ? 'hide' : 'show'}</span>
           </button>
           {showArchived && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700 text-left">
-                    <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
-                    <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Type</th>
-                    <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Category</th>
-                    <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Period</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
-                    <th className="px-4 py-2.5" />
+                  <tr className="border-b border-[var(--border-faint)] text-left">
+                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Description</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Type</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Category</th>
+                    <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Period</th>
+                    <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Amount</th>
+                    <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody>
                   {archivedRecurring.map((cost) => (
-                    <tr key={`ar-${cost.id}`} className="border-b border-slate-700/50 last:border-0">
-                      <td className="px-4 py-2.5 text-slate-500">
+                    <tr key={`ar-${cost.id}`} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                      <td className="px-4 py-3 text-[var(--text-tertiary)]">
                         {cost.description}
                         {cost.notes && <NotesChip notes={cost.notes} />}
                       </td>
-                      <td className="px-4 py-2.5"><TypeBadge type="Subscription" /></td>
-                      <td className="px-4 py-2.5 text-xs text-slate-600">{cost.category}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-600">{formatPeriod(cost)}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} className="text-slate-500" />
+                      <td className="px-4 py-3"><TypeBadge type="Subscription" /></td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{cost.category}</td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{formatPeriod(cost)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} className="text-[var(--text-tertiary)]" />
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
                           <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
@@ -663,18 +657,18 @@ export default function Costs() {
                     </tr>
                   ))}
                   {archivedOneTime.map((cost) => (
-                    <tr key={`ao-${cost.id}`} className="border-b border-slate-700/50 last:border-0">
-                      <td className="px-4 py-2.5 text-slate-500">
+                    <tr key={`ao-${cost.id}`} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                      <td className="px-4 py-3 text-[var(--text-tertiary)]">
                         {cost.description}
                         {cost.notes && <NotesChip notes={cost.notes} />}
                       </td>
-                      <td className="px-4 py-2.5"><TypeBadge type="Expense" /></td>
-                      <td className="px-4 py-2.5 text-xs text-slate-600">{cost.category}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-600">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={cost.month} year={cost.year} rates={rates} mainCurrency={mainCurrency as Currency} className="text-slate-500" />
+                      <td className="px-4 py-3"><TypeBadge type="Expense" /></td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{cost.category}</td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{MONTH_NAMES[cost.month - 1]} {cost.year}</td>
+                      <td className="px-4 py-3 text-right">
+                        <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={cost.month} year={cost.year} rates={rates} mainCurrency={mainCurrency as Currency} className="text-[var(--text-tertiary)]" />
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
                           <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
@@ -683,18 +677,18 @@ export default function Costs() {
                     </tr>
                   ))}
                   {archivedInvestments.map((inv) => (
-                    <tr key={`ai-${inv.id}`} className="border-b border-slate-700/50 last:border-0">
-                      <td className="px-4 py-2.5 text-slate-500">
+                    <tr key={`ai-${inv.id}`} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                      <td className="px-4 py-3 text-[var(--text-tertiary)]">
                         {inv.description}
                         {inv.notes && <NotesChip notes={inv.notes} />}
                       </td>
-                      <td className="px-4 py-2.5"><TypeBadge type="Investment" /></td>
-                      <td className="px-4 py-2.5 text-xs text-slate-600">{inv.category}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-600">{MONTH_NAMES[inv.month - 1]} {inv.year}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <CostMoney amount={inv.amount} currency={inv.currency as Currency} month={inv.month} year={inv.year} rates={rates} mainCurrency={mainCurrency as Currency} className="text-slate-500" />
+                      <td className="px-4 py-3"><TypeBadge type="Investment" /></td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{inv.category}</td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{MONTH_NAMES[inv.month - 1]} {inv.year}</td>
+                      <td className="px-4 py-3 text-right">
+                        <CostMoney amount={inv.amount} currency={inv.currency as Currency} month={inv.month} year={inv.year} rates={rates} mainCurrency={mainCurrency as Currency} className="text-[var(--text-tertiary)]" />
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" className="px-2 text-xs" onClick={() => { editInvestment(inv); setShowInvestmentModal(true) }}>Edit</Button>
                           <Button variant="danger" className="px-2 text-xs" onClick={() => void removeInvestment(inv.id)}>Del</Button>
@@ -733,7 +727,7 @@ export default function Costs() {
                 </Select>
               </Field>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-300">
+            <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
               <Checkbox checked={costDraft.recurring} onChange={(e) => setCostDraft((c) => ({ ...c, recurring: e.target.checked, endMonth: null, endYear: null }))} />
               Recurring monthly
             </label>

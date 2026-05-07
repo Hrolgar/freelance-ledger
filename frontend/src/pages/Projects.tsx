@@ -5,7 +5,7 @@ import { ProjectStatusBadge } from '../components/StatusBadge'
 import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
-import { calculateProjectGrossPaid, calculateProjectGrossPipeline, calculatePipelineValue, calculateProjectRevenue, formatDate, isoDate, projectOverdueCount } from '../lib/format'
+import { calculateProjectGrossPaid, calculateProjectGrossPipeline, formatDate, isoDate, projectOverdueCount } from '../lib/format'
 import type { Client, ClientInput, Platform, Project, ProjectInput } from '../types'
 import { CURRENCIES, PROJECT_STATUSES } from '../types'
 
@@ -161,7 +161,7 @@ export default function Projects() {
 
       <AppCard>
         <SectionHeading title="All Projects" description="Amounts shown before platform fee." />
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-slate-700 bg-slate-800/30">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-[var(--border-faint)]">
           <Input
             type="search"
             placeholder="Search project or client..."
@@ -187,7 +187,7 @@ export default function Projects() {
             <option value="All">All cur</option>
             {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
           </Select>
-          <span className="ml-auto text-xs text-slate-500">
+          <span className="ml-auto text-xs text-[var(--text-tertiary)]">
             Showing {filteredProjects.length} of {projects.length}
           </span>
           {(search || statusFilter !== 'All' || currencyFilter !== 'All') && (
@@ -203,16 +203,16 @@ export default function Projects() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-left">
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Client</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Project</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Platform</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Cur</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Status</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Awarded</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Paid</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Pipeline</th>
-                <th className="px-4 py-2.5" />
+              <tr className="border-b border-[var(--border-faint)] text-left">
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Client</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Project</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Platform</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Cur</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Status</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Awarded</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Paid</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Pipeline</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
@@ -227,9 +227,13 @@ export default function Projects() {
                 </tr>
               ) : null}
               {filteredProjects.map((project) => (
-                <tr key={project.id} className="cursor-pointer border-b border-slate-700/50 last:border-0 transition-colors hover:bg-slate-700/30" onClick={() => navigate(`/projects/${project.id}`)}>
-                  <td className="px-4 py-2.5 text-slate-300">{project.client?.name ?? project.clientName}</td>
-                  <td className="px-4 py-2.5 font-medium text-slate-100">
+                <tr
+                  key={project.id}
+                  className="cursor-pointer border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]"
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                >
+                  <td className="px-4 py-3.5 text-[var(--text-secondary)]">{project.client?.name ?? project.clientName}</td>
+                  <td className="px-4 py-3.5 font-medium text-[var(--text-primary)]">
                     <div className="flex items-center gap-1.5">
                       <span>{project.projectName}</span>
                       {projectOverdueCount(project) > 0 && (
@@ -242,14 +246,20 @@ export default function Projects() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-slate-500">{project.platform?.name ?? '—'}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{project.currency}</td>
-                  <td className="px-4 py-2.5"><ProjectStatusBadge status={project.status} /></td>
-                  <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(project.dateAwarded)}</td>
-                  <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectGrossPaid(project)} currency={project.currency} /></td>
-                  <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectGrossPipeline(project)} currency={project.currency} /></td>
-                  <td className="px-4 py-2.5 text-right">
-                    <button className="px-2 text-xs text-slate-500 hover:text-red-400" onClick={(e) => { e.stopPropagation(); void handleDelete(project) }}>×</button>
+                  <td className="px-4 py-3.5 text-[var(--text-tertiary)]">{project.platform?.name ?? '—'}</td>
+                  <td className="px-4 py-3.5 font-mono text-xs text-[var(--text-secondary)]">{project.currency}</td>
+                  <td className="px-4 py-3.5"><ProjectStatusBadge status={project.status} /></td>
+                  <td className="px-4 py-3.5 text-xs text-[var(--text-secondary)]">{formatDate(project.dateAwarded)}</td>
+                  <td className="px-4 py-3.5 text-right font-mono tabular-nums"><MoneyAmount amount={calculateProjectGrossPaid(project)} currency={project.currency} /></td>
+                  <td className="px-4 py-3.5 text-right font-mono tabular-nums"><MoneyAmount amount={calculateProjectGrossPipeline(project)} currency={project.currency} /></td>
+                  <td className="px-4 py-3.5 text-right">
+                    <Button
+                      variant="ghost"
+                      className="px-2 text-xs text-[var(--text-tertiary)] hover:text-[#c97264]"
+                      onClick={(e) => { e.stopPropagation(); void handleDelete(project) }}
+                    >
+                      ×
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -302,7 +312,7 @@ export default function Projects() {
                   return (
                     <>
                       <Input type="number" min="0" max="100" step="0.1" value={draft.feePercentage} disabled={feeIsLocked} onChange={(e) => setDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))} />
-                      {feeIsLocked && <p className="mt-1 text-xs text-slate-500">Locked by platform.</p>}
+                      {feeIsLocked && <p className="mt-1 text-xs text-[var(--text-tertiary)]">Locked by platform.</p>}
                     </>
                   )
                 })()}

@@ -51,12 +51,12 @@ export default function FileViewer() {
   return (
     <div className="space-y-4">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Link to="/projects" className="hover:text-slate-300 transition-colors">Projects</Link>
+      <div className="flex items-center gap-2 text-sm text-[var(--text-tertiary)]">
+        <Link to="/projects" className="hover:text-[var(--text-primary)] transition-colors">Projects</Link>
         <span>/</span>
-        <Link to={`/projects/${projectId}`} className="hover:text-slate-300 transition-colors">{project.projectName}</Link>
+        <Link to={`/projects/${projectId}`} className="hover:text-[var(--text-primary)] transition-colors">{project.projectName}</Link>
         <span>/</span>
-        <span className="text-slate-300">{file.originalFilename}</span>
+        <span className="text-[var(--text-secondary)]">{file.originalFilename}</span>
       </div>
 
       <PageIntro
@@ -83,15 +83,15 @@ export default function FileViewer() {
           />
         )}
         {isImage && (
-          <div className="flex items-center justify-center bg-slate-950 p-4">
+          <div className="flex items-center justify-center bg-[var(--bg-base)] p-4">
             <img src={inlineUrl} alt={file.originalFilename} className="max-h-[calc(100vh-260px)] max-w-full rounded" />
           </div>
         )}
         {!isPdf && !isImage && (
-          <div className="p-8 text-center text-sm text-slate-400">
+          <div className="p-8 text-center text-sm text-[var(--text-secondary)]">
             <p>This file type can't be previewed in the browser.</p>
             <p className="mt-2">
-              <a href={downloadUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300">Download {file.originalFilename}</a> to view it.
+              <a href={downloadUrl} target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline">Download {file.originalFilename}</a> to view it.
             </p>
           </div>
         )}
