@@ -1,7 +1,8 @@
 export type Currency = 'GBP' | 'USD' | 'EUR' | 'CAD' | 'INR' | 'NOK'
 export type ProjectStatus = 'Quoted' | 'Awarded' | 'InProgress' | 'Completed' | 'Paid'
 export type MilestoneStatus = 'Pending' | 'Funded' | 'Released' | 'Paid' | 'Disputed'
-export type CostCategory = 'Software' | 'Hardware' | 'Internet' | 'Office' | 'Other'
+export type CostCategory = 'Software' | 'Hardware' | 'Internet' | 'Office' | 'Other' | 'Marketing'
+export type InvestmentCategory = 'Hardware' | 'Education' | 'Certification' | 'Equipment' | 'Other'
 
 export interface Platform {
   id: number
@@ -108,6 +109,7 @@ export interface Investment {
   month: number
   year: number
   notes: string | null
+  category: InvestmentCategory
 }
 
 export interface ExchangeRate {
@@ -207,6 +209,23 @@ export const COST_CATEGORIES: CostCategory[] = [
   'Hardware',
   'Internet',
   'Office',
+  'Other',
+  'Marketing',
+]
+
+export const COST_CATEGORIES_UI: CostCategory[] = [
+  'Software',
+  'Internet',
+  'Office',
+  'Marketing',
+  'Other',
+]
+
+export const INVESTMENT_CATEGORIES: InvestmentCategory[] = [
+  'Hardware',
+  'Education',
+  'Certification',
+  'Equipment',
   'Other',
 ]
 export const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

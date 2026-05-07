@@ -34,5 +34,15 @@ public enum CostCategory
     Hardware,
     Internet,
     Office,
-    Other
+    Other,
+    Marketing
+}
+
+public enum InvestmentCategory
+{
+    Hardware = 0,
+    Education = 1,
+    Certification = 2,
+    Equipment = 3,
+    Other = 4
 }
