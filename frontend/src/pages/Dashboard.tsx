@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getPipeline, getProjects, getYearOverview } from '../api'
 import { ProjectStatusBadge } from '../components/StatusBadge'
-import { AppCard, Button, EmptyState, ErrorState, LoadingState, PageIntro, SectionHeading, StatCard } from '../components/ui'
+import { AppCard, Button, EmptyState, ErrorState, LoadingState, SectionHeading, StatCard } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { calculateProjectRevenue, formatCurrency, formatMonth } from '../lib/format'
+import { useMainCurrency } from '../lib/useMainCurrency'
 import type { Pipeline, Project, YearOverview } from '../types'
 
 export default function Dashboard() {
@@ -15,11 +16,11 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mainCurrency] = useMainCurrency()
 
   const load = async () => {
     setLoading(true)
     setError(null)
-
     try {
       const [overviewData, pipelineData, projectsData] = await Promise.all([
         getYearOverview(year),
@@ -36,83 +37,129 @@ export default function Dashboard() {
     }
   }
 
-  useEffect(() => {
-    void load()
-  }, [year])
+  useEffect(() => { void load() }, [year])
 
   const recentProjects = useMemo(
     () => [...projects].sort((a, b) => b.id - a.id).slice(0, 5),
     [projects],
   )
 
+  const activeProjectCount = useMemo(
+    () => projects.filter(p => p.status === 'InProgress' || p.status === 'Awarded').length,
+    [projects],
+  )
+
   const highestMonth = Math.max(...(overview?.months.map((m) => m.revenue) ?? [1]), 1)
 
+  const pipelineHint = useMemo(() => {
+    if (!pipeline) return 'before fee'
+    const parts: string[] = []
+    const bs = pipeline.byStatus ?? {}
+    if (bs.Quoted) parts.push(`${bs.Quoted} quoted`)
+    if (bs.Awarded) parts.push(`${bs.Awarded} awarded`)
+    if (bs.InProgress) parts.push(`${bs.InProgress} in progress`)
+    if (bs.Completed) parts.push(`${bs.Completed} completed`)
+    return parts.length ? parts.join(' · ') : 'before fee'
+  }, [pipeline])
+
   return (
-    <div className="space-y-6">
-      <PageIntro
-        title={`${year} Dashboard`}
-        description="Revenue, costs, and pipeline for the current year."
-        action={(
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" className="px-2" onClick={() => setYear(y => y - 1)}>‹</Button>
-            <span className="text-sm font-medium text-slate-200 min-w-[60px] text-center">{year}</span>
-            <Button variant="ghost" className="px-2" onClick={() => setYear(y => y + 1)}>›</Button>
-            <Link to="/projects"><Button>New project</Button></Link>
-          </div>
-        )}
-      />
+    <div>
+      {/* Year nav */}
+      <div className="flex items-center justify-between mb-12">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setYear(y => y - 1)}
+            className="rounded-md px-2 py-1 text-sm transition-colors hover:bg-[var(--bg-surface)]"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            ‹
+          </button>
+          <span className="px-2 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{year}</span>
+          <button
+            onClick={() => setYear(y => y + 1)}
+            className="rounded-md px-2 py-1 text-sm transition-colors hover:bg-[var(--bg-surface)]"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            ›
+          </button>
+        </div>
+        <Link to="/projects">
+          <Button>New project</Button>
+        </Link>
+      </div>
 
       {loading && <LoadingState label="Loading dashboard" />}
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
       {!loading && !error && overview && (
         <>
-          {/* Stat row */}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Revenue" value={formatCurrency(overview.totalRevenue, 'NOK')} />
-            <StatCard label="Costs" value={formatCurrency(overview.totalCosts, 'NOK')} />
-            <StatCard label="Net Profit" value={formatCurrency(overview.totalProfit, 'NOK')} />
+          {/* A. Hero — net profit at large scale */}
+          <section className="mb-16">
+            <p
+              className="text-[11px] font-semibold uppercase tracking-[0.16em] mb-3"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
+              Net profit · {year}
+            </p>
+            <p
+              className="text-[72px] font-semibold tracking-tight leading-none tnum"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}
+            >
+              {formatCurrency(overview.totalProfit, 'NOK')}
+            </p>
+            <p className="mt-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Across {activeProjectCount} active project{activeProjectCount === 1 ? '' : 's'}.
+              {pipeline && pipeline.totalPipelineGrossValue > 0 && (
+                <> {formatCurrency(pipeline.totalPipelineGrossValue, 'NOK')} in unpaid pipeline.</>
+              )}
+            </p>
+          </section>
+
+          {/* B. Three-card row */}
+          <section className="mb-12 grid gap-4 lg:grid-cols-3">
+            <StatCard
+              label="Revenue YTD"
+              value={formatCurrency(overview.totalRevenue, 'NOK')}
+              hint={`${overview.months.filter(m => m.revenue > 0).length} active months`}
+            />
+            <StatCard
+              label="Costs YTD"
+              value={formatCurrency(overview.totalCosts, 'NOK')}
+              hint="recurring + one-time"
+            />
             <StatCard
               label="Pipeline"
               value={formatCurrency(pipeline?.totalPipelineGrossValue ?? 0, 'NOK')}
-              hint={(() => {
-                if (!pipeline) return 'before fee'
-                const parts: string[] = []
-                const bs = pipeline.byStatus ?? {}
-                if (bs.Quoted) parts.push(`${bs.Quoted} quoted`)
-                if (bs.Awarded) parts.push(`${bs.Awarded} awarded`)
-                if (bs.InProgress) parts.push(`${bs.InProgress} in progress`)
-                if (bs.Completed) parts.push(`${bs.Completed} completed`)
-                return parts.length ? `${parts.join(' · ')} · before fee` : 'before fee'
-              })()}
+              hint={pipelineHint}
             />
-          </div>
+          </section>
 
-          {/* Monthly revenue chart */}
-          <AppCard>
+          {/* C. Chart card */}
+          <AppCard className="mb-12">
             <SectionHeading
-              title="Monthly Revenue"
-              description={`Net revenue NOK by month, ${year} — after fee, before costs. See Monthly for profit.`}
+              title="Monthly revenue"
+              description={`Net NOK by month, ${year} — after fee, before costs`}
             />
-            <div className="p-4">
+            <div className="p-5">
               <div className="flex items-end gap-1.5" style={{ height: 192 }}>
                 {overview.months.map((m) => {
                   const pct = Math.max((m.revenue / highestMonth) * 100, m.revenue > 0 ? 8 : 2)
                   return (
                     <div key={m.month} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
                       {m.revenue > 0 && (
-                        <span className="font-mono text-[10px] text-slate-400">
+                        <span className="font-mono text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
                           {Math.round(m.revenue / 1000)}k
                         </span>
                       )}
                       <div
-                        className={`w-full rounded-sm transition-all duration-300 ${
-                          m.revenue > 0 ? 'bg-blue-500 hover:bg-blue-400' : 'bg-slate-800'
-                        }`}
-                        style={{ height: `${pct}%` }}
+                        className="w-full rounded-sm transition-all duration-300"
+                        style={{
+                          height: `${pct}%`,
+                          background: m.revenue > 0 ? 'var(--accent)' : 'var(--bg-elevated)',
+                        }}
                         title={`${formatMonth(m.month)}: ${formatCurrency(m.revenue, 'NOK')}`}
                       />
-                      <span className="font-mono text-[10px] text-slate-500">
+                      <span className="font-mono text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
                         {formatMonth(m.month)}
                       </span>
                     </div>
@@ -122,19 +169,23 @@ export default function Dashboard() {
             </div>
           </AppCard>
 
-          {/* Recent projects + pipeline */}
-          <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
+          {/* D. Two-column: Recent projects + Pipeline */}
+          <div className="grid gap-4 lg:grid-cols-[1.3fr_0.9fr]">
             <AppCard>
               <SectionHeading
-                title="Recent Projects"
+                title="Recent projects"
                 action={
-                  <Link className="text-xs text-blue-400 hover:text-blue-300" to="/projects">
-                    View all
+                  <Link
+                    to="/projects"
+                    className="text-xs transition-colors"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    View all →
                   </Link>
                 }
               />
               {recentProjects.length === 0 ? (
-                <div className="p-4">
+                <div className="p-5">
                   <EmptyState
                     title="No projects yet"
                     description="Create a project to start tracking milestones and revenue."
@@ -151,18 +202,25 @@ export default function Dashboard() {
                     {recentProjects.map((project) => (
                       <tr
                         key={project.id}
-                        className="border-b border-slate-700/50 last:border-0 hover:bg-slate-700/30 transition-colors"
+                        className="transition-colors"
+                        style={{ borderBottom: '1px solid var(--border-faint)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-elevated)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                       >
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5">
                           <Link to={`/projects/${project.id}`} className="block">
-                            <p className="font-medium text-slate-100">{project.projectName}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">{project.clientName} · {project.platform?.name ?? '—'}</p>
+                            <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                              {project.projectName}
+                            </p>
+                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                              {project.clientName} · {project.platform?.name ?? '—'}
+                            </p>
                           </Link>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5 align-middle">
                           <ProjectStatusBadge status={project.status} />
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
+                        <td className="px-5 py-3.5 text-right font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
                           <MoneyAmount amount={calculateProjectRevenue(project)} currency={project.currency} />
                         </td>
                       </tr>
@@ -173,9 +231,12 @@ export default function Dashboard() {
             </AppCard>
 
             <AppCard>
-              <SectionHeading title="Pipeline" description="Outstanding revenue across all open projects." />
+              <SectionHeading
+                title="Pipeline"
+                description="Outstanding revenue across all open projects"
+              />
               {!pipeline || pipeline.projects.length === 0 ? (
-                <div className="p-4">
+                <div className="p-5">
                   <EmptyState
                     title="Pipeline is clear"
                     description="No outstanding revenue across open projects."
@@ -187,18 +248,25 @@ export default function Dashboard() {
                     {pipeline.projects.map((project) => (
                       <tr
                         key={project.projectId}
-                        className="border-b border-slate-700/50 last:border-0 hover:bg-slate-700/30 transition-colors"
+                        className="transition-colors"
+                        style={{ borderBottom: '1px solid var(--border-faint)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-elevated)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                       >
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5">
                           <Link to={`/projects/${project.projectId}`} className="block">
-                            <p className="font-medium text-slate-100">{project.projectName}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">{project.clientName}</p>
+                            <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                              {project.projectName}
+                            </p>
+                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                              {project.clientName}
+                            </p>
                           </Link>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5 align-middle">
                           <ProjectStatusBadge status={project.status} />
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
+                        <td className="px-5 py-3.5 text-right font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
                           <MoneyAmount amount={project.unpaidNet} currency={project.currency} />
                         </td>
                       </tr>
