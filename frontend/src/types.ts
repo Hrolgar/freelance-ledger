@@ -119,12 +119,15 @@ export interface PipelineProject {
   currency: Currency
   grossValue: number
   netValue: number
+  unpaidGross: number
+  unpaidNet: number
 }
 
 export interface Pipeline {
-  totalPipelineValue: number
-  totalPipelineGrossValue: number
+  totalPipelineValue: number       // = unpaid net total
+  totalPipelineGrossValue: number  // = unpaid gross total
   projects: PipelineProject[]
+  byStatus: Partial<Record<ProjectStatus, number>>
 }
 
 export interface ProjectSummary {

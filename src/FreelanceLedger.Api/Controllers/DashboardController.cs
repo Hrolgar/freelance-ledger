@@ -90,16 +90,21 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
     [HttpGet("pipeline")]
     public async Task<IActionResult> GetPipeline()
     {
-        var pipelineProjects = await db.Projects
+        var allProjects = await db.Projects
             .AsNoTracking()
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
-            .Where(p => p.Status == ProjectStatus.Quoted || p.Status == ProjectStatus.Awarded)
+            .Where(p => p.Status != ProjectStatus.Paid)
             .ToListAsync();
 
-        var projects = pipelineProjects
+        var projects = allProjects
             .Select(project =>
             {
+                var unpaidGross = project.Milestones
+                    .Where(m => m.Status != MilestoneStatus.Paid)
+                    .Sum(m => m.Amount);
+                var unpaidNet = unpaidGross - (unpaidGross * (project.FeePercentage / 100m));
+
                 var gross = project.Milestones.Sum(m => m.Amount) + project.Tips.Sum(t => t.Amount);
                 var net = gross - (gross * (project.FeePercentage / 100m));
 
@@ -110,15 +115,26 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
                     project.Status,
                     project.Currency,
                     gross,
-                    net);
+                    net,
+                    unpaidGross,
+                    unpaidNet);
             })
-            .OrderByDescending(project => project.NetValue)
+            .Where(p => p.UnpaidGross > 0)
+            .OrderByDescending(project => project.UnpaidNet)
             .ToList();
 
+        var totalUnpaidNet = projects.Sum(p => p.UnpaidNet);
+        var totalUnpaidGross = projects.Sum(p => p.UnpaidGross);
+
+        var byStatus = projects
+            .GroupBy(p => p.Status)
+            .ToDictionary(g => g.Key, g => g.Count());
+
         return Ok(new PipelineResponse(
-            projects.Sum(project => project.NetValue),
-            projects.Sum(project => project.GrossValue),
-            projects));
+            totalUnpaidNet,
+            totalUnpaidGross,
+            projects,
+            byStatus));
     }
 }
 
@@ -138,9 +154,12 @@ public record PipelineProjectResponse(
     ProjectStatus Status,
     Currency Currency,
     decimal GrossValue,
-    decimal NetValue);
+    decimal NetValue,
+    decimal UnpaidGross,
+    decimal UnpaidNet);
 
 public record PipelineResponse(
     decimal TotalPipelineValue,
     decimal TotalPipelineGrossValue,
-    IReadOnlyList<PipelineProjectResponse> Projects);
+    IReadOnlyList<PipelineProjectResponse> Projects,
+    IReadOnlyDictionary<ProjectStatus, int> ByStatus);
