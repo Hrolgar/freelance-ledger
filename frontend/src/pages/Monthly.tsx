@@ -260,6 +260,21 @@ export default function Monthly() {
                     </tr>
                   ))
                 )}
+                {revenueRows.length > 0 && (() => {
+                  const totalsByCurrency = revenueRows.reduce<Record<string, {gross: number; fee: number; net: number}>>((acc, r) => {
+                    const e = acc[r.currency] ??= {gross: 0, fee: 0, net: 0}
+                    e.gross += r.gross; e.fee += r.fee; e.net += r.net
+                    return acc
+                  }, {})
+                  return Object.entries(totalsByCurrency).map(([currency, t]) => (
+                    <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
+                      <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={2}>Total ({currency})</td>
+                      <MoneyCell amount={t.gross} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-slate-100" />
+                      <MoneyCell amount={t.fee} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-slate-300" />
+                      <MoneyCell amount={t.net} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-slate-100" />
+                    </tr>
+                  ))
+                })()}
               </tbody>
             </table>
           </div>
@@ -292,6 +307,18 @@ export default function Monthly() {
                     </tr>
                   ))
                 )}
+                {costs.length > 0 && (() => {
+                  const costsByCurrency = costs.reduce<Record<string, number>>((acc, c) => {
+                    acc[c.currency] = (acc[c.currency] ?? 0) + c.amount
+                    return acc
+                  }, {})
+                  return Object.entries(costsByCurrency).map(([currency, total]) => (
+                    <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
+                      <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={2}>Total ({currency})</td>
+                      <MoneyCell amount={total} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-slate-100" />
+                    </tr>
+                  ))
+                })()}
               </tbody>
             </table>
           </div>
