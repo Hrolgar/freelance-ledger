@@ -18,6 +18,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
             .Include(p => p.Platform)
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
+            .Include(p => p.Files)
             .ToListAsync();
 
         return Ok(projects);
@@ -32,6 +33,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
             .Include(p => p.Platform)
             .Include(p => p.Milestones.OrderBy(m => m.SortOrder))
             .Include(p => p.Tips)
+            .Include(p => p.Files.OrderByDescending(f => f.UploadedAt))
             .FirstOrDefaultAsync(p => p.Id == id);
 
         if (project is null)

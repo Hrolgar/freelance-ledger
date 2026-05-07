@@ -15,6 +15,7 @@ import type {
   Platform,
   PlatformInput,
   Project,
+  ProjectFile,
   ProjectInput,
   ProjectSummary,
   Tip,
@@ -158,6 +159,29 @@ export const deleteExchangeRate = (id: number) =>
   request<void>(`/exchange-rates/${id}`, { method: 'DELETE' })
 export const autoFetchRates = (month: number, year: number) =>
   request<ExchangeRate[]>(`/exchange-rates/auto-fetch${query({ month, year })}`, { method: 'POST' })
+
+export const getProjectFiles = (projectId: number) =>
+  request<ProjectFile[]>(`/projects/${projectId}/files`)
+
+export const uploadProjectFile = async (projectId: number, file: File): Promise<ProjectFile> => {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch(`${API_BASE}/projects/${projectId}/files`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!response.ok) {
+    const txt = await response.text().catch(() => 'Upload failed')
+    throw new Error(txt || 'Upload failed')
+  }
+  return await response.json() as ProjectFile
+}
+
+export const deleteProjectFile = (projectId: number, fileId: number) =>
+  request<void>(`/projects/${projectId}/files/${fileId}`, { method: 'DELETE' })
+
+export const projectFileDownloadUrl = (projectId: number, fileId: number) =>
+  `${API_BASE}/projects/${projectId}/files/${fileId}/download`
 
 export const api = {
   getPlatforms,
