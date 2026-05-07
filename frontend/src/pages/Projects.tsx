@@ -111,7 +111,7 @@ export default function Projects() {
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
       {showNewClient && (
-        <Modal title="New Client" onClose={() => setShowNewClient(false)} size="md">
+        <Modal title="New Client" onClose={() => setShowNewClient(false)} size="md" nested>
           <form className="grid gap-3" onSubmit={handleCreateClient}>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Name" required>
