@@ -848,7 +848,10 @@ export default function ProjectDetail() {
                   <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(file.uploadedAt)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex justify-end gap-1">
-                      <a href={projectFileDownloadUrl(projectId, file.id)} target="_blank" rel="noreferrer" className="px-2 text-xs text-blue-400 hover:text-blue-300">Download</a>
+                      {(file.contentType === 'application/pdf' || file.contentType.startsWith('image/') || file.originalFilename.toLowerCase().endsWith('.pdf')) && (
+                        <Link to={`/projects/${projectId}/files/${file.id}/view`} className="px-2 text-xs text-blue-400 hover:text-blue-300">View</Link>
+                      )}
+                      <a href={projectFileDownloadUrl(projectId, file.id)} target="_blank" rel="noreferrer" className="px-2 text-xs text-slate-400 hover:text-slate-200">Download</a>
                       <Button variant="danger" className="px-2 text-xs" onClick={() => void handleFileDelete(file.id)}>Del</Button>
                     </div>
                   </td>
