@@ -143,6 +143,28 @@ export default function Costs() {
     })
   }
 
+  const handleEndNow = async (cost: Cost) => {
+    const today = new Date()
+    if (!window.confirm(`End '${cost.description}' as of ${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}?`)) return
+    try {
+      await updateCost(cost.id, {
+        description: cost.description,
+        amount: cost.amount,
+        currency: cost.currency,
+        category: cost.category,
+        month: cost.month,
+        year: cost.year,
+        recurring: cost.recurring,
+        endMonth: today.getMonth() + 1,
+        endYear: today.getFullYear(),
+        notes: cost.notes,
+      })
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to end cost.')
+    }
+  }
+
   const removeCost = async (id: number) => {
     if (!window.confirm('Delete this cost?')) return
     try { await deleteCost(id); await load() }
@@ -193,6 +215,15 @@ export default function Costs() {
                     <td className="px-4 py-2.5 text-right font-mono text-slate-200"><MoneyAmount amount={cost.amount} currency={cost.currency} /></td>
                     <td className="px-4 py-2.5">
                       <div className="flex justify-end gap-1">
+                        {cost.recurring && !cost.endMonth && (
+                          <Button
+                            variant="ghost"
+                            className="px-2 text-xs text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                            onClick={() => void handleEndNow(cost)}
+                          >
+                            End now
+                          </Button>
+                        )}
                         <Button variant="ghost" className="px-2 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
                         <Button variant="danger" className="px-2 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
                       </div>

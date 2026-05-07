@@ -111,13 +111,13 @@ export default function Settings() {
           description="Auto-fetched from ECB via frankfurter.app. Rates are final for past months."
           action={
             fetchableMonths.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Fetch missing:</span>
-                {fetchableMonths.slice(0, 3).map(({ month, year, label }) => (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-slate-500 mr-1">Fetch missing:</span>
+                {fetchableMonths.slice(0, 12).map(({ month, year, label }) => (
                   <Button
                     key={`${year}-${month}`}
                     variant="secondary"
-                    className="text-xs"
+                    className="px-2 py-1 text-xs"
                     disabled={fetching !== null}
                     onClick={() => void handleFetch(month, year)}
                   >

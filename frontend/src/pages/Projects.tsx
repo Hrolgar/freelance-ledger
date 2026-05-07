@@ -90,11 +90,11 @@ export default function Projects() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm('Delete this project and all related milestones and tips?')) return
+  const handleDelete = async (project: Project) => {
+    if (!window.confirm(`Delete '${project.projectName}'? This removes ALL milestones and tips for this project. Cannot be undone.`)) return
     try {
-      await deleteProject(id)
-      setProjects((current) => current.filter((p) => p.id !== id))
+      await deleteProject(project.id)
+      setProjects((current) => current.filter((p) => p.id !== project.id))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to delete project.')
     }
@@ -181,7 +181,7 @@ export default function Projects() {
                   <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectGrossPaid(project)} currency={project.currency} /></td>
                   <td className="px-4 py-2.5 text-right"><MoneyAmount amount={calculateProjectGrossPipeline(project)} currency={project.currency} /></td>
                   <td className="px-4 py-2.5 text-right">
-                    <Button variant="ghost" className="px-2 text-xs" onClick={(e) => { e.stopPropagation(); void handleDelete(project.id) }}>Delete</Button>
+                    <button className="px-2 text-xs text-slate-500 hover:text-red-400" onClick={(e) => { e.stopPropagation(); void handleDelete(project) }}>×</button>
                   </td>
                 </tr>
               ))}
