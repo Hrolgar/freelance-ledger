@@ -16,3 +16,7 @@ frontend/dist/
 .vscode/
 .idea/
 seed*.py
+
+# Repo-internal scratch
+_internal/
+_backups/
