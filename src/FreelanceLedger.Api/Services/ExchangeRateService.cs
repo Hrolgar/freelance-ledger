@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
@@ -10,8 +11,10 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http)
     private static readonly Currency[] TrackedCurrencies =
         [Currency.GBP, Currency.USD, Currency.EUR, Currency.CAD, Currency.INR];
 
-    // In-memory rate cache: "GBP-3-2026" -> rate
-    private static readonly Dictionary<string, decimal> _rateCache = new();
+    // In-memory rate cache: "GBP-3-2026" -> rate.
+    // ConcurrentDictionary because Dashboard fires GetYearOverview + GetPipeline in parallel,
+    // both call PreloadYear which mutates this cache.
+    private static readonly ConcurrentDictionary<string, decimal> _rateCache = new();
 
     /// <summary>
     /// Gets the NOK rate for a currency in a given month.
