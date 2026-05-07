@@ -4,7 +4,8 @@ import { getClients, getClient, createClient, updateClient, deleteClient } from 
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { MoneyAmount } from '../components/MoneyAmount'
-import { formatCurrency, formatDate } from '../lib/format'
+import { formatDate, calculatePipelineValue } from '../lib/format'
+import { COUNTRIES } from '../lib/countries'
 import { getTimezoneOffset, useMyTimezone } from '../lib/useMyTimezone'
 import type { Client, ClientInput } from '../types'
 import { TIMEZONES } from '../types'
@@ -93,7 +94,18 @@ function ClientList() {
               <Input type="email" value={draft.email ?? ''} onChange={(e) => setDraft(d => ({ ...d, email: e.target.value || null }))} />
             </Field>
             <Field label="Country">
-              <Input value={draft.country ?? ''} onChange={(e) => setDraft(d => ({ ...d, country: e.target.value || null }))} />
+              <Select value={draft.country ?? ''} onChange={(e) => {
+                const name = e.target.value
+                const country = COUNTRIES.find(c => c.name === name)
+                setDraft(d => ({
+                  ...d,
+                  country: name || null,
+                  timezone: d.timezone ?? country?.timezone ?? null,
+                }))
+              }}>
+                <option value="">Not set</option>
+                {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
+              </Select>
             </Field>
             <Field label="Freelancer ID">
               <Input value={draft.freelancerId ?? ''} onChange={(e) => setDraft(d => ({ ...d, freelancerId: e.target.value || null }))} placeholder="e.g. nick111nick111" />
@@ -223,7 +235,18 @@ function ClientDetail() {
               <Input value={draft.phone ?? ''} onChange={(e) => setDraft(d => ({ ...d, phone: e.target.value || null }))} />
             </Field>
             <Field label="Country">
-              <Input value={draft.country ?? ''} onChange={(e) => setDraft(d => ({ ...d, country: e.target.value || null }))} />
+              <Select value={draft.country ?? ''} onChange={(e) => {
+                const name = e.target.value
+                const country = COUNTRIES.find(c => c.name === name)
+                setDraft(d => ({
+                  ...d,
+                  country: name || null,
+                  timezone: d.timezone ?? country?.timezone ?? null,
+                }))
+              }}>
+                <option value="">Not set</option>
+                {COUNTRIES.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
+              </Select>
             </Field>
             <Field label="Timezone">
               <Select value={draft.timezone ?? ''} onChange={(e) => setDraft(d => ({ ...d, timezone: e.target.value || null }))}>
@@ -275,16 +298,20 @@ function ClientDetail() {
                 <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Platform</th>
                 <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Awarded</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Milestones</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Pipeline</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Outstanding</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Paid</th>
               </tr>
             </thead>
             <tbody>
               {client.projects.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8">
+                <tr><td colSpan={8} className="px-4 py-8">
                   <EmptyState title="No projects" description="Link projects to this client." />
                 </td></tr>
               ) : client.projects.map((p) => {
-                const paid = p.milestones.filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0)
+                const pipelineGross = p.milestones.reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
+                const paidGross = p.milestones.filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
+                const outstandingGross = pipelineGross - paidGross
                 return (
                   <tr key={p.id} className="border-b border-slate-700/50 last:border-0">
                     <td className="px-4 py-2.5">
@@ -296,8 +323,14 @@ function ClientDetail() {
                     <td className="px-4 py-2.5 text-right font-mono text-slate-400">
                       {p.milestones.filter(m => m.status === 'Paid').length}/{p.milestones.length}
                     </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-slate-300">
+                      <MoneyAmount amount={calculatePipelineValue(p)} currency={p.currency} />
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-amber-400">
+                      <MoneyAmount amount={outstandingGross} currency={p.currency} />
+                    </td>
                     <td className="px-4 py-2.5 text-right font-mono font-medium text-slate-200">
-                      <MoneyAmount amount={paid} currency={p.currency} />
+                      <MoneyAmount amount={paidGross} currency={p.currency} />
                     </td>
                   </tr>
                 )
