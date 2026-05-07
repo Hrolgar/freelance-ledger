@@ -44,11 +44,11 @@ function MoneyCell({ amount, currency, mainCurrency, rates, className = '' }: {
   const converted = convert(amount, currency, mainCurrency, rates)
   const hasConversion = converted !== null && currency !== mainCurrency
   return (
-    <td className={`px-4 py-2.5 text-right font-mono ${className}`}>
+    <td className={`px-4 py-3 text-right font-mono tabular-nums ${className}`}>
       {hasConversion ? (
-        <span className="group relative cursor-help border-b border-dashed border-slate-600">
+        <span className="group relative cursor-help border-b border-dashed border-[var(--border-default)]">
           {formatCurrency(amount, currency)}
-          <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-slate-700 px-2 py-1 text-xs font-medium text-blue-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+          <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
             {formatCurrency(converted, mainCurrency)}
           </span>
         </span>
@@ -59,7 +59,6 @@ function MoneyCell({ amount, currency, mainCurrency, rates, className = '' }: {
   )
 }
 
-/** Simple donut chart using SVG */
 function DonutChart({ revenue, costs, profit, currency }: {
   revenue: number
   costs: number
@@ -81,32 +80,40 @@ function DonutChart({ revenue, costs, profit, currency }: {
       <div className="relative h-36 w-36 shrink-0">
         <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
           {/* Revenue arc */}
-          <circle cx="60" cy="60" r={r} fill="none" stroke="#3b82f6" strokeWidth="12"
+          <circle cx="60" cy="60" r={r} fill="none" stroke="#6ba299" strokeWidth="12"
             strokeDasharray={`${revLen} ${circ}`} strokeLinecap="round" />
           {/* Costs arc */}
-          <circle cx="60" cy="60" r={r} fill="none" stroke="#ef4444" strokeWidth="12"
+          <circle cx="60" cy="60" r={r} fill="none" stroke="#c97264" strokeWidth="12"
             strokeDasharray={`${costLen} ${circ}`} strokeDashoffset={-revLen} strokeLinecap="round" />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[10px] font-medium text-slate-500">Profit</span>
-          <span className="font-mono text-sm font-semibold text-slate-100">{formatCurrency(profit, currency)}</span>
+          <span className="text-[10px] font-medium text-[var(--text-tertiary)]">Profit</span>
+          <span
+            className="font-mono tabular-nums text-sm font-semibold"
+            style={{ color: profit >= 0 ? 'var(--paid)' : 'var(--overdue)' }}
+          >
+            {formatCurrency(profit, currency)}
+          </span>
         </div>
       </div>
       <div className="grid gap-2 text-sm">
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-          <span className="text-slate-400">Revenue</span>
-          <span className="ml-auto font-mono text-slate-200">{formatCurrency(revenue, currency)}</span>
+          <span className="h-2.5 w-2.5 rounded-full bg-[#6ba299]" />
+          <span className="text-[var(--text-secondary)]">Revenue</span>
+          <span className="ml-auto font-mono tabular-nums text-[var(--text-primary)]">{formatCurrency(revenue, currency)}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-          <span className="text-slate-400">Costs</span>
-          <span className="ml-auto font-mono text-slate-200">{formatCurrency(costs, currency)}</span>
+          <span className="h-2.5 w-2.5 rounded-full bg-[#c97264]" />
+          <span className="text-[var(--text-secondary)]">Costs</span>
+          <span className="ml-auto font-mono tabular-nums text-[var(--text-primary)]">{formatCurrency(costs, currency)}</span>
         </div>
-        <div className="mt-1 border-t border-slate-700 pt-2 flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          <span className="text-slate-400">Net Profit</span>
-          <span className={`ml-auto font-mono font-medium ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+        <div className="mt-1 border-t border-[var(--border-faint)] pt-2 flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#5fad7e]" />
+          <span className="text-[var(--text-secondary)]">Net Profit</span>
+          <span
+            className="ml-auto font-mono tabular-nums font-medium"
+            style={{ color: profit >= 0 ? 'var(--paid)' : 'var(--overdue)' }}
+          >
             {formatCurrency(profit, currency)}
           </span>
         </div>
@@ -190,12 +197,12 @@ export default function Monthly() {
             <Button variant="ghost" className="px-2" onClick={prev}>
               <span className="text-lg">‹</span>
             </Button>
-            <span className="min-w-[140px] text-center text-sm font-medium text-slate-200">
+            <span className="min-w-[140px] text-center text-sm font-medium text-[var(--text-primary)]">
               {MONTH_FULL_NAMES[month - 1]}{' '}
               <span className="inline-flex items-center gap-0.5">
-                <button onClick={prevYear} className="cursor-pointer text-slate-500 hover:text-blue-400 transition-colors px-0.5">‹</button>
-                <span className="text-slate-400">{year}</span>
-                <button onClick={nextYear} className="cursor-pointer text-slate-500 hover:text-blue-400 transition-colors px-0.5">›</button>
+                <button onClick={prevYear} className="cursor-pointer text-[var(--text-tertiary)] hover:text-[var(--accent)] transition-colors px-0.5">‹</button>
+                <span className="text-[var(--text-secondary)]">{year}</span>
+                <button onClick={nextYear} className="cursor-pointer text-[var(--text-tertiary)] hover:text-[var(--accent)] transition-colors px-0.5">›</button>
               </span>
             </span>
             <Button variant="ghost" className="px-2" onClick={next}>
@@ -234,12 +241,12 @@ export default function Monthly() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-700 text-left">
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Project</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Client</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Gross</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Fee</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Net</th>
+                <tr className="border-b border-[var(--border-faint)] text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Project</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Client</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Gross</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Fee</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Net</th>
                 </tr>
               </thead>
               <tbody>
@@ -251,12 +258,12 @@ export default function Monthly() {
                   </tr>
                 ) : (
                   revenueRows.map((row) => (
-                    <tr key={row.projectId} className="border-b border-slate-700/50 last:border-0">
-                      <td className="px-4 py-2.5 font-medium text-slate-100">{row.projectName}</td>
-                      <td className="px-4 py-2.5 text-slate-400">{row.clientName}</td>
-                      <MoneyCell amount={row.gross} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="text-slate-300" />
-                      <MoneyCell amount={row.fee} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="text-slate-500" />
-                      <MoneyCell amount={row.net} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="font-medium text-slate-100" />
+                    <tr key={row.projectId} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                      <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{row.projectName}</td>
+                      <td className="px-4 py-3 text-[var(--text-secondary)]">{row.clientName}</td>
+                      <MoneyCell amount={row.gross} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="text-[var(--text-secondary)]" />
+                      <MoneyCell amount={row.fee} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="text-[var(--text-tertiary)]" />
+                      <MoneyCell amount={row.net} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="font-medium text-[var(--text-primary)]" />
                     </tr>
                   ))
                 )}
@@ -267,11 +274,11 @@ export default function Monthly() {
                     return acc
                   }, {})
                   return Object.entries(totalsByCurrency).map(([currency, t]) => (
-                    <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
-                      <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={2}>Total ({currency})</td>
-                      <MoneyCell amount={t.gross} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-slate-100" />
-                      <MoneyCell amount={t.fee} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-slate-300" />
-                      <MoneyCell amount={t.net} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-slate-100" />
+                    <tr key={currency} className="border-t-2 border-[var(--border-default)] bg-[var(--bg-surface)]">
+                      <td className="px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]" colSpan={2}>Total ({currency})</td>
+                      <MoneyCell amount={t.gross} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-[var(--text-primary)]" />
+                      <MoneyCell amount={t.fee} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-[var(--text-secondary)]" />
+                      <MoneyCell amount={t.net} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-[var(--text-primary)]" />
                     </tr>
                   ))
                 })()}
@@ -285,10 +292,10 @@ export default function Monthly() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-700 text-left">
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Description</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Cat</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Amount</th>
+                <tr className="border-b border-[var(--border-faint)] text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Description</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Cat</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -300,10 +307,10 @@ export default function Monthly() {
                   </tr>
                 ) : (
                   costs.map((cost) => (
-                    <tr key={cost.id} className="border-b border-slate-700/50 last:border-0">
-                      <td className="px-4 py-2.5 text-slate-200">{cost.description}</td>
-                      <td className="px-4 py-2.5 text-xs text-slate-500">{cost.category}</td>
-                      <MoneyCell amount={cost.amount} currency={cost.currency} mainCurrency={mainCurrency} rates={rates} className="text-slate-300" />
+                    <tr key={cost.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                      <td className="px-4 py-3 text-[var(--text-primary)]">{cost.description}</td>
+                      <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{cost.category}</td>
+                      <MoneyCell amount={cost.amount} currency={cost.currency} mainCurrency={mainCurrency} rates={rates} className="text-[var(--text-secondary)]" />
                     </tr>
                   ))
                 )}
@@ -313,9 +320,9 @@ export default function Monthly() {
                     return acc
                   }, {})
                   return Object.entries(costsByCurrency).map(([currency, total]) => (
-                    <tr key={currency} className="border-t-2 border-slate-700 bg-slate-800/30">
-                      <td className="px-4 py-2.5 text-xs font-medium text-slate-400" colSpan={2}>Total ({currency})</td>
-                      <MoneyCell amount={total} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-slate-100" />
+                    <tr key={currency} className="border-t-2 border-[var(--border-default)] bg-[var(--bg-surface)]">
+                      <td className="px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]" colSpan={2}>Total ({currency})</td>
+                      <MoneyCell amount={total} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-[var(--text-primary)]" />
                     </tr>
                   ))
                 })()}

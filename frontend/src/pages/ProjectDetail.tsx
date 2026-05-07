@@ -20,10 +20,10 @@ function ClientTimezone({ timezone }: { timezone: string }) {
   }, [timezone, myTz])
   const city = timezone.split('/').pop()?.replace('_', ' ') ?? timezone
   return (
-    <span className="group relative cursor-help rounded bg-slate-800 px-3 py-1.5 text-xs text-slate-400">
-      {city} <span className="font-mono text-blue-300">{time}</span>
+    <span className="group relative cursor-help rounded bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--text-secondary)]">
+      {city} <span className="font-mono text-[var(--accent)]">{time}</span>
       {offset && (
-        <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-slate-700 px-2 py-1 text-xs text-blue-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+        <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--accent)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
           {offset}
         </span>
       )}
@@ -348,10 +348,10 @@ export default function ProjectDetail() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Link to="/projects" className="hover:text-slate-300 transition-colors">Projects</Link>
+      <div className="flex items-center gap-2 text-sm text-[var(--text-tertiary)]">
+        <Link to="/projects" className="hover:text-[var(--text-primary)] transition-colors">Projects</Link>
         <span>/</span>
-        <span className="text-slate-300">{project.projectName}</span>
+        <span className="text-[var(--text-secondary)]">{project.projectName}</span>
       </div>
 
       <PageIntro
@@ -375,14 +375,14 @@ export default function ProjectDetail() {
 
       {project.milestones.length > 0 && (
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+          <div className="flex items-center justify-between text-xs text-[var(--text-tertiary)]">
             <span>Milestone progress</span>
-            <span className="font-mono">{paidCount} / {project.milestones.length}</span>
+            <span className="font-mono tabular-nums">{paidCount} / {project.milestones.length}</span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded bg-slate-800">
+          <div className="h-1.5 w-full overflow-hidden rounded bg-[var(--bg-surface)]">
             <div
-              className="h-full rounded bg-emerald-500 transition-all"
-              style={{ width: `${(paidCount / project.milestones.length) * 100}%` }}
+              className="h-full rounded transition-all"
+              style={{ width: `${(paidCount / project.milestones.length) * 100}%`, background: 'var(--paid)' }}
             />
           </div>
         </div>
@@ -398,26 +398,26 @@ export default function ProjectDetail() {
           : diff < 0
             ? { tone: 'under' as const, amount: Math.abs(diff) }
             : { tone: 'over' as const, amount: diff }
+        const borderColor = budgetState.tone === 'under' ? 'var(--pending)' : 'var(--paid)'
         return (
-          <div className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${
-            budgetState.tone === 'matches' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' :
-            budgetState.tone === 'under' ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' :
-            'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-          }`}>
+          <div
+            className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-faint)] border-l-2 bg-[var(--bg-surface)] px-4 py-3 text-sm"
+            style={{ borderLeftColor: borderColor }}
+          >
             <div className="flex items-center gap-2">
-              <span className="font-medium">Initial budget:</span>
-              <span className="font-mono">{formatCurrency(initial, summary!.currency)}</span>
-              <span className="text-slate-400">·</span>
-              <span>Allocated:</span>
-              <span className="font-mono">{formatCurrency(pipelineTotal, summary!.currency)}</span>
+              <span className="font-medium text-[var(--text-primary)]">Initial budget:</span>
+              <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatCurrency(initial, summary!.currency)}</span>
+              <span className="text-[var(--text-tertiary)]">·</span>
+              <span className="text-[var(--text-secondary)]">Allocated:</span>
+              <span className="font-mono tabular-nums text-[var(--text-primary)]">{formatCurrency(pipelineTotal, summary!.currency)}</span>
             </div>
             {budgetState.tone !== 'matches' && (
-              <div className="font-mono font-semibold">
+              <div className="font-mono tabular-nums font-semibold text-[var(--text-primary)]">
                 {budgetState.tone === 'over' ? '+' : ''}{formatCurrency(budgetState.amount, summary!.currency)} {budgetState.tone === 'under' ? 'left to allocate' : 'upsell — beyond initial'}
               </div>
             )}
             {budgetState.tone === 'matches' && (
-              <div className="text-xs uppercase tracking-wide">Fully allocated</div>
+              <div className="text-xs uppercase tracking-wide text-[var(--text-tertiary)]">Fully allocated</div>
             )}
           </div>
         )
@@ -426,7 +426,7 @@ export default function ProjectDetail() {
       {project.notes && (
         <AppCard>
           <SectionHeading title="Notes" />
-          <div className="p-4 text-sm text-slate-300 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:text-slate-100 [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-slate-100 [&_h2]:mt-4 [&_h2]:mb-2 [&_p]:mb-2 [&_a]:text-blue-400 [&_a]:underline [&_code]:bg-slate-800 [&_code]:px-1 [&_code]:rounded [&_pre]:bg-slate-900 [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5">
+          <div className="p-4 text-sm text-[var(--text-secondary)] [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:text-[var(--text-primary)] [&_h1]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-[var(--text-primary)] [&_h2]:mt-4 [&_h2]:mb-2 [&_p]:mb-2 [&_a]:text-[var(--accent)] [&_a]:underline [&_code]:bg-[var(--bg-elevated)] [&_code]:px-1 [&_code]:rounded [&_pre]:bg-[var(--bg-base)] [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{project.notes}</ReactMarkdown>
           </div>
         </AppCard>
@@ -496,7 +496,7 @@ export default function ProjectDetail() {
                   disabled={feeIsLocked}
                   onChange={(e) => setProjectDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))}
                 />
-                {feeIsLocked && <p className="mt-1 text-xs text-slate-500">Locked by platform.</p>}
+                {feeIsLocked && <p className="mt-1 text-xs text-[var(--text-tertiary)]">Locked by platform.</p>}
               </Field>
             </div>
             <div className="grid gap-3 grid-cols-3">
@@ -553,28 +553,28 @@ export default function ProjectDetail() {
         {/* Revenue summary */}
         <AppCard>
           <SectionHeading title="Revenue Summary" />
-          <dl className="divide-y divide-slate-700/50 px-4 text-sm">
+          <dl className="divide-y divide-[var(--border-faint)] px-4 text-sm">
             <div className="flex items-center justify-between py-2.5">
-              <dt className="text-slate-400">Awarded</dt>
-              <dd className="text-slate-200">{formatDate(project.dateAwarded)}</dd>
+              <dt className="text-[var(--text-secondary)]">Awarded</dt>
+              <dd className="text-[var(--text-primary)]">{formatDate(project.dateAwarded)}</dd>
             </div>
             <div className="flex items-center justify-between py-2.5">
-              <dt className="text-slate-400">Completed</dt>
-              <dd className="text-slate-200">{formatDate(project.dateCompleted)}</dd>
+              <dt className="text-[var(--text-secondary)]">Completed</dt>
+              <dd className="text-[var(--text-primary)]">{formatDate(project.dateCompleted)}</dd>
             </div>
             <div className="flex items-center justify-between py-2.5">
-              <dt className="text-slate-400">Milestones</dt>
-              <dd className="text-slate-200">
+              <dt className="text-[var(--text-secondary)]">Milestones</dt>
+              <dd className="text-[var(--text-primary)]">
                 {paidCount} / {project.milestones.length} paid
               </dd>
             </div>
             <div className="flex items-center justify-between py-2.5">
-              <dt className="text-slate-400">Tips</dt>
-              <dd className="text-slate-200">{project.tips.length}</dd>
+              <dt className="text-[var(--text-secondary)]">Tips</dt>
+              <dd className="text-[var(--text-primary)]">{project.tips.length}</dd>
             </div>
             <div className="flex items-center justify-between py-2.5">
-              <dt className="text-slate-400">Net Revenue</dt>
-              <dd className="font-mono font-semibold text-slate-100">
+              <dt className="text-[var(--text-secondary)]">Net Revenue</dt>
+              <dd className="font-mono tabular-nums font-semibold text-[var(--text-primary)]">
                 {summary ? <MoneyAmount amount={summary.net} currency={summary.currency} /> : '—'}
               </dd>
             </div>
@@ -585,8 +585,11 @@ export default function ProjectDetail() {
       {project.milestones.length > 0 &&
         project.milestones.every(m => m.status === 'Paid') &&
         project.status !== 'Paid' && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-            <p className="text-sm text-emerald-300">
+          <div
+            className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-faint)] border-l-2 bg-[var(--bg-surface)] px-4 py-3"
+            style={{ borderLeftColor: 'var(--paid)' }}
+          >
+            <p className="text-sm" style={{ color: 'var(--paid)' }}>
               All milestones paid. Mark project as Paid?
             </p>
             <Button
@@ -612,13 +615,13 @@ export default function ProjectDetail() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-700 text-left">
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Name</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Amount</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Status</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Due</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Paid</th>
-                  <th className="px-4 py-2.5" />
+                <tr className="border-b border-[var(--border-faint)] text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Name</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Amount</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Status</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Due</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Paid</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
@@ -635,20 +638,21 @@ export default function ProjectDetail() {
                   project.milestones.map((milestone) => (
                     <tr
                       key={milestone.id}
-                      className={`border-b border-slate-700/50 last:border-0 ${
-                        isMilestoneOverdue(milestone) ? 'bg-amber-500/5 border-l-2 border-l-amber-500/60' : ''
+                      className={`border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)] ${
+                        isMilestoneOverdue(milestone) ? 'border-l-2' : ''
                       }`}
+                      style={isMilestoneOverdue(milestone) ? { borderLeftColor: 'var(--overdue)', background: 'rgba(201,114,100,0.04)' } : {}}
                     >
-                      <td className="px-4 py-2.5">
-                        <p className="font-medium text-slate-100">{milestone.name}</p>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-[var(--text-primary)]">{milestone.name}</p>
                         {milestone.description && (
-                          <p className="mt-0.5 text-xs text-slate-500">{milestone.description}</p>
+                          <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">{milestone.description}</p>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-slate-200">
+                      <td className="px-4 py-3 font-mono tabular-nums text-[var(--text-primary)]">
                         <MoneyAmount amount={milestone.amount} currency={milestone.currency} />
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <MilestoneStatusBadge status={milestone.status} />
                           {isMilestoneOverdue(milestone) && (
@@ -658,16 +662,17 @@ export default function ProjectDetail() {
                           )}
                         </div>
                       </td>
-                      <td className={`px-4 py-2.5 text-xs ${
-                        isMilestoneOverdue(milestone) ? 'text-amber-400 font-medium' : 'text-slate-400'
+                      <td className={`px-4 py-3 text-xs ${
+                        isMilestoneOverdue(milestone) ? 'font-medium text-amber-400' : 'text-[var(--text-secondary)]'
                       }`}>{formatDate(milestone.dateDue)}</td>
-                      <td className="px-4 py-2.5 text-slate-400 text-xs">{formatDate(milestone.datePaid)}</td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{formatDate(milestone.datePaid)}</td>
+                      <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
                           {milestone.status !== 'Paid' && (
                             <Button
                               variant="ghost"
-                              className="px-2 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                              className="px-2 text-xs hover:bg-[var(--bg-elevated)]"
+                              style={{ color: 'var(--paid)' }}
                               onClick={() => void handleQuickMarkPaid(milestone)}
                             >
                               Mark Paid
@@ -763,22 +768,22 @@ export default function ProjectDetail() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-700 text-left">
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Amount</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Date</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Notes</th>
-                  <th className="px-4 py-2.5" />
+                <tr className="border-b border-[var(--border-faint)] text-left">
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Amount</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Date</th>
+                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Notes</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
                 {project.tips.map((tip) => (
-                  <tr key={tip.id} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 font-medium text-slate-100">
+                  <tr key={tip.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                    <td className="px-4 py-3 font-mono tabular-nums font-medium text-[var(--text-primary)]">
                       <MoneyAmount amount={tip.amount} currency={tip.currency} />
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(tip.date)}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{tip.notes ?? '—'}</td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{formatDate(tip.date)}</td>
+                    <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{tip.notes ?? '—'}</td>
+                    <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" className="px-2 text-xs" onClick={() => { loadTipIntoForm(tip); setShowTipModal(true) }}>
                           Edit
@@ -814,13 +819,13 @@ export default function ProjectDetail() {
           }
         />
         <div
-          className="mx-4 mb-4 cursor-pointer rounded-lg border-2 border-dashed border-slate-700 px-4 py-6 text-center text-sm text-slate-500 hover:border-blue-500/40 hover:text-slate-300"
+          className="mx-4 mb-4 cursor-pointer rounded-lg border-2 border-dashed border-[var(--border-default)] px-4 py-6 text-center text-sm text-[var(--text-tertiary)] transition-colors hover:border-[var(--accent)]/50 hover:text-[var(--text-secondary)]"
           onClick={() => fileInputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-blue-500/60') }}
-          onDragLeave={(e) => { e.currentTarget.classList.remove('border-blue-500/60') }}
+          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[var(--accent)]') }}
+          onDragLeave={(e) => { e.currentTarget.classList.remove('border-[var(--accent)]') }}
           onDrop={(e) => {
             e.preventDefault()
-            e.currentTarget.classList.remove('border-blue-500/60')
+            e.currentTarget.classList.remove('border-[var(--accent)]')
             const f = e.dataTransfer.files?.[0]
             if (f) void handleFileUpload(f)
           }}
@@ -833,25 +838,29 @@ export default function ProjectDetail() {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-left">
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Name</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Size</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Uploaded</th>
-                <th className="px-4 py-2.5" />
+              <tr className="border-b border-[var(--border-faint)] text-left">
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Name</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Size</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Uploaded</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {project.files.map((file) => (
-                <tr key={file.id} className="border-b border-slate-700/50 last:border-0">
-                  <td className="px-4 py-2.5 text-slate-100">{file.originalFilename}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-400 font-mono">{formatFileSize(file.sizeBytes)}</td>
-                  <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(file.uploadedAt)}</td>
-                  <td className="px-4 py-2.5">
+                <tr key={file.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                  <td className="px-4 py-3 text-[var(--text-primary)]">{file.originalFilename}</td>
+                  <td className="px-4 py-3 text-xs font-mono tabular-nums text-[var(--text-secondary)]">{formatFileSize(file.sizeBytes)}</td>
+                  <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{formatDate(file.uploadedAt)}</td>
+                  <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
                       {(file.contentType === 'application/pdf' || file.contentType.startsWith('image/') || file.originalFilename.toLowerCase().endsWith('.pdf')) && (
-                        <Link to={`/projects/${projectId}/files/${file.id}/view`} className="px-2 text-xs text-blue-400 hover:text-blue-300">View</Link>
+                        <Link to={`/projects/${projectId}/files/${file.id}/view`}>
+                          <Button variant="ghost" className="px-2 text-xs text-[var(--accent)]">View</Button>
+                        </Link>
                       )}
-                      <a href={projectFileDownloadUrl(projectId, file.id)} target="_blank" rel="noreferrer" className="px-2 text-xs text-slate-400 hover:text-slate-200">Download</a>
+                      <a href={projectFileDownloadUrl(projectId, file.id)} target="_blank" rel="noreferrer">
+                        <Button variant="ghost" className="px-2 text-xs">Download</Button>
+                      </a>
                       <Button variant="danger" className="px-2 text-xs" onClick={() => void handleFileDelete(file.id)}>Del</Button>
                     </div>
                   </td>

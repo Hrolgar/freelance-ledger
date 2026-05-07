@@ -31,11 +31,11 @@ function ClientClock({ timezone }: { timezone: string }) {
   }, [timezone, myTz])
 
   return (
-    <span className="group relative rounded bg-slate-800 px-3 py-1.5 text-slate-300 cursor-help">
-      <span className="text-slate-500">{timezone.split('/').pop()?.replace('_', ' ')}</span>
-      <span className="ml-2 font-mono text-blue-300">{time}</span>
+    <span className="group relative rounded bg-[var(--bg-surface)] px-3 py-1.5 text-sm text-[var(--text-secondary)] cursor-help">
+      <span className="text-[var(--text-tertiary)]">{timezone.split('/').pop()?.replace('_', ' ')}</span>
+      <span className="ml-2 font-mono text-[var(--accent)]">{time}</span>
       {offset && (
-        <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-1.5 whitespace-nowrap rounded bg-slate-700 px-2 py-1 text-xs text-blue-300 opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+        <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-1.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs text-[var(--accent)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
           {offset}
         </span>
       )}
@@ -124,7 +124,7 @@ function ClientList() {
       )}
 
       {loading ? (
-        <div className="text-sm text-slate-500">Loading...</div>
+        <div className="text-sm text-[var(--text-tertiary)]">Loading...</div>
       ) : clients.length === 0 ? (
         <EmptyState title="No clients yet" description="Add a client to start tracking." />
       ) : (
@@ -133,27 +133,32 @@ function ClientList() {
             const projectCurrency = client.projects[0]?.currency ?? 'NOK'
             const paid = client.projects.flatMap(p => p.milestones).filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0)
             return (
-              <Link key={client.id} to={`/clients/${client.id}`}>
-                <AppCard className="p-4 transition-colors hover:border-blue-500/50">
+              <Link key={client.id} to={`/clients/${client.id}`} className="group">
+                <AppCard className="h-full p-4 transition-colors hover:border-[var(--accent)]">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-100">{client.name}</h3>
+                      <h3
+                        className="text-sm font-semibold text-[var(--text-primary)]"
+                        style={{ fontFamily: 'var(--font-display)' }}
+                      >
+                        {client.name}
+                      </h3>
                       {client.aliases && (
-                        <p className="mt-0.5 text-xs text-slate-500">{client.aliases}</p>
+                        <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">{client.aliases}</p>
                       )}
                     </div>
                     {client.country && (
-                      <span className="text-xs text-slate-500">{client.country}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-[var(--text-tertiary)]">{client.country}</span>
                     )}
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-[var(--text-tertiary)]">
                     {client.projects.length} project{client.projects.length !== 1 ? 's' : ''}
                     {client.freelancerId && ' · Freelancer'}
                     {client.upworkId && ' · Upwork'}
                   </p>
-                  <div className="mt-3 flex items-baseline gap-1.5 text-lg font-semibold text-slate-100">
+                  <div className="mt-3 flex items-baseline gap-1.5 font-mono tabular-nums text-lg font-semibold text-[var(--text-primary)]">
                     <MoneyAmount amount={paid} currency={projectCurrency} />
-                    <span className="text-xs font-normal text-slate-500">paid</span>
+                    <span className="text-xs font-normal text-[var(--text-tertiary)]">paid</span>
                   </div>
                 </AppCard>
               </Link>
@@ -205,11 +210,17 @@ function ClientDetail() {
     catch (err) { setError(err instanceof Error ? err.message : 'Failed to delete.') }
   }
 
-  if (loading) return <div className="p-8 text-sm text-slate-500">Loading...</div>
+  if (loading) return <div className="p-8 text-sm text-[var(--text-tertiary)]">Loading...</div>
   if (error || !client) return <ErrorState message={error ?? 'Client not found.'} />
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-2 text-sm text-[var(--text-tertiary)]">
+        <Link to="/clients" className="hover:text-[var(--text-primary)] transition-colors">Clients</Link>
+        <span>/</span>
+        <span className="text-[var(--text-secondary)]">{client.name}</span>
+      </div>
+
       <PageIntro
         title={client.name}
         description={[client.aliases, client.country].filter(Boolean).join(' · ') || 'Client profile'}
@@ -273,17 +284,17 @@ function ClientDetail() {
         </AppCard>
       )}
 
-      {/* Contact info cards */}
-      <div className="flex flex-wrap gap-4 text-sm">
-        {client.email && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-300">{client.email}</span>}
-        {client.phone && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-300">{client.phone}</span>}
+      {/* Contact info chips */}
+      <div className="flex flex-wrap gap-2 text-sm">
+        {client.email && <span className="rounded-full bg-[var(--bg-surface)] px-3 py-1 text-[var(--text-secondary)]">{client.email}</span>}
+        {client.phone && <span className="rounded-full bg-[var(--bg-surface)] px-3 py-1 text-[var(--text-secondary)]">{client.phone}</span>}
         {client.timezone && <ClientClock timezone={client.timezone} />}
-        {client.freelancerId && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-400">Freelancer: {client.freelancerId}</span>}
-        {client.upworkId && <span className="rounded bg-slate-800 px-3 py-1.5 text-slate-400">Upwork: {client.upworkId}</span>}
+        {client.freelancerId && <span className="rounded-full bg-[var(--bg-surface)] px-3 py-1 text-[var(--text-secondary)]">Freelancer: {client.freelancerId}</span>}
+        {client.upworkId && <span className="rounded-full bg-[var(--bg-surface)] px-3 py-1 text-[var(--text-secondary)]">Upwork: {client.upworkId}</span>}
       </div>
 
       {client.notes && (
-        <AppCard className="p-4 text-sm text-slate-400">{client.notes}</AppCard>
+        <AppCard className="p-4 text-sm text-[var(--text-secondary)]">{client.notes}</AppCard>
       )}
 
       {/* Projects */}
@@ -292,15 +303,15 @@ function ClientDetail() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-left">
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Project</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Status</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Platform</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Awarded</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Milestones</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Pipeline</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Outstanding</th>
-                <th className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">Paid</th>
+              <tr className="border-b border-[var(--border-faint)] text-left">
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Project</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Status</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Platform</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Awarded</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Milestones</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Pipeline</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Outstanding</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Paid</th>
               </tr>
             </thead>
             <tbody>
@@ -313,23 +324,23 @@ function ClientDetail() {
                 const paidGross = p.milestones.filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
                 const outstandingGross = pipelineGross - paidGross
                 return (
-                  <tr key={p.id} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5">
-                      <Link to={`/projects/${p.id}`} className="font-medium text-slate-100 hover:text-blue-400">{p.projectName}</Link>
+                  <tr key={p.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                    <td className="px-4 py-3">
+                      <Link to={`/projects/${p.id}`} className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors">{p.projectName}</Link>
                     </td>
-                    <td className="px-4 py-2.5"><ProjectStatusBadge status={p.status} /></td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{p.platform?.name ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-sm text-slate-400">{formatDate(p.dateAwarded)}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-slate-400">
+                    <td className="px-4 py-3"><ProjectStatusBadge status={p.status} /></td>
+                    <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{p.platform?.name ?? '—'}</td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{formatDate(p.dateAwarded)}</td>
+                    <td className="px-4 py-3 text-right font-mono tabular-nums text-[var(--text-secondary)]">
                       {p.milestones.filter(m => m.status === 'Paid').length}/{p.milestones.length}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-slate-300">
+                    <td className="px-4 py-3 text-right font-mono tabular-nums text-[var(--text-primary)]">
                       <MoneyAmount amount={pipelineGross} currency={p.currency} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-amber-400">
+                    <td className="px-4 py-3 text-right font-mono tabular-nums text-[var(--text-primary)]">
                       <MoneyAmount amount={outstandingGross} currency={p.currency} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono font-medium text-slate-200">
+                    <td className="px-4 py-3 text-right font-mono tabular-nums font-medium text-[var(--paid)]">
                       <MoneyAmount amount={paidGross} currency={p.currency} />
                     </td>
                   </tr>
@@ -353,18 +364,18 @@ function ClientDetail() {
               return (
                 <tfoot>
                   {[...byCurrency.entries()].map(([currency, totals]) => (
-                    <tr key={currency} className="border-t-2 border-slate-600 bg-slate-800/40">
-                      <td className="px-4 py-2.5 text-xs font-semibold text-slate-400">
+                    <tr key={currency} className="border-t-2 border-[var(--border-default)] bg-[var(--bg-surface)]">
+                      <td className="px-4 py-2.5 text-xs font-semibold text-[var(--text-secondary)]">
                         {byCurrency.size > 1 ? `Total (${currency})` : 'Total'}
                       </td>
                       <td colSpan={4} />
-                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-200">
+                      <td className="px-4 py-2.5 text-right font-mono tabular-nums font-semibold text-[var(--text-primary)]">
                         <MoneyAmount amount={totals.pipeline} currency={currency} />
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-amber-300">
+                      <td className="px-4 py-2.5 text-right font-mono tabular-nums font-semibold text-[var(--text-primary)]">
                         <MoneyAmount amount={totals.outstanding} currency={currency} />
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-100">
+                      <td className="px-4 py-2.5 text-right font-mono tabular-nums font-semibold text-[var(--paid)]">
                         <MoneyAmount amount={totals.paid} currency={currency} />
                       </td>
                     </tr>

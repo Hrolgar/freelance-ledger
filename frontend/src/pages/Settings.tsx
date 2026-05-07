@@ -80,7 +80,6 @@ export default function Settings() {
     }
   }
 
-  // Group rates by year-month
   const grouped = rates.reduce<Record<string, ExchangeRate[]>>((acc, r) => {
     const key = `${r.year}-${String(r.month).padStart(2, '0')}`
     ;(acc[key] ??= []).push(r)
@@ -93,7 +92,6 @@ export default function Settings() {
   const currentMonth = now.getMonth() + 1
   const currentYear = now.getFullYear()
 
-  // Months that could be fetched (current and past, up to 12 months back)
   const fetchableMonths: Array<{ month: number; year: number; label: string }> = []
   for (let i = 0; i < 12; i++) {
     const d = new Date(currentYear, currentMonth - 1 - i, 1)
@@ -132,7 +130,7 @@ export default function Settings() {
         <SectionHeading title="Preferences" />
         <div className="grid gap-4 p-4 sm:grid-cols-2">
           <div>
-            <p className="text-xs text-slate-500 mb-1.5">Display Currency</p>
+            <p className="text-xs text-[var(--text-tertiary)] mb-1.5">Display Currency</p>
             <Select
               value={mainCurrency}
               onChange={(e) => setMainCurrency(e.target.value as typeof mainCurrency)}
@@ -140,10 +138,10 @@ export default function Settings() {
             >
               {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
-            <p className="mt-1 text-xs text-slate-500">Totals and conversions use this currency.</p>
+            <p className="mt-1 text-xs text-[var(--text-tertiary)]">Totals and conversions use this currency.</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500 mb-1.5">My Timezone</p>
+            <p className="text-xs text-[var(--text-tertiary)] mb-1.5">My Timezone</p>
             <Select
               value={myTimezone}
               onChange={(e) => setMyTimezone(e.target.value)}
@@ -151,7 +149,7 @@ export default function Settings() {
             >
               {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
             </Select>
-            <p className="mt-1 text-xs text-slate-500">Client clocks show offset relative to this.</p>
+            <p className="mt-1 text-xs text-[var(--text-tertiary)]">Client clocks show offset relative to this.</p>
           </div>
         </div>
       </AppCard>
@@ -169,8 +167,8 @@ export default function Settings() {
               </Field>
               <Field label="Lock fee for new projects">
                 <div className="flex items-center gap-2 pt-2">
-                  <input type="checkbox" id="isLocked" checked={platformDraft.isLocked} onChange={(e) => setPlatformDraft(d => ({ ...d, isLocked: e.target.checked }))} className="h-4 w-4 accent-blue-500" />
-                  <label htmlFor="isLocked" className="text-sm text-slate-300">Locked</label>
+                  <input type="checkbox" id="isLocked" checked={platformDraft.isLocked} onChange={(e) => setPlatformDraft(d => ({ ...d, isLocked: e.target.checked }))} className="h-4 w-4 accent-[var(--accent)]" />
+                  <label htmlFor="isLocked" className="text-sm text-[var(--text-secondary)]">Locked</label>
                 </div>
               </Field>
             </div>
@@ -190,29 +188,32 @@ export default function Settings() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-left">
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Name</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Default Fee %</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Locked</th>
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Notes</th>
-                <th className="px-4 py-2.5" />
+              <tr className="border-b border-[var(--border-faint)] text-left">
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Name</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Default Fee %</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Locked</th>
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Notes</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {platforms.length === 0 && !loading && (
-                <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-500">No platforms yet.</td></tr>
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-[var(--text-tertiary)]">No platforms yet.</td></tr>
               )}
               {platforms.map((p) => (
-                <tr key={p.id} className="border-b border-slate-700/50 last:border-0">
-                  <td className="px-4 py-2.5 font-medium text-slate-100">{p.name}</td>
-                  <td className="px-4 py-2.5 font-mono text-slate-300">{p.defaultFeePercentage}%</td>
-                  <td className="px-4 py-2.5">
-                    {p.isLocked ? <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-300">Locked</span> : <span className="text-slate-500 text-xs">—</span>}
+                <tr key={p.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                  <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{p.name}</td>
+                  <td className="px-4 py-3 font-mono tabular-nums text-[var(--text-secondary)]">{p.defaultFeePercentage}%</td>
+                  <td className="px-4 py-3">
+                    {p.isLocked
+                      ? <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-300">Locked</span>
+                      : <span className="text-[var(--text-tertiary)] text-xs">—</span>
+                    }
                   </td>
-                  <td className="px-4 py-2.5 text-slate-400 text-xs">{p.notes ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    <button className="px-2 text-xs text-slate-500 hover:text-blue-400" onClick={() => openEditPlatform(p)}>Edit</button>
-                    <button className="px-2 text-xs text-slate-500 hover:text-red-400" onClick={() => void handleDeletePlatform(p)}>×</button>
+                  <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{p.notes ?? '—'}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Button variant="ghost" className="px-2 text-xs" onClick={() => openEditPlatform(p)}>Edit</Button>
+                    <Button variant="ghost" className="px-2 text-xs text-[var(--text-tertiary)] hover:text-[#c97264]" onClick={() => void handleDeletePlatform(p)}>×</Button>
                   </td>
                 </tr>
               ))}
@@ -255,7 +256,7 @@ export default function Settings() {
           action={
             fetchableMonths.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-slate-500 mr-1">Fetch missing:</span>
+                <span className="text-xs text-[var(--text-tertiary)] mr-1">Fetch missing:</span>
                 {fetchableMonths.slice(0, 12).map(({ month, year, label }) => (
                   <Button
                     key={`${year}-${month}`}
@@ -274,10 +275,10 @@ export default function Settings() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700 text-left">
-                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Month</th>
+              <tr className="border-b border-[var(--border-faint)] text-left">
+                <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Month</th>
                 {['GBP', 'USD', 'EUR', 'CAD', 'INR'].map((c) => (
-                  <th key={c} className="px-4 py-2.5 text-right text-xs font-medium text-slate-500">
+                  <th key={c} className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                     1 {c} =
                   </th>
                 ))}
@@ -285,22 +286,22 @@ export default function Settings() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">Loading...</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-[var(--text-tertiary)]">Loading...</td></tr>
               )}
               {!loading && sortedKeys.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-500">No rates yet. Click a fetch button above.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-sm text-[var(--text-tertiary)]">No rates yet. Click a fetch button above.</td></tr>
               )}
               {sortedKeys.map((key) => {
                 const group = grouped[key]
                 const [y, m] = key.split('-').map(Number)
                 const rateMap = Object.fromEntries(group.map((r) => [r.currency, r.rate]))
                 return (
-                  <tr key={key} className="border-b border-slate-700/50 last:border-0">
-                    <td className="px-4 py-2.5 font-medium text-slate-200">
+                  <tr key={key} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                    <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
                       {MONTH_NAMES[m - 1]} {y}
                     </td>
                     {['GBP', 'USD', 'EUR', 'CAD', 'INR'].map((c) => (
-                      <td key={c} className="px-4 py-2.5 text-right font-mono text-slate-300">
+                      <td key={c} className="px-4 py-3 text-right font-mono tabular-nums text-[var(--text-secondary)]">
                         {rateMap[c] !== undefined ? `${rateMap[c].toFixed(4)} NOK` : '—'}
                       </td>
                     ))}
