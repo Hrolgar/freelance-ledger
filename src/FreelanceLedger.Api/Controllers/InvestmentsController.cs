@@ -59,6 +59,7 @@ public class InvestmentsController(LedgerDbContext db) : ControllerBase
         investment.Month = updated.Month;
         investment.Year = updated.Year;
         investment.Notes = updated.Notes;
+        investment.Category = updated.Category;
 
         await db.SaveChangesAsync();
         return Ok(investment);

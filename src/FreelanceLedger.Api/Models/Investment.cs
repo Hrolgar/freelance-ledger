@@ -10,4 +10,5 @@ public class Investment
     public int Month { get; set; }
     public int Year { get; set; }
     public string? Notes { get; set; }
+    public InvestmentCategory Category { get; set; } = InvestmentCategory.Other;
 }
