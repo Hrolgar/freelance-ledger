@@ -19,4 +19,5 @@ public class Project
 
     public ICollection<Milestone> Milestones { get; set; } = [];
     public ICollection<Tip> Tips { get; set; } = [];
+    public ICollection<ProjectFile> Files { get; set; } = [];
 }

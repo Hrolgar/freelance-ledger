@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getTimezoneOffset, useMyTimezone } from '../lib/useMyTimezone'
 
@@ -35,20 +35,23 @@ import {
   createTip,
   deleteMilestone,
   deleteTip,
+  deleteProjectFile,
   getClients,
   getPlatforms,
   getProject,
   getProjectSummary,
   patchMilestone,
+  projectFileDownloadUrl,
   updateMilestone,
   updateProject,
   updateTip,
+  uploadProjectFile,
 } from '../api'
 import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
-import { formatCurrency, formatDate, getNextMilestoneOrder, isMilestoneOverdue, isoDate } from '../lib/format'
+import { formatCurrency, formatDate, formatFileSize, getNextMilestoneOrder, isMilestoneOverdue, isoDate } from '../lib/format'
 import type { Client, Milestone, MilestoneInput, MilestonePatchRequest, Platform, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
 import { CURRENCIES, MILESTONE_STATUSES, PROJECT_STATUSES } from '../types'
 
@@ -105,6 +108,7 @@ export default function ProjectDetail() {
   const [savingMilestone, setSavingMilestone] = useState(false)
   const [savingTip, setSavingTip] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const load = async () => {
     setLoading(true)
@@ -261,6 +265,25 @@ export default function ProjectDetail() {
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to delete tip.')
+    }
+  }
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      await uploadProjectFile(projectId, file)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to upload file.')
+    }
+  }
+
+  const handleFileDelete = async (fileId: number) => {
+    if (!window.confirm('Delete this file?')) return
+    try {
+      await deleteProjectFile(projectId, fileId)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Failed to delete file.')
     }
   }
 
@@ -759,6 +782,70 @@ export default function ProjectDetail() {
               </tbody>
             </table>
           )}
+      </AppCard>
+
+      {/* Files */}
+      <AppCard>
+        <SectionHeading
+          title="Files"
+          description="Scopes, deliverables, screenshots, zips. 25 MB per file."
+          action={
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void handleFileUpload(f)
+                e.target.value = ''
+              }}
+            />
+          }
+        />
+        <div
+          className="mx-4 mb-4 cursor-pointer rounded-lg border-2 border-dashed border-slate-700 px-4 py-6 text-center text-sm text-slate-500 hover:border-blue-500/40 hover:text-slate-300"
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-blue-500/60') }}
+          onDragLeave={(e) => { e.currentTarget.classList.remove('border-blue-500/60') }}
+          onDrop={(e) => {
+            e.preventDefault()
+            e.currentTarget.classList.remove('border-blue-500/60')
+            const f = e.dataTransfer.files?.[0]
+            if (f) void handleFileUpload(f)
+          }}
+        >
+          Drop a file here, or click to choose
+        </div>
+
+        {project.files.length === 0 ? (
+          <div className="px-4 pb-4"><EmptyState title="No files yet" description="Upload PDFs, docs, screenshots." /></div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700 text-left">
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Name</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Size</th>
+                <th className="px-4 py-2.5 text-xs font-medium text-slate-500">Uploaded</th>
+                <th className="px-4 py-2.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {project.files.map((file) => (
+                <tr key={file.id} className="border-b border-slate-700/50 last:border-0">
+                  <td className="px-4 py-2.5 text-slate-100">{file.originalFilename}</td>
+                  <td className="px-4 py-2.5 text-xs text-slate-400 font-mono">{formatFileSize(file.sizeBytes)}</td>
+                  <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(file.uploadedAt)}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex justify-end gap-1">
+                      <a href={projectFileDownloadUrl(projectId, file.id)} target="_blank" rel="noreferrer" className="px-2 text-xs text-blue-400 hover:text-blue-300">Download</a>
+                      <Button variant="danger" className="px-2 text-xs" onClick={() => void handleFileDelete(file.id)}>Del</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </AppCard>
 
       {showTipModal && (

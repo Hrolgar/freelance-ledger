@@ -29,6 +29,16 @@ export interface Client {
 
 export type ClientInput = Omit<Client, 'id' | 'projects'>
 
+export interface ProjectFile {
+  id: number
+  projectId: number
+  originalFilename: string
+  contentType: string
+  sizeBytes: number
+  storageKey: string
+  uploadedAt: string
+}
+
 export interface Project {
   id: number
   clientId: number | null
@@ -46,6 +56,7 @@ export interface Project {
   notes: string | null
   milestones: Milestone[]
   tips: Tip[]
+  files: ProjectFile[]
 }
 
 export interface Milestone {

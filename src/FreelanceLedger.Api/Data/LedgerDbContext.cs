@@ -13,6 +13,7 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
     public DbSet<Cost> Costs => Set<Cost>();
     public DbSet<Investment> Investments => Set<Investment>();
     public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
+    public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +48,10 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
             e.HasMany(p => p.Tips)
                 .WithOne(t => t.Project)
                 .HasForeignKey(t => t.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(p => p.Files)
+                .WithOne(f => f.Project)
+                .HasForeignKey(f => f.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
