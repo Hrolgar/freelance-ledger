@@ -10,6 +10,7 @@ public class Project
     public Platform Platform { get; set; }
     public Currency Currency { get; set; }
     public decimal FeePercentage { get; set; }
+    public decimal? InitialFullPrice { get; set; }
     public ProjectStatus Status { get; set; }
     public DateOnly? DateAwarded { get; set; }
     public DateOnly? DateCompleted { get; set; }

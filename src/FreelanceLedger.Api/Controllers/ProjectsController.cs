@@ -74,6 +74,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
             pipelineTotal,
             outstanding,
             outstandingNet,
+            project.InitialFullPrice,
             project.Currency));
     }
 
@@ -98,6 +99,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         project.Platform = updated.Platform;
         project.Currency = updated.Currency;
         project.FeePercentage = updated.FeePercentage;
+        project.InitialFullPrice = updated.InitialFullPrice;
         project.Status = updated.Status;
         project.DateAwarded = updated.DateAwarded;
         project.DateCompleted = updated.DateCompleted;
@@ -130,4 +132,5 @@ public record ProjectSummaryResponse(
     decimal PipelineTotal,
     decimal Outstanding,
     decimal OutstandingNet,
+    decimal? InitialFullPrice,
     Currency Currency);
