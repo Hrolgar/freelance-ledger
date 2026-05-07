@@ -29,6 +29,7 @@ export interface Project {
   platform: Platform
   currency: Currency
   feePercentage: number
+  initialFullPrice: number | null
   status: ProjectStatus
   dateAwarded: string | null
   dateCompleted: string | null
@@ -140,6 +141,7 @@ export interface ProjectSummary {
   pipelineTotal: number
   outstanding: number
   outstandingNet: number
+  initialFullPrice: number | null
   currency: Currency
 }
 

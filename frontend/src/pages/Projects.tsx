@@ -16,6 +16,7 @@ const emptyProject: ProjectInput = {
   platform: 'Direct',
   currency: 'USD',
   feePercentage: 0,
+  initialFullPrice: null,
   status: 'Quoted',
   dateAwarded: null,
   dateCompleted: null,
@@ -293,6 +294,17 @@ export default function Projects() {
               <Field label="Fee %">
                 <Input type="number" min="0" max="100" step="0.1" value={draft.feePercentage} disabled={draft.platform === 'Freelancer' || draft.platform === 'Upwork'} onChange={(e) => setDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))} />
                 {(draft.platform === 'Freelancer' || draft.platform === 'Upwork') && <p className="mt-1 text-xs text-slate-500">Locked at 10% for Freelancer/Upwork.</p>}
+              </Field>
+            </div>
+            <div className="grid gap-3 grid-cols-3">
+              <Field label="Initial Full Price (optional)">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={draft.initialFullPrice ?? ''}
+                  onChange={(e) => setDraft((c) => ({ ...c, initialFullPrice: e.target.value === '' ? null : Number(e.target.value) }))}
+                />
               </Field>
             </div>
             <div className="grid gap-3 grid-cols-3">

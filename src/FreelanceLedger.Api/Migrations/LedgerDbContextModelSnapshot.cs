@@ -229,6 +229,9 @@ namespace FreelanceLedger.Api.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("InitialFullPrice")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Notes")
                         .HasColumnType("TEXT");
 

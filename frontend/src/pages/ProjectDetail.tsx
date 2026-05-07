@@ -58,6 +58,7 @@ const emptyProjectDraft: ProjectInput = {
   platform: 'Direct',
   currency: 'USD',
   feePercentage: 0,
+  initialFullPrice: null,
   status: 'Quoted',
   dateAwarded: null,
   dateCompleted: null,
@@ -127,6 +128,7 @@ export default function ProjectDetail() {
         platform: hydrated.platform,
         currency: hydrated.currency,
         feePercentage: hydrated.feePercentage,
+        initialFullPrice: hydrated.initialFullPrice,
         status: hydrated.status,
         dateAwarded: hydrated.dateAwarded,
         dateCompleted: hydrated.dateCompleted,
@@ -356,6 +358,41 @@ export default function ProjectDetail() {
         </div>
       )}
 
+      {(() => {
+        const initial = summary?.initialFullPrice
+        const pipelineTotal = summary?.pipelineTotal ?? 0
+        if (initial == null || initial <= 0) return null
+        const diff = pipelineTotal - initial
+        const budgetState = Math.abs(diff) < 0.01
+          ? { tone: 'matches' as const, amount: 0 }
+          : diff < 0
+            ? { tone: 'under' as const, amount: Math.abs(diff) }
+            : { tone: 'over' as const, amount: diff }
+        return (
+          <div className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${
+            budgetState.tone === 'matches' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' :
+            budgetState.tone === 'under' ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' :
+            'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">Initial budget:</span>
+              <span className="font-mono">{formatCurrency(initial, summary!.currency)}</span>
+              <span className="text-slate-400">·</span>
+              <span>Allocated:</span>
+              <span className="font-mono">{formatCurrency(pipelineTotal, summary!.currency)}</span>
+            </div>
+            {budgetState.tone !== 'matches' && (
+              <div className="font-mono font-semibold">
+                {budgetState.tone === 'over' ? '+' : ''}{formatCurrency(budgetState.amount, summary!.currency)} {budgetState.tone === 'under' ? 'left to allocate' : 'upsell — beyond initial'}
+              </div>
+            )}
+            {budgetState.tone === 'matches' && (
+              <div className="text-xs uppercase tracking-wide">Fully allocated</div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* Project details + summary */}
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <AppCard>
@@ -419,6 +456,17 @@ export default function ProjectDetail() {
                   onChange={(e) => setProjectDraft((c) => ({ ...c, feePercentage: Number(e.target.value) }))}
                 />
                 {feeIsLocked && <p className="mt-1 text-xs text-slate-500">Locked at 10% for Freelancer/Upwork.</p>}
+              </Field>
+            </div>
+            <div className="grid gap-3 grid-cols-3">
+              <Field label="Initial Full Price (optional)">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={projectDraft.initialFullPrice ?? ''}
+                  onChange={(e) => setProjectDraft((c) => ({ ...c, initialFullPrice: e.target.value === '' ? null : Number(e.target.value) }))}
+                />
               </Field>
             </div>
             <div className="grid gap-3 grid-cols-3">
