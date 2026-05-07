@@ -43,16 +43,13 @@ export function MoneyAmount({ amount, currency, className = '' }: {
   const hasConversion = converted !== null
 
   if (!hasConversion) {
-    return (
-      <span className={`font-mono tabular-nums ${className}`} style={{ color: 'var(--text-primary)' }}>
-        {formatCurrency(amount, currency)}
-      </span>
-    )
+    return <span className={`font-mono tabular-nums ${className}`}>{formatCurrency(amount, currency)}</span>
   }
 
   return (
-    <span className={`group relative cursor-help font-mono tabular-nums ${className}`}>
-      {formatCurrency(amount, currency)}
+    <span className={`group relative inline-flex items-baseline gap-1 cursor-help font-mono tabular-nums ${className}`}>
+      <span>{formatCurrency(amount, currency)}</span>
+      <span className="text-[9px] leading-none opacity-60 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--accent)' }} aria-hidden="true">▾</span>
       <span
         className="pointer-events-none absolute bottom-full right-0 z-10 mb-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs font-mono tabular-nums shadow-xl opacity-0 transition-opacity group-hover:opacity-100"
         style={{
