@@ -75,13 +75,25 @@ export default function Dashboard() {
             <StatCard
               label="Pipeline"
               value={formatCurrency(pipeline?.totalPipelineGrossValue ?? 0, 'NOK')}
-              hint={pipeline ? `${pipeline.projects.length} open projects · before fee` : 'before fee'}
+              hint={(() => {
+                if (!pipeline) return 'before fee'
+                const parts: string[] = []
+                const bs = pipeline.byStatus ?? {}
+                if (bs.Quoted) parts.push(`${bs.Quoted} quoted`)
+                if (bs.Awarded) parts.push(`${bs.Awarded} awarded`)
+                if (bs.InProgress) parts.push(`${bs.InProgress} in progress`)
+                if (bs.Completed) parts.push(`${bs.Completed} completed`)
+                return parts.length ? `${parts.join(' · ')} · before fee` : 'before fee'
+              })()}
             />
           </div>
 
           {/* Monthly revenue chart */}
           <AppCard>
-            <SectionHeading title="Monthly Revenue" description={`Net NOK by month, ${year}`} />
+            <SectionHeading
+              title="Monthly Revenue"
+              description={`Net revenue NOK by month, ${year} — after fee, before costs. See Monthly for profit.`}
+            />
             <div className="p-4">
               <div className="flex items-end gap-1.5" style={{ height: 192 }}>
                 {overview.months.map((m) => {
@@ -161,12 +173,12 @@ export default function Dashboard() {
             </AppCard>
 
             <AppCard>
-              <SectionHeading title="Pipeline" description="Quoted and awarded work." />
+              <SectionHeading title="Pipeline" description="Outstanding revenue across all open projects." />
               {!pipeline || pipeline.projects.length === 0 ? (
                 <div className="p-4">
                   <EmptyState
                     title="Pipeline is clear"
-                    description="Quoted and awarded projects appear here."
+                    description="No outstanding revenue across open projects."
                   />
                 </div>
               ) : (
@@ -187,7 +199,7 @@ export default function Dashboard() {
                           <ProjectStatusBadge status={project.status} />
                         </td>
                         <td className="px-4 py-3 text-right font-mono text-sm text-slate-300">
-                          <MoneyAmount amount={project.netValue} currency={project.currency} />
+                          <MoneyAmount amount={project.unpaidNet} currency={project.currency} />
                         </td>
                       </tr>
                     ))}
