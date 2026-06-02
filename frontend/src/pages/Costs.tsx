@@ -561,7 +561,7 @@ export default function Costs() {
                       </p>
                       <div className="mt-2"><TypeBadge type={type} /></div>
                     </div>
-                    <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={cost.month} year={cost.year} rates={rates} mainCurrency={mainCurrency as Currency} className="shrink-0 text-sm" />
+                    <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={month} year={year} rates={rates} mainCurrency={mainCurrency as Currency} className="shrink-0 text-sm" />
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <MobileField label="Category">{cost.category}</MobileField>
