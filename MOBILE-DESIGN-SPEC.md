@@ -183,24 +183,21 @@ Make the app installable to a phone home screen. Prod is HTTPS (Traefik) so inst
 3. **PWA** (§7) — ✅ DONE (merged 46324e2): vite-plugin-pwa@1.3.0, manifest+SW, /api NetworkOnly.
 4. **Dashboard + Monthly + Settings** — ✅ DONE (merged e2ad422): hero number cap + overflow guards,
    Monthly/Settings edge-bleed scroll tables. (Verified: 390px no h-scroll, desktop layout identical.)
-5. **Projects** — ⏳ TODO: table→summary cards (§4), stat/form grids responsive, sticky mobile
-   footer on the Add-Project + New-Client modal forms (un-cramp the grid-cols-3 field rows, §5).
-6. **ProjectDetail** — ⏳ TODO: grid-cols-5→`grid-cols-2 lg:grid-cols-5`, milestones table→cards,
-   form grids + sticky footer on milestone/tip modals.
-7. **Costs + Clients** — ⏳ TODO: 3 cost tables→cards + grid-cols-4; Clients table→cards + grid-cols +
-   **inline forms → Modal (parity, §5)**; form grids; sticky footers.
+5. **Projects** — ✅ DONE (merged b0a686c): table→cards, modal form grids + sticky footer.
+6. **ProjectDetail** — ✅ DONE (merged 4627ee6): milestones/tips→cards, modal grids + sticky footer.
+7. **Costs + Clients** — ✅ DONE (merged 977a1ef): cost tables→cards; Clients inline forms→Modal parity.
 
-> ## RESUME HERE (2026-06-02 ~20:40)
-> Chunks 1–4 merged + pushed on `ledger-iteration-2026-06` (origin up to 46324e2). NOTHING on `main`.
-> Remaining = chunks 5–7 (the table→summary-card conversions + per-modal form un-cramping/sticky
-> footer + Clients inline→Modal parity). They touch distinct page files → dispatchable in parallel
-> (frontend max_parallel 3), each off `ledger-iteration-2026-06`.
-> Dispatch **Codex single-dispatch** (A2A port 5002, provider codex) — the **Sonnet frontend worker
-> has a stale-cred dispatch failure** (cli_error in ~6s, cred file owned by `hrolbot` not
-> `hrolbot-frontend`); fix that separately if dual-dispatch is wanted.
-> Local dev: API `:5145` + Vite `:5179` (started fresh post-PWA so vite.config PWA plugin is live).
-> Verify each chunk: 390px (zero h-scroll, cards readable) + 1280px (layout pixel-identical, data/
-> clock diffs are expected) before merge. Briefs pattern lives in this file's §4/§5.
+> ## STATUS (2026-06-02 ~21:05) — ALL CHUNKS COMPLETE
+> All 7 chunks merged + pushed on `ledger-iteration-2026-06` (origin up to 977a1ef). NOTHING on `main`.
+> Verified: Projects/Costs/Clients/ProjectDetail render summary cards on mobile (scrollWidth==390, zero
+> h-scroll); add/edit are full-screen modals on mobile; Clients add/edit now use the shared Modal (parity,
+> desktop centered); Dashboard hero no longer overflows; PWA installable (build emits sw.js +
+> manifest.webmanifest w/ 3 icons). Desktop verified layout-identical (only live data/clock differ).
+> Local dev: API `:5145` + Vite `:5179`.
+> NEXT: Hrolgar final eyeball at http://10.69.1.100:5179 → then merge `ledger-iteration-2026-06` → `main`
+> (squash or --no-ff) and delete the per-chunk `ledger-*-codex` branches.
+> Pipeline debt: Sonnet frontend worker stale-cred dispatch failure — fix so dual-dispatch gives a real
+> second opinion; all chunks here ran Codex-only as a result.
 
 Chunks 4–7 each touch distinct page files, so they can run in parallel (frontend max_parallel 3),
 but each merges + verifies independently. Workers run **Codex single-dispatch** (the Sonnet frontend
