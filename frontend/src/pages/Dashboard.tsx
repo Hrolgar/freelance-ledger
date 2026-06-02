@@ -94,7 +94,7 @@ export default function Dashboard() {
       {!loading && !error && overview && (
         <>
           {/* A. Hero — net profit at large scale */}
-          <section className="mb-16">
+          <section className="mb-16 min-w-0 max-w-full">
             <p
               className="text-[11px] font-semibold uppercase tracking-[0.16em] mb-3"
               style={{ color: 'var(--text-tertiary)' }}
@@ -102,7 +102,7 @@ export default function Dashboard() {
               Net profit · {year}
             </p>
             <p
-              className="text-[72px] font-semibold tracking-tight leading-none tnum"
+              className="max-w-full break-words text-[36px] font-semibold tracking-tight leading-none tnum sm:text-[52px] lg:text-[72px]"
               style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}
             >
               {formatCurrency(overview.totalProfit, 'NOK')}
@@ -135,13 +135,13 @@ export default function Dashboard() {
           </section>
 
           {/* C. Chart card */}
-          <AppCard className="mb-12">
+          <AppCard className="mb-12 min-w-0">
             <SectionHeading
               title="Monthly revenue"
               description={`Net NOK by month, ${year} — after fee, before costs`}
             />
-            <div className="p-5">
-              <div className="flex items-end gap-1.5" style={{ height: 192 }}>
+            <div className="max-w-full overflow-hidden p-5">
+              <div className="flex min-w-0 max-w-full items-end gap-1.5" style={{ height: 192 }}>
                 {overview.months.map((m) => {
                   const pct = Math.max((m.revenue / highestMonth) * 100, m.revenue > 0 ? 8 : 2)
                   return (
@@ -170,8 +170,8 @@ export default function Dashboard() {
           </AppCard>
 
           {/* D. Two-column: Recent projects + Pipeline */}
-          <div className="grid gap-4 lg:grid-cols-[1.3fr_0.9fr]">
-            <AppCard>
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[1.3fr_0.9fr]">
+            <AppCard className="min-w-0">
               <SectionHeading
                 title="Recent projects"
                 action={
@@ -230,7 +230,7 @@ export default function Dashboard() {
               )}
             </AppCard>
 
-            <AppCard>
+            <AppCard className="min-w-0">
               <SectionHeading
                 title="Pipeline"
                 description="Outstanding revenue across all open projects"
