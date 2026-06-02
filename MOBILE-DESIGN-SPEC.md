@@ -123,17 +123,50 @@ the point. Wrap in `-mx-4 px-4 lg:mx-0 lg:px-0 overflow-x-auto`:
 
 ---
 
-## 5. Forms & modals — `components/Modal.tsx` + page forms
+## 5. Forms & modals — `components/Modal.tsx` + page forms  (CONFIRMED round 2)
 
-`Modal`:
-- Mobile: bottom-sheet. Outer `items-end lg:items-center`; panel `rounded-t-2xl lg:rounded-lg`,
-  `max-h-[90vh] lg:max-h-none`, full width. Body keeps internal scroll.
-- Desktop (`lg`): exactly as today (centered, `max-w-*`).
+`Modal` — **full-screen on mobile** (chosen over bottom-sheet):
+- Mobile (`<lg`): the panel covers the whole viewport. Outer wrapper `p-0 lg:p-4`. Panel
+  `h-full w-full max-w-none rounded-none  lg:h-auto lg:w-full lg:max-w-* lg:rounded-lg`.
+  Layout as a flex column: header (`shrink-0`, flush at top, title + × close), body
+  (`flex-1 overflow-y-auto`). On desktop (`lg`) it is EXACTLY as today: centered, `items-center`,
+  `max-w-*`, `max-h-[70vh]` body scroll, rounded.
+- **Sticky action bar on mobile**: the form's existing Cancel/Submit button row (the
+  `flex justify-end gap-* ` row at the end of each form) gets, on mobile only,
+  `sticky bottom-0 -mx-6 px-6 py-4 border-t border-[--border-faint] bg-[--bg-elevated]` so it
+  pins to the bottom of the full-screen sheet; reset all of that at `lg:` so desktop is unchanged.
+- Backdrop/scrim unchanged on desktop.
 
-Form field grids inside modals/pages: `grid-cols-2` → `grid-cols-1 lg:grid-cols-2`.
-Inputs are already `w-full`. Bump form/control rows to comfortable height on mobile.
+Form field grids inside modals/pages: collapse on mobile. `grid-cols-3` → `grid-cols-2 lg:grid-cols-3`
+(or `grid-cols-1` where two-up is still too tight, e.g. selects with long labels); `grid-cols-2`
+→ `grid-cols-1 lg:grid-cols-2`. Inputs already `w-full`. The goal: no clipped labels, no tiny
+squished selects/date inputs on a phone.
+
+**Clients page parity (CONFIRMED):** `Clients.tsx` currently renders its Add-Client form
+(around line 87, gated by `showForm`) and the client-detail Edit form (around line 236, gated by
+`editing`) INLINE, which pushes the page down. Convert BOTH to use the `Modal` component, matching
+the exact shape Projects/Costs/ProjectDetail already use (Modal + form + Cancel/Submit footer row).
+Keep the same fields, validation, and submit handlers — only the presentation moves into a Modal.
 
 ---
+
+> §4 table treatment CONFIRMED round 2: **summary cards** (the card-list pattern above), not
+> horizontal scroll, for Projects / Clients / Costs / ProjectDetail-milestones.
+
+## 7. PWA — installable as a mobile app  (CONFIRMED round 2)
+
+Make the app installable to a phone home screen. Prod is HTTPS (Traefik) so install criteria are met.
+- Use `vite-plugin-pwa` (registerType `autoUpdate`, generateSW/Workbox default precache of the built
+  assets — this is an offline-capable SPA shell; API calls stay network-first / not precached).
+- Web app manifest: `name "Freelance Ledger"`, `short_name "Ledger"`, `display "standalone"`,
+  `background_color "#0c0d11"`, `theme_color "#0c0d11"` (matches `--bg-base`), `start_url "/"`,
+  `scope "/"`, orientation `portrait`.
+- Icons: a Ledger app icon — serif "L" mark, `--bg-base` field, `--accent` (#6ba299) glyph. Provide
+  192×192 and 512×512 PNGs plus a 512×512 **maskable** variant (safe-zone padding). hrolbot will
+  generate/commit the source icon PNGs into `frontend/public/`; the build wires them into the manifest.
+- Add the `theme-color` meta + apple-touch-icon + manifest link to `frontend/index.html`.
+- Verify the production `vite build` emits `manifest.webmanifest` + `sw.js` and the manifest lists the
+  icons. (Local dev over http won't actually install — that's expected; prod HTTPS will.)
 
 ## 6. Touch & misc
 - Interactive list rows and icon buttons: ≥44px tap height on mobile.
@@ -145,13 +178,20 @@ Inputs are already `w-full`. Bump form/control rows to comfortable height on mob
 
 ## Execution order (chunks, all on this branch)
 
-1. **Foundation** — shell (top bar + drawer), page padding, `PageIntro`/`StatCard`/`Modal`
-   responsive, establish the table→card pattern (can be inline; no new shared component
-   required, but be consistent). Land + verify before pages.
-2. **Dashboard + Monthly**
-3. **Projects + ProjectDetail**
-4. **Costs + Clients + Settings**
+1. **Foundation** — DONE (merged 55b11ef): shell, page padding, PageIntro/StatCard/Modal base.
+2. **Modal full-screen on mobile** (`Modal.tsx`, §5) — shared; land before per-page form work.
+3. **PWA** (§7) — independent files (vite.config, index.html, public/, package.json); parallel-safe.
+4. **Projects** — table→cards, stat/form grids responsive, sticky mobile footer.
+5. **ProjectDetail** — grid-cols-5→2, milestones table→cards, hero number cap, form grids.
+6. **Costs + Clients** — 3 cost tables→cards + grid-cols-4; Clients table→cards + grid-cols +
+   inline-forms→Modal; form grids; sticky footers.
+7. **Dashboard + Monthly + Settings** — hero number, grid-cols-3 responsive, Monthly matrix +
+   Settings tables as edge-bleed horizontal scroll.
 
-Each chunk: build → screenshot 1280 + 390 before/after → desktop identical, mobile clean →
+Chunks 4–7 each touch distinct page files, so they can run in parallel (frontend max_parallel 3),
+but each merges + verifies independently. Workers run **Codex single-dispatch** (the Sonnet frontend
+worker has a stale-cred dispatch failure to fix separately).
+
+Each chunk: build → screenshot 1280 + 390 before/after → desktop pixel-identical, mobile clean →
 Hrolgar eyeballs at http://10.69.1.100:5179 → next chunk. Nothing to `main` until the whole
 set is done and approved.
