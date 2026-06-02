@@ -20,3 +20,4 @@ seed*.py
 # Repo-internal scratch
 _internal/
 _backups/
+.playwright-cli/
