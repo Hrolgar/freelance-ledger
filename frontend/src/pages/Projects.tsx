@@ -151,7 +151,7 @@ export default function Projects() {
                 <Input value={newClient.aliases ?? ''} onChange={(e) => setNewClient(d => ({ ...d, aliases: e.target.value || null }))} />
               </Field>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowNewClient(false)}>Cancel</Button>
               <Button type="submit">Create Client</Button>
             </div>
@@ -200,7 +200,74 @@ export default function Projects() {
             </Button>
           )}
         </div>
-        <div className="overflow-x-auto">
+        <ul className="flex flex-col gap-2 p-4 lg:hidden">
+          {!loading && filteredProjects.length === 0 ? (
+            <li>
+              <EmptyState
+                title={projects.length === 0 ? "No projects yet" : "No projects match these filters"}
+                description={projects.length === 0 ? "Click '+ Add Project' to get started." : "Try clearing filters or adjusting the search."}
+              />
+            </li>
+          ) : null}
+          {filteredProjects.map((project) => (
+            <li
+              key={project.id}
+              className="cursor-pointer rounded-lg border border-[var(--border-faint)] bg-[var(--bg-surface)] p-4 transition-colors hover:bg-[var(--bg-elevated)] focus-within:bg-[var(--bg-elevated)]"
+              onClick={() => navigate(`/projects/${project.id}`)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 font-medium text-[var(--text-primary)]">
+                    <span className="truncate">{project.projectName}</span>
+                    {projectOverdueCount(project) > 0 && (
+                      <span
+                        title={`${projectOverdueCount(project)} overdue milestone${projectOverdueCount(project) === 1 ? '' : 's'}`}
+                        className="inline-flex items-center rounded bg-amber-500/15 px-1 text-[10px] font-bold text-amber-300"
+                      >
+                        ⚠
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-sm text-[var(--text-secondary)]">
+                    <span>{project.client?.name ?? project.clientName}</span>
+                    <span className="text-[var(--text-tertiary)]"> · {project.platform?.name ?? '—'}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  className="min-h-11 min-w-11 shrink-0 px-0 text-base text-[var(--text-tertiary)] hover:text-[#c97264]"
+                  aria-label={`Delete ${project.projectName}`}
+                  onClick={(e) => { e.stopPropagation(); void handleDelete(project) }}
+                >
+                  ×
+                </Button>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <ProjectStatusBadge status={project.status} />
+                <span className="font-mono text-xs text-[var(--text-secondary)]">{project.currency}</span>
+              </div>
+              <dl className="mt-3 grid gap-2 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[var(--text-tertiary)]">Paid</dt>
+                  <dd className="font-mono tabular-nums text-[var(--text-primary)]">
+                    <MoneyAmount amount={calculateProjectGrossPaid(project)} currency={project.currency} />
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[var(--text-tertiary)]">Pipeline</dt>
+                  <dd className="font-mono tabular-nums text-[var(--text-primary)]">
+                    <MoneyAmount amount={calculateProjectGrossPipeline(project)} currency={project.currency} />
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[var(--text-tertiary)]">Awarded</dt>
+                  <dd className="font-mono tabular-nums text-[var(--text-secondary)]">{formatDate(project.dateAwarded)}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border-faint)] text-left">
@@ -285,7 +352,7 @@ export default function Projects() {
                 <Input value={draft.projectName} onChange={(e) => setDraft((c) => ({ ...c, projectName: e.target.value }))} required />
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <Field label="Platform">
                 <Select value={draft.platformId ?? ''} onChange={(e) => {
                   const id = Number(e.target.value)
@@ -318,7 +385,7 @@ export default function Projects() {
                 })()}
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Field label="Initial Full Price (optional)">
                 <Input
                   type="number"
@@ -329,7 +396,7 @@ export default function Projects() {
                 />
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <Field label="Status">
                 <Select value={draft.status} onChange={(e) => setDraft((c) => ({ ...c, status: e.target.value as Project['status'] }))}>
                   {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s === 'InProgress' ? 'In Progress' : s}</option>)}
@@ -345,7 +412,7 @@ export default function Projects() {
             <Field label="Notes">
               <Textarea value={draft.notes ?? ''} onChange={(e) => setDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowAddProject(false)}>Cancel</Button>
               <Button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Add Project'}</Button>
             </div>

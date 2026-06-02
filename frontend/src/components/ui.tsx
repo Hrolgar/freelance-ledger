@@ -35,10 +35,10 @@ export function PageIntro({
   action?: ReactNode
 }) {
   return (
-    <header className="flex items-start justify-between gap-6 mb-10">
+    <header className="mb-6 flex flex-col gap-4 lg:mb-10 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
       <div>
         <h1
-          className="text-[36px] font-semibold tracking-tight leading-none"
+          className="text-[28px] font-semibold tracking-tight leading-none lg:text-[36px]"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}
         >
           {title}
@@ -63,7 +63,7 @@ export function SectionHeading({
 }) {
   return (
     <header
-      className="flex items-end justify-between gap-4 px-5 pt-5 pb-4"
+      className="flex flex-wrap items-end justify-between gap-2 px-5 pt-5 pb-4 lg:gap-4"
       style={{ borderBottom: '1px solid var(--border-faint)' }}
     >
       <div>
@@ -93,7 +93,7 @@ export function StatCard({
 }) {
   return (
     <div
-      className="rounded-lg p-5"
+      className="rounded-lg p-4 lg:p-5"
       style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-surface)' }}
     >
       <p
@@ -103,7 +103,7 @@ export function StatCard({
         {label}
       </p>
       <p
-        className="mt-2 text-[28px] font-semibold tracking-tight tnum"
+        className="mt-2 text-[24px] font-semibold tracking-tight tnum lg:text-[28px]"
         style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}
       >
         {value}
