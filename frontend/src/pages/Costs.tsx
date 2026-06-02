@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   createCost,
   createInvestment,
@@ -145,6 +145,15 @@ function NotesChip({ notes }: { notes: string }) {
     <span title={notes} className="ml-2 inline-flex cursor-help items-center rounded bg-[var(--accent-soft)] px-1 text-[10px] font-bold text-[var(--accent)]">
       ⓘ
     </span>
+  )
+}
+
+function MobileField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">{label}</p>
+      <div className="mt-1 text-sm text-[var(--text-secondary)]">{children}</div>
+    </div>
   )
 }
 
@@ -465,7 +474,8 @@ export default function Costs() {
             <EmptyState title="Nothing this month" description="No subscriptions, expenses, or investments for this period." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
@@ -538,13 +548,84 @@ export default function Costs() {
               </tbody>
             </table>
           </div>
+          <div className="space-y-3 px-4 py-4 lg:hidden">
+            {[...thisMonthRecurring, ...thisMonthOneTime].map((cost) => {
+              const type = cost.recurring ? 'Subscription' : 'Expense'
+              return (
+                <div key={`${cost.recurring ? 'r' : 'o'}-${cost.id}`} className="rounded-lg border border-[var(--border-faint)] bg-[var(--bg-elevated)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium text-[var(--text-primary)]">
+                        {cost.description}
+                        {cost.notes && <NotesChip notes={cost.notes} />}
+                      </p>
+                      <div className="mt-2"><TypeBadge type={type} /></div>
+                    </div>
+                    <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={cost.month} year={cost.year} rates={rates} mainCurrency={mainCurrency as Currency} className="shrink-0 text-sm" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <MobileField label="Category">{cost.category}</MobileField>
+                    <MobileField label="Period">{formatPeriod(cost)}</MobileField>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button variant="ghost" className="min-h-[44px] px-4 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
+                    <Button variant="danger" className="min-h-[44px] px-4 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
+                  </div>
+                </div>
+              )
+            })}
+            {thisMonthInvestments.map((inv) => (
+              <div key={`i-${inv.id}`} className="rounded-lg border border-[var(--border-faint)] bg-[var(--bg-elevated)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-medium text-[var(--text-primary)]">
+                      {inv.description}
+                      {inv.notes && <NotesChip notes={inv.notes} />}
+                    </p>
+                    <div className="mt-2"><TypeBadge type="Investment" /></div>
+                  </div>
+                  <CostMoney amount={inv.amount} currency={inv.currency as Currency} month={inv.month} year={inv.year} rates={rates} mainCurrency={mainCurrency as Currency} className="shrink-0 text-sm" />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <MobileField label="Category">{inv.category}</MobileField>
+                  <MobileField label="Period">{MONTH_NAMES[inv.month - 1]} {inv.year}</MobileField>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="ghost" className="min-h-[44px] px-4 text-xs" onClick={() => { editInvestment(inv); setShowInvestmentModal(true) }}>Edit</Button>
+                  <Button variant="danger" className="min-h-[44px] px-4 text-xs" onClick={() => void removeInvestment(inv.id)}>Del</Button>
+                </div>
+              </div>
+            ))}
+            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+              {(() => {
+                const byCurrency: Record<string, number> = {}
+                for (const c of [...thisMonthRecurring, ...thisMonthOneTime]) byCurrency[c.currency] = (byCurrency[c.currency] ?? 0) + c.amount
+                for (const i of thisMonthInvestments) byCurrency[i.currency] = (byCurrency[i.currency] ?? 0) + i.amount
+                return (
+                  <div className="space-y-2">
+                    {Object.entries(byCurrency).map(([currency, total]) => (
+                      <div key={currency} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-xs text-[var(--text-tertiary)]">{currency} total</span>
+                        <CostMoney amount={total} currency={currency as Currency} month={month} year={year} rates={rates} mainCurrency={mainCurrency as Currency} />
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between gap-3 border-t border-[var(--border-faint)] pt-2">
+                      <span className="text-xs font-medium text-[var(--text-secondary)]">Total (NOK)</span>
+                      <span className="font-mono tabular-nums font-semibold text-[var(--text-primary)]">{formatCurrency(thisMonthNok, 'NOK')}</span>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+          </>
         )}
       </AppCard>
 
       {/* Section 2: Active Subscriptions */}
       <AppCard>
         <SectionHeading title="Active Subscriptions" description="Currently billing every month." />
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border-faint)] text-left">
@@ -610,6 +691,58 @@ export default function Costs() {
             </tbody>
           </table>
         </div>
+        <div className="space-y-3 px-4 py-4 lg:hidden">
+          {activeRecurring.length === 0 ? (
+            <EmptyState title="No active subscriptions" description="Add subscriptions like Claude Max, Freelancer Plus, etc." />
+          ) : (
+            <>
+              {activeRecurring.map((cost) => (
+                <div key={cost.id} className="rounded-lg border border-[var(--border-faint)] bg-[var(--bg-elevated)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium text-[var(--text-primary)]">
+                        {cost.description}
+                        {cost.notes && <NotesChip notes={cost.notes} />}
+                      </p>
+                      <p className="mt-2 text-xs text-[var(--text-tertiary)]">{cost.category}</p>
+                    </div>
+                    <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} className="shrink-0 text-sm" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <MobileField label="Started">{MONTH_NAMES[cost.month - 1]} {cost.year}</MobileField>
+                    <MobileField label="Amount/mo">
+                      <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} />
+                    </MobileField>
+                  </div>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    {!cost.endMonth && (
+                      <Button
+                        variant="ghost"
+                        className="min-h-[44px] px-4 text-xs text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                        onClick={() => void handleEndNow(cost)}
+                      >
+                        End now
+                      </Button>
+                    )}
+                    <Button variant="ghost" className="min-h-[44px] px-4 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
+                    <Button variant="danger" className="min-h-[44px] px-4 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
+                  </div>
+                </div>
+              ))}
+              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+                {Object.entries(activeRecurring.reduce<Record<string, number>>((acc, c) => {
+                  acc[c.currency] = (acc[c.currency] ?? 0) + c.amount
+                  return acc
+                }, {})).map(([currency, total]) => (
+                  <div key={currency} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">Total / month</span>
+                    <CostMoney amount={total} currency={currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </AppCard>
 
       {/* Section 3: Archived (hidden if empty) */}
@@ -623,7 +756,8 @@ export default function Costs() {
             <span className="text-xs text-[var(--text-tertiary)]">{showArchived ? 'hide' : 'show'}</span>
           </button>
           {showArchived && (
-            <div className="overflow-x-auto">
+            <>
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--border-faint)] text-left">
@@ -699,6 +833,75 @@ export default function Costs() {
                 </tbody>
               </table>
             </div>
+            <div className="space-y-3 px-4 py-4 lg:hidden">
+              {archivedRecurring.map((cost) => (
+                <div key={`ar-${cost.id}`} className="rounded-lg border border-[var(--border-faint)] bg-[var(--bg-elevated)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium text-[var(--text-tertiary)]">
+                        {cost.description}
+                        {cost.notes && <NotesChip notes={cost.notes} />}
+                      </p>
+                      <div className="mt-2"><TypeBadge type="Subscription" /></div>
+                    </div>
+                    <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={currentMonth} year={currentYear} rates={rates} mainCurrency={mainCurrency as Currency} className="shrink-0 text-sm text-[var(--text-tertiary)]" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <MobileField label="Category">{cost.category}</MobileField>
+                    <MobileField label="Period">{formatPeriod(cost)}</MobileField>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button variant="ghost" className="min-h-[44px] px-4 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
+                    <Button variant="danger" className="min-h-[44px] px-4 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
+                  </div>
+                </div>
+              ))}
+              {archivedOneTime.map((cost) => (
+                <div key={`ao-${cost.id}`} className="rounded-lg border border-[var(--border-faint)] bg-[var(--bg-elevated)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium text-[var(--text-tertiary)]">
+                        {cost.description}
+                        {cost.notes && <NotesChip notes={cost.notes} />}
+                      </p>
+                      <div className="mt-2"><TypeBadge type="Expense" /></div>
+                    </div>
+                    <CostMoney amount={cost.amount} currency={cost.currency as Currency} month={cost.month} year={cost.year} rates={rates} mainCurrency={mainCurrency as Currency} className="shrink-0 text-sm text-[var(--text-tertiary)]" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <MobileField label="Category">{cost.category}</MobileField>
+                    <MobileField label="Period">{MONTH_NAMES[cost.month - 1]} {cost.year}</MobileField>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button variant="ghost" className="min-h-[44px] px-4 text-xs" onClick={() => { editCost(cost); setShowCostModal(true) }}>Edit</Button>
+                    <Button variant="danger" className="min-h-[44px] px-4 text-xs" onClick={() => void removeCost(cost.id)}>Del</Button>
+                  </div>
+                </div>
+              ))}
+              {archivedInvestments.map((inv) => (
+                <div key={`ai-${inv.id}`} className="rounded-lg border border-[var(--border-faint)] bg-[var(--bg-elevated)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium text-[var(--text-tertiary)]">
+                        {inv.description}
+                        {inv.notes && <NotesChip notes={inv.notes} />}
+                      </p>
+                      <div className="mt-2"><TypeBadge type="Investment" /></div>
+                    </div>
+                    <CostMoney amount={inv.amount} currency={inv.currency as Currency} month={inv.month} year={inv.year} rates={rates} mainCurrency={mainCurrency as Currency} className="shrink-0 text-sm text-[var(--text-tertiary)]" />
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <MobileField label="Category">{inv.category}</MobileField>
+                    <MobileField label="Period">{MONTH_NAMES[inv.month - 1]} {inv.year}</MobileField>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button variant="ghost" className="min-h-[44px] px-4 text-xs" onClick={() => { editInvestment(inv); setShowInvestmentModal(true) }}>Edit</Button>
+                    <Button variant="danger" className="min-h-[44px] px-4 text-xs" onClick={() => void removeInvestment(inv.id)}>Del</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            </>
           )}
         </AppCard>
       )}
@@ -712,7 +915,7 @@ export default function Costs() {
             <Field label="Description" required>
               <Input required value={costDraft.description} onChange={(e) => setCostDraft((c) => ({ ...c, description: e.target.value }))} />
             </Field>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <Field label="Amount">
                 <Input type="number" min="0" step="0.01" value={costDraft.amount} onChange={(e) => setCostDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
               </Field>
@@ -731,7 +934,7 @@ export default function Costs() {
               <Checkbox checked={costDraft.recurring} onChange={(e) => setCostDraft((c) => ({ ...c, recurring: e.target.checked, endMonth: null, endYear: null }))} />
               Recurring monthly
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               <Field label={costDraft.recurring ? 'Start month' : 'Month'}>
                 <Select value={costDraft.month} onChange={(e) => setCostDraft((c) => ({ ...c, month: Number(e.target.value) }))}>
                   {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
@@ -742,7 +945,7 @@ export default function Costs() {
               </Field>
             </div>
             {costDraft.recurring && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 <Field label="End month (blank = ongoing)">
                   <Select value={costDraft.endMonth ?? ''} onChange={(e) => setCostDraft((c) => ({ ...c, endMonth: e.target.value ? Number(e.target.value) : null }))}>
                     <option value="">Ongoing</option>
@@ -757,7 +960,7 @@ export default function Costs() {
             <Field label="Notes">
               <Textarea value={costDraft.notes ?? ''} onChange={(e) => setCostDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
               <Button type="button" variant="secondary" onClick={() => { setShowCostModal(false); setEditingCostId(null); setCostDraft(emptyCost) }}>Cancel</Button>
               <Button type="submit">{editingCostId ? 'Update' : 'Add Cost'}</Button>
             </div>
@@ -775,7 +978,7 @@ export default function Costs() {
             <Field label="Description" required>
               <Input required value={investmentDraft.description} onChange={(e) => setInvestmentDraft((c) => ({ ...c, description: e.target.value }))} />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               <Field label="Amount">
                 <Input type="number" min="0" step="0.01" value={investmentDraft.amount} onChange={(e) => setInvestmentDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
               </Field>
@@ -785,7 +988,7 @@ export default function Costs() {
                 </Select>
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               <Field label="Category">
                 <Select value={investmentDraft.category} onChange={(e) => setInvestmentDraft((c) => ({ ...c, category: e.target.value as InvestmentCategory }))}>
                   {INVESTMENT_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
@@ -795,7 +998,7 @@ export default function Costs() {
                 <Input type="number" min="0" step="0.0001" value={investmentDraft.nokRate} onChange={(e) => setInvestmentDraft((c) => ({ ...c, nokRate: Number(e.target.value) }))} />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               <Field label="Month">
                 <Select value={investmentDraft.month} onChange={(e) => setInvestmentDraft((c) => ({ ...c, month: Number(e.target.value) }))}>
                   {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
@@ -808,7 +1011,7 @@ export default function Costs() {
             <Field label="Notes">
               <Textarea value={investmentDraft.notes ?? ''} onChange={(e) => setInvestmentDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
               <Button type="button" variant="secondary" onClick={() => { setShowInvestmentModal(false); setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment) }}>Cancel</Button>
               <Button type="submit">{editingInvestmentId ? 'Update' : 'Add Investment'}</Button>
             </div>

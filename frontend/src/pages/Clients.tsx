@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClients, getClient, createClient, updateClient, deleteClient } from '../api'
+import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { MoneyAmount } from '../components/MoneyAmount'
@@ -79,13 +80,13 @@ function ClientList() {
       <PageIntro
         title="Clients"
         description="Client profiles with contact info and project history."
-        action={<Button onClick={() => setShowForm(!showForm)}>{showForm ? 'Cancel' : 'Add Client'}</Button>}
+        action={<Button onClick={() => setShowForm(true)}>Add Client</Button>}
       />
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
       {showForm && (
-        <AppCard className="p-4">
+        <Modal title="Add Client" onClose={() => setShowForm(false)} size="lg">
           <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={handleCreate}>
             <Field label="Name" required>
               <Input required value={draft.name} onChange={(e) => setDraft(d => ({ ...d, name: e.target.value }))} />
@@ -116,11 +117,12 @@ function ClientList() {
             <Field label="Aliases (comma-separated)">
               <Input value={draft.aliases ?? ''} onChange={(e) => setDraft(d => ({ ...d, aliases: e.target.value || null }))} placeholder="nick111, NickO" />
             </Field>
-            <div className="flex items-end sm:col-span-2 lg:col-span-3">
+            <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 sm:col-span-2 lg:static lg:col-span-3 lg:mx-0 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
+              <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
               <Button type="submit">Create Client</Button>
             </div>
           </form>
-        </AppCard>
+        </Modal>
       )}
 
       {loading ? (
@@ -226,7 +228,7 @@ function ClientDetail() {
         description={[client.aliases, client.country].filter(Boolean).join(' · ') || 'Client profile'}
         action={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setEditing(!editing)}>{editing ? 'Cancel' : 'Edit'}</Button>
+            <Button variant="secondary" onClick={() => setEditing(true)}>Edit</Button>
             <Button variant="danger" onClick={() => void handleDelete()}>Delete</Button>
             <Link to="/clients"><Button variant="ghost">All Clients</Button></Link>
           </div>
@@ -234,7 +236,7 @@ function ClientDetail() {
       />
 
       {editing && (
-        <AppCard className="p-4">
+        <Modal title="Edit Client" onClose={() => setEditing(false)} size="lg">
           <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={handleSave}>
             <Field label="Name" required>
               <Input required value={draft.name} onChange={(e) => setDraft(d => ({ ...d, name: e.target.value }))} />
@@ -277,11 +279,12 @@ function ClientDetail() {
             <Field label="Notes">
               <Textarea value={draft.notes ?? ''} onChange={(e) => setDraft(d => ({ ...d, notes: e.target.value || null }))} />
             </Field>
-            <div className="flex items-end">
+            <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 sm:col-span-2 lg:static lg:col-span-3 lg:mx-0 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
+              <Button type="button" variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
               <Button type="submit">Save</Button>
             </div>
           </form>
-        </AppCard>
+        </Modal>
       )}
 
       {/* Contact info chips */}
@@ -300,7 +303,7 @@ function ClientDetail() {
       {/* Projects */}
       <AppCard>
         <SectionHeading title="Projects" description={`${client.projects.length} total`} />
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border-faint)] text-left">
@@ -384,6 +387,94 @@ function ClientDetail() {
               )
             })()}
           </table>
+        </div>
+        <div className="space-y-3 px-4 py-4 lg:hidden">
+          {client.projects.length === 0 ? (
+            <EmptyState title="No projects" description="Link projects to this client." />
+          ) : (
+            <>
+              {client.projects.map((p) => {
+                const pipelineGross = p.milestones.reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
+                const paidGross = p.milestones.filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
+                const outstandingGross = pipelineGross - paidGross
+                return (
+                  <Link
+                    key={p.id}
+                    to={`/projects/${p.id}`}
+                    className="block rounded-lg border border-[var(--border-faint)] bg-[var(--bg-elevated)] p-4 transition-colors hover:border-[var(--accent)]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-medium text-[var(--text-primary)]">{p.projectName}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">{p.platform?.name ?? '—'}</p>
+                      </div>
+                      <ProjectStatusBadge status={p.status} />
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Awarded</p>
+                        <p className="mt-1 text-sm text-[var(--text-secondary)]">{formatDate(p.dateAwarded)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Milestones</p>
+                        <p className="mt-1 font-mono text-sm tabular-nums text-[var(--text-secondary)]">
+                          {p.milestones.filter(m => m.status === 'Paid').length}/{p.milestones.length}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Pipeline</p>
+                        <p className="mt-1 font-mono text-sm tabular-nums text-[var(--text-primary)]"><MoneyAmount amount={pipelineGross} currency={p.currency} /></p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Outstanding</p>
+                        <p className="mt-1 font-mono text-sm tabular-nums text-[var(--text-primary)]"><MoneyAmount amount={outstandingGross} currency={p.currency} /></p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Paid</p>
+                        <p className="mt-1 font-mono text-sm font-medium tabular-nums text-[var(--paid)]"><MoneyAmount amount={paidGross} currency={p.currency} /></p>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+              {(() => {
+                const byCurrency = new Map<string, { pipeline: number; outstanding: number; paid: number }>()
+                for (const p of client.projects) {
+                  const cur = p.currency
+                  const pipelineGross = p.milestones.reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
+                  const paidGross = p.milestones.filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
+                  const outstandingGross = pipelineGross - paidGross
+                  const existing = byCurrency.get(cur) ?? { pipeline: 0, outstanding: 0, paid: 0 }
+                  byCurrency.set(cur, {
+                    pipeline: existing.pipeline + pipelineGross,
+                    outstanding: existing.outstanding + outstandingGross,
+                    paid: existing.paid + paidGross,
+                  })
+                }
+                return [...byCurrency.entries()].map(([currency, totals]) => (
+                  <div key={currency} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
+                    <p className="text-xs font-semibold text-[var(--text-secondary)]">
+                      {byCurrency.size > 1 ? `Total (${currency})` : 'Total'}
+                    </p>
+                    <div className="mt-3 grid grid-cols-3 gap-3">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Pipeline</p>
+                        <p className="mt-1 font-mono text-sm font-semibold tabular-nums text-[var(--text-primary)]"><MoneyAmount amount={totals.pipeline} currency={currency} /></p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Outstanding</p>
+                        <p className="mt-1 font-mono text-sm font-semibold tabular-nums text-[var(--text-primary)]"><MoneyAmount amount={totals.outstanding} currency={currency} /></p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Paid</p>
+                        <p className="mt-1 font-mono text-sm font-semibold tabular-nums text-[var(--paid)]"><MoneyAmount amount={totals.paid} currency={currency} /></p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              })()}
+            </>
+          )}
         </div>
       </AppCard>
     </div>
