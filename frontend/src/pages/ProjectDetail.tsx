@@ -460,7 +460,7 @@ export default function ProjectDetail() {
                 />
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
               <Field label="Platform">
                 <Select
                   value={projectDraft.platformId ?? ''}
@@ -499,7 +499,7 @@ export default function ProjectDetail() {
                 {feeIsLocked && <p className="mt-1 text-xs text-[var(--text-tertiary)]">Locked by platform.</p>}
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
               <Field label="Initial Full Price (optional)">
                 <Input
                   type="number"
@@ -510,7 +510,7 @@ export default function ProjectDetail() {
                 />
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
               <Field label="Status">
                 <Select
                   value={projectDraft.status}
@@ -612,7 +612,7 @@ export default function ProjectDetail() {
             </Button>
           }
         />
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
@@ -692,6 +692,79 @@ export default function ProjectDetail() {
               </tbody>
             </table>
           </div>
+          {project.milestones.length === 0 ? (
+            <div className="p-4 lg:hidden">
+              <EmptyState
+                title="No milestones yet"
+                description="Add payment stages to track pipeline and settled revenue."
+              />
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-2 p-4 lg:hidden">
+              {project.milestones.map((milestone) => {
+                const overdue = isMilestoneOverdue(milestone)
+                return (
+                  <li
+                    key={milestone.id}
+                    className={`rounded-lg border bg-[var(--bg-elevated)] p-4 ${
+                      overdue ? 'border-l-2' : 'border-[var(--border-faint)]'
+                    }`}
+                    style={overdue ? { borderColor: 'var(--border-faint)', borderLeftColor: 'var(--overdue)', background: 'rgba(201,114,100,0.04)' } : {}}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--text-primary)]">{milestone.name}</p>
+                        {milestone.description && (
+                          <p className="mt-1 text-xs text-[var(--text-tertiary)]">{milestone.description}</p>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-right font-mono text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                        <MoneyAmount amount={milestone.amount} currency={milestone.currency} />
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      <MilestoneStatusBadge status={milestone.status} />
+                      {overdue && (
+                        <span className="inline-flex items-center rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                          Overdue
+                        </span>
+                      )}
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <dt className="uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Due</dt>
+                        <dd className={overdue ? 'mt-1 font-medium text-amber-400' : 'mt-1 text-[var(--text-secondary)]'}>
+                          {formatDate(milestone.dateDue)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Paid</dt>
+                        <dd className="mt-1 text-[var(--text-secondary)]">{formatDate(milestone.datePaid)}</dd>
+                      </div>
+                    </dl>
+                    <div className="mt-4 flex flex-wrap justify-end gap-2">
+                      {milestone.status !== 'Paid' && (
+                        <Button
+                          variant="ghost"
+                          className="min-h-11 px-4 text-xs hover:bg-[var(--bg-surface)]"
+                          style={{ color: 'var(--paid)' }}
+                          onClick={() => void handleQuickMarkPaid(milestone)}
+                        >
+                          Mark Paid
+                        </Button>
+                      )}
+                      <Button variant="ghost" className="min-h-11 px-4 text-xs" onClick={() => { loadMilestoneIntoForm(milestone); setShowMilestoneModal(true) }}>
+                        Edit
+                      </Button>
+                      <Button variant="danger" className="min-h-11 px-4 text-xs" onClick={() => void handleMilestoneDelete(milestone.id)}>
+                        Del
+                      </Button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
       </AppCard>
 
       {showMilestoneModal && (
@@ -703,7 +776,7 @@ export default function ProjectDetail() {
             <Field label="Description">
               <Textarea value={milestoneDraft.description ?? ''} onChange={(e) => setMilestoneDraft((c) => ({ ...c, description: e.target.value || null }))} />
             </Field>
-            <div className="grid gap-3 grid-cols-2">
+            <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
               <Field label="Amount">
                 <Input type="number" min="0" step="0.01" value={milestoneDraft.amount} onChange={(e) => setMilestoneDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
               </Field>
@@ -713,7 +786,7 @@ export default function ProjectDetail() {
                 </Select>
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-3">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
               <Field label="Status">
                 <Select value={milestoneDraft.status} onChange={(e) => {
                   const status = e.target.value as Milestone['status']
@@ -740,7 +813,7 @@ export default function ProjectDetail() {
             <Field label="Sort Order">
               <Input type="number" min="1" value={milestoneDraft.sortOrder} onChange={(e) => setMilestoneDraft((c) => ({ ...c, sortOrder: Number(e.target.value) }))} />
             </Field>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
               <Button type="button" variant="secondary" onClick={() => { setShowMilestoneModal(false); resetMilestoneForm() }}>Cancel</Button>
               <Button type="submit" disabled={savingMilestone}>{savingMilestone ? 'Saving...' : editingMilestoneId ? 'Update' : 'Add'}</Button>
             </div>
@@ -766,37 +839,68 @@ export default function ProjectDetail() {
               />
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border-faint)] text-left">
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Amount</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Date</th>
-                  <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Notes</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              <div className="hidden lg:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border-faint)] text-left">
+                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Amount</th>
+                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Date</th>
+                      <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Notes</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {project.tips.map((tip) => (
+                      <tr key={tip.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
+                        <td className="px-4 py-3 font-mono tabular-nums font-medium text-[var(--text-primary)]">
+                          <MoneyAmount amount={tip.amount} currency={tip.currency} />
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{formatDate(tip.date)}</td>
+                        <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{tip.notes ?? '—'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" className="px-2 text-xs" onClick={() => { loadTipIntoForm(tip); setShowTipModal(true) }}>
+                              Edit
+                            </Button>
+                            <Button variant="danger" className="px-2 text-xs" onClick={() => void handleTipDelete(tip.id)}>
+                              Del
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ul className="flex flex-col gap-2 p-4 lg:hidden">
                 {project.tips.map((tip) => (
-                  <tr key={tip.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
-                    <td className="px-4 py-3 font-mono tabular-nums font-medium text-[var(--text-primary)]">
-                      <MoneyAmount amount={tip.amount} currency={tip.currency} />
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{formatDate(tip.date)}</td>
-                    <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{tip.notes ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" className="px-2 text-xs" onClick={() => { loadTipIntoForm(tip); setShowTipModal(true) }}>
-                          Edit
-                        </Button>
-                        <Button variant="danger" className="px-2 text-xs" onClick={() => void handleTipDelete(tip.id)}>
-                          Del
-                        </Button>
+                  <li key={tip.id} className="rounded-lg border border-[var(--border-faint)] bg-[var(--bg-elevated)] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Tip</p>
+                        <p className="mt-1 text-xs text-[var(--text-secondary)]">{formatDate(tip.date)}</p>
                       </div>
-                    </td>
-                  </tr>
+                      <div className="shrink-0 text-right font-mono text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                        <MoneyAmount amount={tip.amount} currency={tip.currency} />
+                      </div>
+                    </div>
+                    <dl className="mt-3 text-xs">
+                      <dt className="uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Notes</dt>
+                      <dd className="mt-1 text-[var(--text-secondary)]">{tip.notes ?? '—'}</dd>
+                    </dl>
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button variant="ghost" className="min-h-11 px-4 text-xs" onClick={() => { loadTipIntoForm(tip); setShowTipModal(true) }}>
+                        Edit
+                      </Button>
+                      <Button variant="danger" className="min-h-11 px-4 text-xs" onClick={() => void handleTipDelete(tip.id)}>
+                        Del
+                      </Button>
+                    </div>
+                  </li>
                 ))}
-              </tbody>
-            </table>
+              </ul>
+            </>
           )}
       </AppCard>
 
@@ -874,7 +978,7 @@ export default function ProjectDetail() {
       {showTipModal && (
         <Modal title={editingTipId ? 'Edit Tip' : 'Add Tip'} onClose={() => { setShowTipModal(false); resetTipForm() }} size="sm">
           <form className="grid gap-3" onSubmit={handleTipSave}>
-            <div className="grid gap-3 grid-cols-2">
+            <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
               <Field label="Amount">
                 <Input type="number" min="0" step="0.01" value={tipDraft.amount} onChange={(e) => setTipDraft((c) => ({ ...c, amount: Number(e.target.value) }))} />
               </Field>
@@ -890,7 +994,7 @@ export default function ProjectDetail() {
             <Field label="Notes">
               <Textarea value={tipDraft.notes ?? ''} onChange={(e) => setTipDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
               <Button type="button" variant="secondary" onClick={() => { setShowTipModal(false); resetTipForm() }}>Cancel</Button>
               <Button type="submit" disabled={savingTip}>{savingTip ? 'Saving...' : editingTipId ? 'Update' : 'Add'}</Button>
             </div>
