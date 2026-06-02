@@ -178,15 +178,29 @@ Make the app installable to a phone home screen. Prod is HTTPS (Traefik) so inst
 
 ## Execution order (chunks, all on this branch)
 
-1. **Foundation** — DONE (merged 55b11ef): shell, page padding, PageIntro/StatCard/Modal base.
-2. **Modal full-screen on mobile** (`Modal.tsx`, §5) — shared; land before per-page form work.
-3. **PWA** (§7) — independent files (vite.config, index.html, public/, package.json); parallel-safe.
-4. **Projects** — table→cards, stat/form grids responsive, sticky mobile footer.
-5. **ProjectDetail** — grid-cols-5→2, milestones table→cards, hero number cap, form grids.
-6. **Costs + Clients** — 3 cost tables→cards + grid-cols-4; Clients table→cards + grid-cols +
-   inline-forms→Modal; form grids; sticky footers.
-7. **Dashboard + Monthly + Settings** — hero number, grid-cols-3 responsive, Monthly matrix +
-   Settings tables as edge-bleed horizontal scroll.
+1. **Foundation** — ✅ DONE (merged 55b11ef): shell, page padding, PageIntro/StatCard/Modal base.
+2. **Modal full-screen on mobile** (`Modal.tsx`, §5) — ✅ DONE (merged 251fbe6).
+3. **PWA** (§7) — ✅ DONE (merged 46324e2): vite-plugin-pwa@1.3.0, manifest+SW, /api NetworkOnly.
+4. **Dashboard + Monthly + Settings** — ✅ DONE (merged e2ad422): hero number cap + overflow guards,
+   Monthly/Settings edge-bleed scroll tables. (Verified: 390px no h-scroll, desktop layout identical.)
+5. **Projects** — ⏳ TODO: table→summary cards (§4), stat/form grids responsive, sticky mobile
+   footer on the Add-Project + New-Client modal forms (un-cramp the grid-cols-3 field rows, §5).
+6. **ProjectDetail** — ⏳ TODO: grid-cols-5→`grid-cols-2 lg:grid-cols-5`, milestones table→cards,
+   form grids + sticky footer on milestone/tip modals.
+7. **Costs + Clients** — ⏳ TODO: 3 cost tables→cards + grid-cols-4; Clients table→cards + grid-cols +
+   **inline forms → Modal (parity, §5)**; form grids; sticky footers.
+
+> ## RESUME HERE (2026-06-02 ~20:40)
+> Chunks 1–4 merged + pushed on `ledger-iteration-2026-06` (origin up to 46324e2). NOTHING on `main`.
+> Remaining = chunks 5–7 (the table→summary-card conversions + per-modal form un-cramping/sticky
+> footer + Clients inline→Modal parity). They touch distinct page files → dispatchable in parallel
+> (frontend max_parallel 3), each off `ledger-iteration-2026-06`.
+> Dispatch **Codex single-dispatch** (A2A port 5002, provider codex) — the **Sonnet frontend worker
+> has a stale-cred dispatch failure** (cli_error in ~6s, cred file owned by `hrolbot` not
+> `hrolbot-frontend`); fix that separately if dual-dispatch is wanted.
+> Local dev: API `:5145` + Vite `:5179` (started fresh post-PWA so vite.config PWA plugin is live).
+> Verify each chunk: 390px (zero h-scroll, cards readable) + 1280px (layout pixel-identical, data/
+> clock diffs are expected) before merge. Briefs pattern lives in this file's §4/§5.
 
 Chunks 4–7 each touch distinct page files, so they can run in parallel (frontend max_parallel 3),
 but each merges + verifies independently. Workers run **Codex single-dispatch** (the Sonnet frontend
