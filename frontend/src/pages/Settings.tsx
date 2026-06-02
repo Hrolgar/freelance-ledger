@@ -185,7 +185,7 @@ export default function Settings() {
 
       <AppCard>
         <SectionHeading title="Platforms" description="Editable list of platforms with default fees." action={<Button onClick={openAddPlatform}>+ Add Platform</Button>} />
-        <div className="overflow-x-auto">
+        <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border-faint)] text-left">
@@ -272,7 +272,7 @@ export default function Settings() {
             ) : null
           }
         />
-        <div className="overflow-x-auto">
+        <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border-faint)] text-left">

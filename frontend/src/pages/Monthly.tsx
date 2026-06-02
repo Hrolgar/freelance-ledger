@@ -238,7 +238,7 @@ export default function Monthly() {
             title="Revenue Breakdown"
             description={`${MONTH_FULL_NAMES[month - 1]} ${year}`}
           />
-          <div className="overflow-x-auto">
+          <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
@@ -289,7 +289,7 @@ export default function Monthly() {
 
         <AppCard>
           <SectionHeading title="Costs" />
-          <div className="overflow-x-auto">
+          <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
