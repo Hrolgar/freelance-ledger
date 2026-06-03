@@ -41,8 +41,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
-    redirect: 'manual',
     ...init,
+    redirect: 'manual',
   })
 
   if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 403) {
@@ -185,7 +185,12 @@ export const uploadProjectFile = async (projectId: number, file: File): Promise<
   const response = await fetch(`${API_BASE}/projects/${projectId}/files`, {
     method: 'POST',
     body: form,
+    redirect: 'manual',
   })
+  if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 403) {
+    triggerReauth()
+    throw new Error('Your session expired — signing you back in…')
+  }
   if (!response.ok) {
     const txt = await response.text().catch(() => 'Upload failed')
     throw new Error(txt || 'Upload failed')
