@@ -25,6 +25,16 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
+let reauthing = false
+
+function triggerReauth(): void {
+  if (reauthing) return
+  reauthing = true
+  window.location.assign(
+    '/outpost.goauthentik.io/start?rd=' + encodeURIComponent(window.location.href),
+  )
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
@@ -32,7 +42,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
     ...init,
+    redirect: 'manual',
   })
+
+  if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 403) {
+    triggerReauth()
+    throw new Error('Your session expired — signing you back in…')
+  }
 
   if (!response.ok) {
     const fallback = `Request failed with status ${response.status}`
@@ -169,7 +185,12 @@ export const uploadProjectFile = async (projectId: number, file: File): Promise<
   const response = await fetch(`${API_BASE}/projects/${projectId}/files`, {
     method: 'POST',
     body: form,
+    redirect: 'manual',
   })
+  if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 403) {
+    triggerReauth()
+    throw new Error('Your session expired — signing you back in…')
+  }
   if (!response.ok) {
     const txt = await response.text().catch(() => 'Upload failed')
     throw new Error(txt || 'Upload failed')
