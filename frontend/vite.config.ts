@@ -41,7 +41,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api(?:\/|$)/],
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/, /^\/outpost\.goauthentik\.io/],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api'),
