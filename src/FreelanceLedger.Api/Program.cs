@@ -43,6 +43,11 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+    // SQLite's __EFMigrationsLock is a table row that does NOT auto-release on crash
+    // (unlike SQL Server's session applock). This app is single-instance, so any lock
+    // present at startup is stale -- clear it before migrating so an unclean shutdown
+    // (e.g. host reboot mid-startup) can't deadlock the next boot.
+    db.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS \"__EFMigrationsLock\";");
     db.Database.Migrate();
 }
 
