@@ -12,7 +12,10 @@ namespace FreelanceLedger.Api.Controllers;
 /// earns money through the same path a fixed-price one does.
 [ApiController]
 [Route("api/projects/{projectId:int}/invoices")]
-public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs) : ControllerBase
+public class InvoicesController(
+    LedgerDbContext db,
+    InvoiceDocumentService docs,
+    ProjectFileStore files) : ControllerBase
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
@@ -39,16 +42,11 @@ public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs)
         if (invoice is null)
             return Problem(title: "Not Found", detail: $"Invoice {id} not found.", statusCode: 404);
 
-        var markdown = await docs.BuildMarkdownAsync(projectId, id);
-        if (markdown is null)
+        var doc = await docs.BuildAsync(projectId, id);
+        if (doc is null)
             return Problem(title: "Not Found", detail: $"Invoice {id} not found.", statusCode: 404);
 
-        var project = await db.Projects.AsNoTracking()
-            .Include(p => p.Client)
-            .FirstAsync(p => p.Id == projectId);
-        var clientName = project.Client?.Name ?? project.ClientName;
-
-        var pdf = await docs.RenderPdfAsync(markdown, invoice.InvoiceNumber!, clientName);
+        var pdf = await docs.RenderPdfAsync(doc);
         if (pdf is null)
             return Problem(
                 title: "Renderer Unavailable",
@@ -132,18 +130,25 @@ public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs)
         var coveredFrom = entries.Min(e => e.PeriodStart);
         var coveredTo = entries.Max(e => e.PeriodEnd);
 
+        var issued = request.InvoiceDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
         var invoice = new Milestone
         {
             ProjectId = projectId,
             Name = request.Name?.Trim() is { Length: > 0 } n
                 ? n
                 : $"{invoiceNumber} ({coveredFrom.ToString("d MMM", Inv)} to {coveredTo.ToString("d MMM yyyy", Inv)})",
-            Description = request.Description,
+            // Frozen onto the invoice, not read live off the project: editing the
+            // project's default next month must not rewrite an invoice already sent.
+            Description = request.Description?.Trim() is { Length: > 0 } d
+                ? d
+                : project.InvoiceWorkDescription,
             Amount = amount,
             Currency = currencies[0],
             Status = MilestoneStatus.Pending,
-            DateDue = request.DateDue,
+            DateDue = request.DateDue ?? DefaultDueDate(project, coveredTo),
             SortOrder = sortOrder + 1,
+            InvoiceDate = issued,
             Hours = totalHours,
             // Only meaningful when every period billed at the same rate. Across a rate
             // change it stays null and the per-period lines carry the detail.
@@ -202,8 +207,32 @@ public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs)
 
         await tx.CommitAsync();
 
+        // File the PDF against the project so the invoice is where every other client
+        // document is, without having to download it and upload it back. Deliberately
+        // after the commit and deliberately non-fatal: a renderer that is down must not
+        // undo an invoice that is otherwise correct.
+        ProjectFile? filed = null;
+        var doc = await docs.BuildAsync(projectId, invoice.Id);
+        if (doc is not null)
+        {
+            var pdf = await docs.RenderPdfAsync(doc);
+            if (pdf is not null)
+                filed = await files.FileInvoiceAsync(projectId, invoice.Id, invoiceNumber, pdf);
+        }
+
         return CreatedAtAction(nameof(GetById), new { projectId, id = invoice.Id },
-            new { invoice, periods = stillUnbilled.Count, totalHours });
+            new { invoice, periods = stillUnbilled.Count, totalHours, file = filed });
+    }
+
+    /// When the client pays on a set day of the month, an invoice for July is due on that
+    /// day in August. Clamped, so a 31st on a 30-day month lands on the 30th.
+    private static DateOnly? DefaultDueDate(Project project, DateOnly coveredTo)
+    {
+        if (project.PaymentDueDayOfMonth is not { } day) return null;
+
+        var month = new DateOnly(coveredTo.Year, coveredTo.Month, 1).AddMonths(1);
+        var clamped = Math.Clamp(day, 1, DateTime.DaysInMonth(month.Year, month.Month));
+        return new DateOnly(month.Year, month.Month, clamped);
     }
 
     [HttpGet("{id:int}")]
@@ -246,6 +275,8 @@ public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs)
         foreach (var entry in entries)
             entry.InvoiceMilestoneId = null;
 
+        await files.RemoveInvoiceFilesAsync(projectId, id);
+
         db.Milestones.Remove(invoice);
         await db.SaveChangesAsync();
 
@@ -282,4 +313,5 @@ public record CreateInvoiceRequest(
     string? InvoiceNumber,
     string? Name,
     string? Description,
-    DateOnly? DateDue);
+    DateOnly? DateDue,
+    DateOnly? InvoiceDate);

@@ -11,6 +11,7 @@ import {
   getInvoices,
   getProjectRates,
   getTimeEntries,
+  patchMilestone,
   updateTimeEntry,
 } from '../api'
 import { Modal } from './Modal'
@@ -56,6 +57,16 @@ function hoursLabel(value: number): string {
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)))
 }
 
+// --- Shared table classes, matching the rest of the app. Every other page builds its
+// tables this way; the hourly panel had its own smaller padding and a border token
+// that does not exist (--border), so its rows sat flush against the card edge with no
+// rules between them. ---
+const TH = 'px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]'
+const TH_RIGHT = `${TH} text-right`
+const TR = 'border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]'
+const TD = 'px-4 py-3'
+const TD_NUM = 'px-4 py-3 text-right font-mono tabular-nums'
+
 export function HourlyPanel({
   project,
   onChanged,
@@ -68,6 +79,7 @@ export function HourlyPanel({
   const [invoices, setInvoices] = useState<Milestone[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const [showRateModal, setShowRateModal] = useState(false)
@@ -100,6 +112,7 @@ export function HourlyPanel({
     from: '',
     to: '',
     invoiceNumber: '',
+    invoiceDate: todayIso(),
     dateDue: '',
     description: '',
   })
@@ -151,11 +164,41 @@ export function HourlyPanel({
     .filter((r) => r.effectiveFrom <= todayIso())
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
 
+  // What the server would actually sweep for the range in the modal: same overlap rule
+  // it uses. Shown live so you are not guessing what "Create" is about to bill.
+  const sweep = unbilled.filter(
+    (e) =>
+      (!invoiceDraft.to || e.periodStart <= invoiceDraft.to) &&
+      (!invoiceDraft.from || e.periodEnd >= invoiceDraft.from),
+  )
+  const sweepHours = sweep.reduce((sum, e) => sum + e.hours, 0)
+  const sweepValue = sweep.reduce((sum, e) => sum + e.hours * e.rateApplied, 0)
+
+  /// The due date the server will pick if the field is left blank: the client's pay day
+  /// in the month after the last period covered.
+  const suggestedDue = (): string => {
+    const day = project.paymentDueDayOfMonth
+    if (!day || sweep.length === 0) return ''
+    const last = sweep.reduce((a, e) => (e.periodEnd > a ? e.periodEnd : a), sweep[0].periodEnd)
+    const [y, m] = last.split('-').map(Number)
+    const month = new Date(y, m, 1) // month index m == the month AFTER `last`
+    const inMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
+    const d = new Date(month.getFullYear(), month.getMonth(), Math.min(day, inMonth))
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+  }
+
   const openInvoiceModal = () => {
     // Default the range to everything currently unbilled, which is the common case.
     const from = unbilled.length ? unbilled[0].periodStart : ''
     const to = unbilled.length ? unbilled[unbilled.length - 1].periodEnd : ''
-    setInvoiceDraft({ from, to, invoiceNumber: '', dateDue: '', description: '' })
+    setInvoiceDraft({
+      from,
+      to,
+      invoiceNumber: '',
+      invoiceDate: todayIso(),
+      dateDue: '',
+      description: project.invoiceWorkDescription ?? '',
+    })
     setShowInvoiceModal(true)
   }
 
@@ -186,11 +229,31 @@ export function HourlyPanel({
     setShowEntryModal(true)
   }
 
+  const markInvoicePaid = (invoice: Milestone) =>
+    run(() =>
+      patchMilestone(invoice.id, {
+        status: 'Paid',
+        datePaid: invoice.datePaid ?? todayIso(),
+        dateDue: invoice.dateDue ?? todayIso(),
+      }),
+    )
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {error && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div
+          className="rounded-md px-4 py-3 text-sm"
+          style={{ border: '1px solid #c9726430', background: '#c9726410', color: 'var(--overdue)' }}
+        >
           {error}
+        </div>
+      )}
+      {notice && (
+        <div
+          className="rounded-md px-4 py-3 text-sm"
+          style={{ border: '1px solid var(--border-faint)', background: 'var(--accent-soft)', color: 'var(--accent)' }}
+        >
+          {notice}
         </div>
       )}
 
@@ -198,9 +261,9 @@ export function HourlyPanel({
       <AppCard>
         <SectionHeading
           title="Hourly rate"
-          description="Raising the rate adds a new row. Periods already logged keep the rate they were logged at."
+          description="Raising the rate adds a row. Periods already logged keep the rate they were logged at."
           action={
-            <Button variant="secondary" onClick={() => {
+            <Button variant="secondary" className="text-xs" onClick={() => {
               setRateDraft({
                 rate: currentRate?.rate ?? 0,
                 currency: currentRate?.currency ?? project.currency,
@@ -209,54 +272,60 @@ export function HourlyPanel({
               })
               setShowRateModal(true)
             }}>
-              Add rate
+              + Add rate
             </Button>
           }
         />
         {loading ? (
-          <p className="text-sm text-[var(--text-secondary)]">Loading…</p>
+          <p className="px-4 py-6 text-sm" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
         ) : rates.length === 0 ? (
-          <EmptyState
-            title="No rate set"
-            description="Add an hourly rate before logging any time."
-          />
+          <div className="p-4">
+            <EmptyState title="No rate set" description="Add an hourly rate before logging any time." />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                  <th className="py-2 pr-4">Effective from</th>
-                  <th className="py-2 pr-4">Rate</th>
-                  <th className="py-2 pr-4">Notes</th>
-                  <th className="py-2" />
+                <tr className="border-b border-[var(--border-faint)] text-left">
+                  <th className={TH}>Effective from</th>
+                  <th className={TH_RIGHT}>Rate</th>
+                  <th className={TH}>Notes</th>
+                  <th className={TH} />
                 </tr>
               </thead>
               <tbody>
                 {rates.map((rate) => (
-                  <tr key={rate.id} className="border-b border-[var(--border)]/50">
-                    <td className="py-2 pr-4">
+                  <tr key={rate.id} className={TR}>
+                    <td className={`${TD} text-[var(--text-primary)]`}>
                       {formatDate(rate.effectiveFrom)}
                       {currentRate?.id === rate.id && (
-                        <span className="ml-2 rounded bg-[var(--accent)]/15 px-1.5 py-0.5 text-xs text-[var(--accent)]">
-                          current
+                        <span
+                          className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                          style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                        >
+                          Current
                         </span>
                       )}
                     </td>
-                    <td className="py-2 pr-4 font-mono">
-                      {formatCurrency(rate.rate, rate.currency)} / h
+                    <td className={`${TD_NUM} text-[var(--text-primary)]`}>
+                      {formatCurrency(rate.rate, rate.currency)}
+                      <span className="text-[var(--text-tertiary)]"> /h</span>
                     </td>
-                    <td className="py-2 pr-4 text-[var(--text-secondary)]">{rate.notes ?? '—'}</td>
-                    <td className="py-2 text-right">
-                      <button
-                        className="text-xs text-red-400 hover:text-red-300"
-                        disabled={busy}
-                        onClick={() => {
-                          if (!confirm(`Delete the rate effective ${formatDate(rate.effectiveFrom)}?`)) return
-                          void run(() => deleteProjectRate(project.id, rate.id))
-                        }}
-                      >
-                        Delete
-                      </button>
+                    <td className={`${TD} text-xs text-[var(--text-tertiary)]`}>{rate.notes ?? '—'}</td>
+                    <td className={TD}>
+                      <div className="flex justify-end">
+                        <Button
+                          variant="danger"
+                          className="px-2 text-xs"
+                          disabled={busy}
+                          onClick={() => {
+                            if (!confirm(`Delete the rate effective ${formatDate(rate.effectiveFrom)}?`)) return
+                            void run(() => deleteProjectRate(project.id, rate.id))
+                          }}
+                        >
+                          Del
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -276,89 +345,111 @@ export function HourlyPanel({
               : 'Log a period of hours. Invoiced periods lock.'
           }
           action={
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               {project.cadence !== 'None' && (
-                <Button variant="secondary" onClick={() => setShowGenerateModal(true)}>
+                <Button variant="secondary" className="text-xs" onClick={() => setShowGenerateModal(true)}>
                   Generate
                 </Button>
               )}
-              <Button variant="secondary" onClick={openNewEntry}>Log hours</Button>
+              <Button variant="secondary" className="text-xs" onClick={openNewEntry}>+ Log hours</Button>
             </div>
           }
         />
 
         {!loading && unbilled.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-4 rounded-lg bg-[var(--bg-surface)] px-4 py-3 text-sm">
-            <span className="text-[var(--text-secondary)]">
-              Unbilled: <span className="font-mono text-[var(--text-primary)]">{hoursLabel(unbilledHours)}h</span>
+          <div
+            className="m-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg px-4 py-3 text-sm"
+            style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}
+          >
+            <span style={{ color: 'var(--text-secondary)' }}>
+              Unbilled{' '}
+              <span className="font-mono tabular-nums font-semibold text-[var(--text-primary)]">
+                {hoursLabel(unbilledHours)}h
+              </span>
             </span>
-            <span className="text-[var(--text-secondary)]">
-              Value: <span className="font-mono text-[var(--accent)]">{formatCurrency(unbilledValue, unbilled[0].currency)}</span>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              Worth{' '}
+              <span className="font-mono tabular-nums font-semibold" style={{ color: 'var(--accent)' }}>
+                {formatCurrency(unbilledValue, unbilled[0].currency)}
+              </span>
             </span>
-            <button className="ml-auto text-sm text-[var(--accent)] hover:underline" onClick={openInvoiceModal}>
-              Create invoice →
-            </button>
+            <Button className="ml-auto text-xs" onClick={openInvoiceModal}>Create invoice</Button>
           </div>
         )}
 
         {loading ? (
-          <p className="text-sm text-[var(--text-secondary)]">Loading…</p>
+          <p className="px-4 py-6 text-sm" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
         ) : entries.length === 0 ? (
-          <EmptyState title="Nothing logged yet" description="Log a period, or generate them from the committed hours." />
+          <div className="p-4">
+            <EmptyState title="Nothing logged yet" description="Log a period, or generate them from the committed hours." />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                  <th className="py-2 pr-4">Period</th>
-                  <th className="py-2 pr-4 text-right">Hours</th>
-                  <th className="py-2 pr-4 text-right">Rate</th>
-                  <th className="py-2 pr-4 text-right">Amount</th>
-                  <th className="py-2 pr-4">Status</th>
-                  <th className="py-2" />
+                <tr className="border-b border-[var(--border-faint)] text-left">
+                  <th className={TH}>Period</th>
+                  <th className={TH_RIGHT}>Hours</th>
+                  <th className={TH_RIGHT}>Rate</th>
+                  <th className={TH_RIGHT}>Amount</th>
+                  <th className={TH}>Status</th>
+                  <th className={TH} />
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <tr key={entry.id} className="border-b border-[var(--border)]/50">
-                    <td className="py-2 pr-4">{periodLabel(entry)}</td>
-                    <td className="py-2 pr-4 text-right font-mono">{hoursLabel(entry.hours)}</td>
-                    <td className="py-2 pr-4 text-right font-mono text-[var(--text-secondary)]">
+                  <tr key={entry.id} className={TR}>
+                    <td className={`${TD} text-[var(--text-primary)]`}>
+                      {periodLabel(entry)}
+                      {entry.notes && (
+                        <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">{entry.notes}</p>
+                      )}
+                    </td>
+                    <td className={`${TD_NUM} text-[var(--text-primary)]`}>{hoursLabel(entry.hours)}</td>
+                    <td className={`${TD_NUM} text-[var(--text-secondary)]`}>
                       {formatCurrency(entry.rateApplied, entry.currency)}
                     </td>
-                    <td className="py-2 pr-4 text-right font-mono">
+                    <td className={`${TD_NUM} text-[var(--text-primary)]`}>
                       {formatCurrency(entry.hours * entry.rateApplied, entry.currency)}
                     </td>
-                    <td className="py-2 pr-4">
+                    <td className={TD}>
                       {entry.invoiceMilestoneId ? (
-                        <span className="text-xs text-[var(--text-secondary)]">
-                          invoiced
+                        <span
+                          className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                          style={{ border: '1px solid var(--border-default)', color: 'var(--text-tertiary)' }}
+                        >
+                          Invoiced
                         </span>
                       ) : (
-                        <span className="text-xs text-[var(--accent)]">unbilled</span>
+                        <span
+                          className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                          style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                        >
+                          Unbilled
+                        </span>
                       )}
                     </td>
-                    <td className="py-2 text-right whitespace-nowrap">
-                      {!entry.invoiceMilestoneId && (
-                        <>
-                          <button
-                            className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                            onClick={() => openEditEntry(entry)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            className="ml-3 text-xs text-red-400 hover:text-red-300"
-                            disabled={busy}
-                            onClick={() => {
-                              if (!confirm(`Delete ${periodLabel(entry)}?`)) return
-                              void run(() => deleteTimeEntry(project.id, entry.id))
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
+                    <td className={TD}>
+                      <div className="flex justify-end gap-1">
+                        {!entry.invoiceMilestoneId && (
+                          <>
+                            <Button variant="ghost" className="px-2 text-xs" onClick={() => openEditEntry(entry)}>
+                              Edit
+                            </Button>
+                            <Button
+                              variant="danger"
+                              className="px-2 text-xs"
+                              disabled={busy}
+                              onClick={() => {
+                                if (!confirm(`Delete ${periodLabel(entry)}?`)) return
+                                void run(() => deleteTimeEntry(project.id, entry.id))
+                              }}
+                            >
+                              Del
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -372,81 +463,108 @@ export function HourlyPanel({
       <AppCard>
         <SectionHeading
           title="Invoices"
-          description="An invoice is a milestone, so it flows into revenue and the monthly P&L. Download it any time."
-          action={<Button onClick={openInvoiceModal} disabled={unbilled.length === 0}>New invoice</Button>}
+          description="An invoice is a milestone, so it counts as revenue the moment it is paid. A PDF is filed under Files as soon as it is raised."
+          action={
+            <Button className="text-xs" onClick={openInvoiceModal} disabled={unbilled.length === 0}>
+              + New invoice
+            </Button>
+          }
         />
         {loading ? (
-          <p className="text-sm text-[var(--text-secondary)]">Loading…</p>
+          <p className="px-4 py-6 text-sm" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
         ) : invoices.length === 0 ? (
-          <EmptyState title="No invoices yet" description="Log some hours, then raise one for any date range." />
+          <div className="p-4">
+            <EmptyState title="No invoices yet" description="Log some hours, then raise one for any date range." />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                  <th className="py-2 pr-4">Number</th>
-                  <th className="py-2 pr-4">Period</th>
-                  <th className="py-2 pr-4 text-right">Hours</th>
-                  <th className="py-2 pr-4 text-right">Amount</th>
-                  <th className="py-2 pr-4">Status</th>
-                  <th className="py-2" />
+                <tr className="border-b border-[var(--border-faint)] text-left">
+                  <th className={TH}>Number</th>
+                  <th className={TH}>Period</th>
+                  <th className={TH_RIGHT}>Hours</th>
+                  <th className={TH_RIGHT}>Amount</th>
+                  <th className={TH}>Status</th>
+                  <th className={TH}>Due</th>
+                  <th className={TH} />
                 </tr>
               </thead>
               <tbody>
                 {invoices.map((inv) => (
-                  <tr key={inv.id} className="border-b border-[var(--border)]/50">
-                    <td className="py-2 pr-4 font-mono">{inv.invoiceNumber}</td>
-                    <td className="py-2 pr-4">
+                  <tr key={inv.id} className={TR}>
+                    <td className={`${TD} font-mono font-medium text-[var(--text-primary)]`}>
+                      {inv.invoiceNumber}
+                    </td>
+                    <td className={`${TD} text-xs text-[var(--text-secondary)]`}>
                       {formatDate(inv.periodStart)} to {formatDate(inv.periodEnd)}
                     </td>
-                    <td className="py-2 pr-4 text-right font-mono">
+                    <td className={`${TD_NUM} text-[var(--text-primary)]`}>
                       {inv.hours === null ? '—' : hoursLabel(inv.hours)}
                     </td>
-                    <td className="py-2 pr-4 text-right font-mono">
+                    <td className={`${TD_NUM} text-[var(--text-primary)]`}>
                       {formatCurrency(inv.amount, inv.currency)}
                     </td>
-                    <td className="py-2 pr-4"><MilestoneStatusBadge status={inv.status} /></td>
-                    <td className="py-2 text-right whitespace-nowrap">
-                      <button
-                        className="text-xs text-[var(--accent)] hover:underline"
-                        disabled={busy}
-                        onClick={() => {
-                          setError(null)
-                          void downloadInvoice(
-                            project.id, inv.id, 'pdf', `Invoice-${inv.invoiceNumber}.pdf`,
-                          ).catch((err: unknown) =>
-                            setError(err instanceof Error ? err.message : 'Download failed'),
-                          )
-                        }}
-                      >
-                        PDF
-                      </button>
-                      <button
-                        className="ml-3 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                        disabled={busy}
-                        onClick={() => {
-                          setError(null)
-                          void downloadInvoice(
-                            project.id, inv.id, 'markdown', `Invoice-${inv.invoiceNumber}.md`,
-                          ).catch((err: unknown) =>
-                            setError(err instanceof Error ? err.message : 'Download failed'),
-                          )
-                        }}
-                      >
-                        Markdown
-                      </button>
-                      {inv.status !== 'Paid' && (
-                        <button
-                          className="ml-3 text-xs text-red-400 hover:text-red-300"
+                    <td className={TD}><MilestoneStatusBadge status={inv.status} /></td>
+                    <td className={`${TD} text-xs text-[var(--text-secondary)]`}>{formatDate(inv.dateDue)}</td>
+                    <td className={TD}>
+                      <div className="flex justify-end gap-1">
+                        {inv.status !== 'Paid' && (
+                          <Button
+                            variant="ghost"
+                            className="px-2 text-xs"
+                            style={{ color: 'var(--paid)' }}
+                            disabled={busy}
+                            onClick={() => void markInvoicePaid(inv)}
+                          >
+                            Mark Paid
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          className="px-2 text-xs"
+                          style={{ color: 'var(--accent)' }}
                           disabled={busy}
                           onClick={() => {
-                            if (!confirm(`Delete ${inv.invoiceNumber}? Its periods go back to unbilled.`)) return
-                            void run(() => deleteInvoice(project.id, inv.id))
+                            setError(null)
+                            void downloadInvoice(
+                              project.id, inv.id, 'pdf', `Invoice-${inv.invoiceNumber}.pdf`,
+                            ).catch((err: unknown) =>
+                              setError(err instanceof Error ? err.message : 'Download failed'),
+                            )
                           }}
                         >
-                          Delete
-                        </button>
-                      )}
+                          PDF
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="px-2 text-xs"
+                          disabled={busy}
+                          onClick={() => {
+                            setError(null)
+                            void downloadInvoice(
+                              project.id, inv.id, 'markdown', `Invoice-${inv.invoiceNumber}.md`,
+                            ).catch((err: unknown) =>
+                              setError(err instanceof Error ? err.message : 'Download failed'),
+                            )
+                          }}
+                        >
+                          MD
+                        </Button>
+                        {inv.status !== 'Paid' && (
+                          <Button
+                            variant="danger"
+                            className="px-2 text-xs"
+                            disabled={busy}
+                            onClick={() => {
+                              if (!confirm(`Delete ${inv.invoiceNumber}? Its periods go back to unbilled and the filed PDF is removed.`)) return
+                              void run(() => deleteInvoice(project.id, inv.id))
+                            }}
+                          >
+                            Del
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -459,21 +577,23 @@ export function HourlyPanel({
       {/* --- Rate modal --- */}
       {showRateModal && (
       <Modal title="Add rate" onClose={() => setShowRateModal(false)}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Rate per hour">
-            <Input
-              type="number" step="0.01" min="0" value={rateDraft.rate}
-              onChange={(e) => setRateDraft({ ...rateDraft, rate: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="Currency">
-            <Select
-              value={rateDraft.currency}
-              onChange={(e) => setRateDraft({ ...rateDraft, currency: e.target.value as Currency })}
-            >
-              {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Select>
-          </Field>
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Rate per hour">
+              <Input
+                type="number" step="0.01" min="0" value={rateDraft.rate}
+                onChange={(e) => setRateDraft({ ...rateDraft, rate: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="Currency">
+              <Select
+                value={rateDraft.currency}
+                onChange={(e) => setRateDraft({ ...rateDraft, currency: e.target.value as Currency })}
+              >
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </Select>
+            </Field>
+          </div>
           <Field label="Effective from" hint="Periods starting on or after this date use the new rate.">
             <Input
               type="date" value={rateDraft.effectiveFrom}
@@ -483,15 +603,16 @@ export function HourlyPanel({
           <Field label="Notes">
             <Input
               value={rateDraft.notes}
+              placeholder="Agreed in the SOW"
               onChange={(e) => setRateDraft({ ...rateDraft, notes: e.target.value })}
             />
           </Field>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setShowRateModal(false)}>Cancel</Button>
-          <Button
-            disabled={busy || rateDraft.rate <= 0}
-            onClick={async () => {
+          <ModalActions
+            onCancel={() => setShowRateModal(false)}
+            confirmLabel="Save rate"
+            busy={busy}
+            disabled={rateDraft.rate <= 0}
+            onConfirm={async () => {
               const ok = await run(() => createProjectRate(project.id, {
                 rate: rateDraft.rate,
                 currency: rateDraft.currency,
@@ -500,9 +621,7 @@ export function HourlyPanel({
               }))
               if (ok) setShowRateModal(false)
             }}
-          >
-            Save rate
-          </Button>
+          />
         </div>
       </Modal>
       )}
@@ -513,40 +632,45 @@ export function HourlyPanel({
         title={editingEntryId ? 'Edit period' : 'Log hours'}
         onClose={() => setShowEntryModal(false)}
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Period start"
+              hint={project.cadence === 'Weekly' ? 'Snaps to the Monday of that week.' : undefined}
+            >
+              <Input
+                type="date" value={entryDraft.periodStart}
+                onChange={(e) => setEntryDraft({ ...entryDraft, periodStart: e.target.value })}
+              />
+            </Field>
+            <Field label="Period end" hint={project.cadence !== 'None' ? 'Blank uses the whole period.' : undefined}>
+              <Input
+                type="date" value={entryDraft.periodEnd}
+                onChange={(e) => setEntryDraft({ ...entryDraft, periodEnd: e.target.value })}
+              />
+            </Field>
+          </div>
           <Field
-            label="Period start"
-            hint={project.cadence === 'Weekly' ? 'Snaps to the Monday of that week.' : undefined}
+            label="Hours"
+            hint={currentRate ? `Bills at ${formatCurrency(currentRate.rate, currentRate.currency)} an hour.` : 'No rate set yet.'}
           >
-            <Input
-              type="date" value={entryDraft.periodStart}
-              onChange={(e) => setEntryDraft({ ...entryDraft, periodStart: e.target.value })}
-            />
-          </Field>
-          <Field label="Period end" hint={project.cadence !== 'None' ? 'Leave blank to use the whole period.' : undefined}>
-            <Input
-              type="date" value={entryDraft.periodEnd}
-              onChange={(e) => setEntryDraft({ ...entryDraft, periodEnd: e.target.value })}
-            />
-          </Field>
-          <Field label="Hours">
             <Input
               type="number" step="0.25" min="0" value={entryDraft.hours}
               onChange={(e) => setEntryDraft({ ...entryDraft, hours: Number(e.target.value) })}
             />
           </Field>
-        </div>
-        <Field label="Notes">
-          <Textarea
-            rows={2} value={entryDraft.notes}
-            onChange={(e) => setEntryDraft({ ...entryDraft, notes: e.target.value })}
-          />
-        </Field>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setShowEntryModal(false)}>Cancel</Button>
-          <Button
-            disabled={busy || entryDraft.hours <= 0}
-            onClick={async () => {
+          <Field label="Notes">
+            <Textarea
+              rows={2} value={entryDraft.notes}
+              onChange={(e) => setEntryDraft({ ...entryDraft, notes: e.target.value })}
+            />
+          </Field>
+          <ModalActions
+            onCancel={() => setShowEntryModal(false)}
+            confirmLabel={editingEntryId ? 'Update' : 'Log'}
+            busy={busy}
+            disabled={entryDraft.hours <= 0}
+            onConfirm={async () => {
               const payload = {
                 periodStart: entryDraft.periodStart,
                 ...(entryDraft.periodEnd ? { periodEnd: entryDraft.periodEnd } : {}),
@@ -563,9 +687,7 @@ export function HourlyPanel({
               )
               if (ok) setShowEntryModal(false)
             }}
-          >
-            Save
-          </Button>
+          />
         </div>
       </Modal>
       )}
@@ -573,18 +695,20 @@ export function HourlyPanel({
       {/* --- Generate modal --- */}
       {showGenerateModal && (
       <Modal title="Generate periods" onClose={() => setShowGenerateModal(false)}>
-        <p className="mb-4 text-sm text-[var(--text-secondary)]">
-          Fills in every {project.cadence === 'Monthly' ? 'month' : 'week'} between these dates at the
-          committed hours, skipping any already logged.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="From">
-            <Input type="date" value={genDraft.from} onChange={(e) => setGenDraft({ ...genDraft, from: e.target.value })} />
-          </Field>
-          <Field label="To">
-            <Input type="date" value={genDraft.to} onChange={(e) => setGenDraft({ ...genDraft, to: e.target.value })} />
-          </Field>
-          <Field label="Hours per period" hint={project.committedHours ? `Defaults to ${hoursLabel(project.committedHours)}h.` : 'Set this or the project committed hours.'}>
+        <div className="grid gap-3">
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Fills in every {project.cadence === 'Monthly' ? 'month' : 'week'} between these dates at the
+            committed hours, skipping any already logged.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="From">
+              <Input type="date" value={genDraft.from} onChange={(e) => setGenDraft({ ...genDraft, from: e.target.value })} />
+            </Field>
+            <Field label="To">
+              <Input type="date" value={genDraft.to} onChange={(e) => setGenDraft({ ...genDraft, to: e.target.value })} />
+            </Field>
+          </div>
+          <Field label="Hours per period" hint={project.committedHours ? `Blank uses ${hoursLabel(project.committedHours)}h.` : 'Set this or the project committed hours.'}>
             <Input
               type="number" step="0.25" min="0" value={genDraft.hours}
               placeholder={project.committedHours ? String(project.committedHours) : ''}
@@ -594,12 +718,11 @@ export function HourlyPanel({
           <Field label="Notes">
             <Input value={genDraft.notes} onChange={(e) => setGenDraft({ ...genDraft, notes: e.target.value })} />
           </Field>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setShowGenerateModal(false)}>Cancel</Button>
-          <Button
-            disabled={busy}
-            onClick={async () => {
+          <ModalActions
+            onCancel={() => setShowGenerateModal(false)}
+            confirmLabel="Generate"
+            busy={busy}
+            onConfirm={async () => {
               const ok = await run(() => generateTimeEntries(project.id, {
                 from: genDraft.from,
                 to: genDraft.to,
@@ -608,66 +731,149 @@ export function HourlyPanel({
               }))
               if (ok) setShowGenerateModal(false)
             }}
-          >
-            Generate
-          </Button>
+          />
         </div>
       </Modal>
       )}
 
       {/* --- Invoice modal --- */}
       {showInvoiceModal && (
-      <Modal title="Create invoice" onClose={() => setShowInvoiceModal(false)}>
-        <p className="mb-4 text-sm text-[var(--text-secondary)]">
-          Sweeps every unbilled period overlapping this range into one invoice.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="From">
-            <Input type="date" value={invoiceDraft.from} onChange={(e) => setInvoiceDraft({ ...invoiceDraft, from: e.target.value })} />
-          </Field>
-          <Field label="To">
-            <Input type="date" value={invoiceDraft.to} onChange={(e) => setInvoiceDraft({ ...invoiceDraft, to: e.target.value })} />
-          </Field>
-          <Field
-            label="Invoice number"
-            hint={project.invoicePrefix ? `Blank auto-numbers as ${project.invoicePrefix}-YYYY-NNN.` : 'Blank auto-numbers it.'}
+      <Modal title="Create invoice" onClose={() => setShowInvoiceModal(false)} size="lg">
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* No hint under these two: the preview below spells out exactly what the
+                range catches, and a wrapping hint under one of a pair of date fields
+                pushes them out of line with each other. */}
+            <Field label="Cover work from">
+              <Input type="date" value={invoiceDraft.from} onChange={(e) => setInvoiceDraft({ ...invoiceDraft, from: e.target.value })} />
+            </Field>
+            <Field label="To">
+              <Input type="date" value={invoiceDraft.to} onChange={(e) => setInvoiceDraft({ ...invoiceDraft, to: e.target.value })} />
+            </Field>
+          </div>
+
+          {/* Exactly what Create is about to bill, so the range is checkable before it
+              is committed rather than after the invoice number has been burned. */}
+          <div
+            className="rounded-lg px-4 py-3"
+            style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-base)' }}
           >
-            <Input
-              value={invoiceDraft.invoiceNumber}
-              placeholder="auto"
-              onChange={(e) => setInvoiceDraft({ ...invoiceDraft, invoiceNumber: e.target.value })}
+            {sweep.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--overdue)' }}>
+                No unbilled periods in that range. Widen it, or log the hours first.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {sweep.length} period{sweep.length === 1 ? '' : 's'}
+                  </span>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    <span className="font-mono tabular-nums font-semibold text-[var(--text-primary)]">
+                      {hoursLabel(sweepHours)}h
+                    </span>
+                  </span>
+                  <span className="ml-auto font-mono tabular-nums text-base font-semibold" style={{ color: 'var(--accent)' }}>
+                    {formatCurrency(sweepValue, sweep[0].currency)}
+                  </span>
+                </div>
+                <ul className="mt-2 space-y-0.5 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  {sweep.slice(0, 6).map((e) => (
+                    <li key={e.id} className="flex justify-between gap-4">
+                      <span>{periodLabel(e)}</span>
+                      <span className="font-mono tabular-nums">{hoursLabel(e.hours)}h</span>
+                    </li>
+                  ))}
+                  {sweep.length > 6 && <li>and {sweep.length - 6} more</li>}
+                </ul>
+              </>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field
+              label="Invoice number"
+              hint={project.invoicePrefix ? `Blank numbers it ${project.invoicePrefix.toUpperCase()}-YYYY-NNN.` : 'Blank numbers it automatically.'}
+            >
+              <Input
+                value={invoiceDraft.invoiceNumber}
+                placeholder="auto"
+                onChange={(e) => setInvoiceDraft({ ...invoiceDraft, invoiceNumber: e.target.value })}
+              />
+            </Field>
+            <Field label="Invoice date" hint="Printed on the document.">
+              <Input type="date" value={invoiceDraft.invoiceDate} onChange={(e) => setInvoiceDraft({ ...invoiceDraft, invoiceDate: e.target.value })} />
+            </Field>
+            <Field
+              label="Due date"
+              hint={
+                invoiceDraft.dateDue || !suggestedDue()
+                  ? undefined
+                  : `Blank uses ${formatDate(suggestedDue())}.`
+              }
+            >
+              <Input type="date" value={invoiceDraft.dateDue} onChange={(e) => setInvoiceDraft({ ...invoiceDraft, dateDue: e.target.value })} />
+            </Field>
+          </div>
+
+          <Field label="Work performed" hint="Printed above the table. Prefilled from the project's invoicing details.">
+            <Textarea
+              rows={3} value={invoiceDraft.description}
+              onChange={(e) => setInvoiceDraft({ ...invoiceDraft, description: e.target.value })}
             />
           </Field>
-          <Field label="Due date">
-            <Input type="date" value={invoiceDraft.dateDue} onChange={(e) => setInvoiceDraft({ ...invoiceDraft, dateDue: e.target.value })} />
-          </Field>
-        </div>
-        <Field label="Description" hint="Printed above the table on the invoice.">
-          <Textarea
-            rows={2} value={invoiceDraft.description}
-            onChange={(e) => setInvoiceDraft({ ...invoiceDraft, description: e.target.value })}
-          />
-        </Field>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => setShowInvoiceModal(false)}>Cancel</Button>
-          <Button
-            disabled={busy || !invoiceDraft.from || !invoiceDraft.to}
-            onClick={async () => {
+
+          <ModalActions
+            onCancel={() => setShowInvoiceModal(false)}
+            confirmLabel={sweep.length === 0 ? 'Create' : `Create for ${formatCurrency(sweepValue, sweep[0].currency)}`}
+            busy={busy}
+            disabled={!invoiceDraft.from || !invoiceDraft.to || sweep.length === 0}
+            onConfirm={async () => {
+              setNotice(null)
               const ok = await run(() => createInvoice(project.id, {
                 from: invoiceDraft.from,
                 to: invoiceDraft.to,
                 invoiceNumber: invoiceDraft.invoiceNumber || null,
+                invoiceDate: invoiceDraft.invoiceDate || null,
                 dateDue: invoiceDraft.dateDue || null,
                 description: invoiceDraft.description || null,
               }))
-              if (ok) setShowInvoiceModal(false)
+              if (ok) {
+                setShowInvoiceModal(false)
+                setNotice('Invoice raised. The PDF is filed under Files further down this page.')
+                setTimeout(() => setNotice(null), 6000)
+              }
             }}
-          >
-            Create
-          </Button>
+          />
         </div>
       </Modal>
       )}
+    </div>
+  )
+}
+
+/// The footer every modal on this page shares: sticks to the bottom on a phone, where
+/// the form scrolls, and sits inline on a desktop. Copied from the milestone and tip
+/// modals so all five behave the same way.
+function ModalActions({
+  onCancel,
+  onConfirm,
+  confirmLabel,
+  busy,
+  disabled,
+}: {
+  onCancel: () => void
+  onConfirm: () => void | Promise<void>
+  confirmLabel: string
+  busy?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <div className="sticky bottom-0 -mx-6 mt-2 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
+      <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
+      <Button type="button" disabled={busy || disabled} onClick={() => void onConfirm()}>
+        {busy ? 'Saving…' : confirmLabel}
+      </Button>
     </div>
   )
 }

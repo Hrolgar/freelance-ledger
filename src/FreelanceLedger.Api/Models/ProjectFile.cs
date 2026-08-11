@@ -17,4 +17,9 @@ public class ProjectFile
     public long SizeBytes { get; set; }
     public string StorageKey { get; set; } = string.Empty;
     public DateTime UploadedAt { get; set; }
+
+    /// Set when this file was filed automatically by raising an invoice, rather than
+    /// uploaded by hand. Lets the copy be replaced on re-issue and removed when the
+    /// invoice is deleted, instead of leaving orphans behind in the Files list.
+    public int? SourceInvoiceMilestoneId { get; set; }
 }

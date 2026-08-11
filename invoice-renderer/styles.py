@@ -1,5 +1,6 @@
 """Consulting Bold CSS — the one approved house style for pdf-mcp."""
 from __future__ import annotations
+
 import pathlib
 
 FONTS_DIR = pathlib.Path(__file__).parent / "fonts"
@@ -89,6 +90,15 @@ table:not(.cover-meta){{border-collapse:collapse;width:100%;margin:14px 0;font-s
 table:not(.cover-meta) th{{background:{INK2};color:#fff;text-align:left;padding:7px 10px;
   font-family:'Archivo';font-weight:600;font-size:8.6pt;letter-spacing:.02em;}}
 table:not(.cover-meta) td{{border-bottom:1px solid {RULE};padding:7px 10px;vertical-align:top;}}
+
+/* Label/value block, e.g. an invoice's bank details. Markdown cannot express a
+   table with no header row, so those were emitted with an empty one -- which the
+   rule above painted as a black bar across the page. These are emitted as raw
+   <table class="kv"> instead, with the header cells used as row labels.
+   DIVERGENCE from pdf-mcp: this block does not exist upstream. */
+table.kv th{{background:none;color:{INK2};font-family:inherit;font-weight:600;
+  font-size:9.8pt;letter-spacing:0;width:34%;
+  border-bottom:1px solid {RULE};padding:7px 10px;vertical-align:top;}}
 """
 
 

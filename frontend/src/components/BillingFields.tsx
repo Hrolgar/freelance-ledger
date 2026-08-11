@@ -1,10 +1,14 @@
-import { Field, Input, Select, Textarea } from './ui'
+import { Field, Input, Select } from './ui'
 import type { ProjectInput } from '../types'
 
-/// Billing type plus the hourly extras, shared by the Add Project modal and the
-/// Project Details form. One component so the two cannot drift apart -- an hourly
-/// project created without a cadence or prefix is a project you then have to go and
-/// fix in the other form.
+/// How the project bills: fixed price, or hourly with a cadence and committed hours.
+/// Shared by the Add Project modal and the Project Details form so the two cannot
+/// drift apart.
+///
+/// Everything that only affects the PRINTED INVOICE -- who it is addressed to, the
+/// number prefix, the wording -- lives in InvoicingCard instead. Those are set once
+/// per client and then never touched, so they do not belong in the form you open to
+/// change a status or a date.
 export function BillingFields({
   draft,
   onChange,
@@ -60,30 +64,10 @@ export function BillingFields({
                 }
               />
             </Field>
-            <Field label="Invoice prefix">
-              <Input
-                value={draft.invoicePrefix ?? ''}
-                placeholder="OC"
-                onChange={(e) => onChange({ invoicePrefix: e.target.value || null })}
-              />
-            </Field>
           </>
         )}
       </div>
 
-      {hourly && (
-        <Field
-          label="Bill to"
-          hint="Printed on the invoice instead of the client name. Usually the legal entity, one line per line."
-        >
-          <Textarea
-            rows={3}
-            value={draft.billTo ?? ''}
-            placeholder={'Operation Golden Rule, LLC\nDBA Outside Communications\nAttn: Lance Fisher, Managing Partner'}
-            onChange={(e) => onChange({ billTo: e.target.value || null })}
-          />
-        </Field>
-      )}
     </>
   )
 }

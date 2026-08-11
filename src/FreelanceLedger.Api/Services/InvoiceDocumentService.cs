@@ -14,7 +14,20 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
+    /// Everything the renderer needs: the body, plus the cover-page fields. The cover is
+    /// the first thing the client sees, so it repeats the four facts they actually want
+    /// (number, date, total, when it is due) rather than being a bare title page.
+    public record InvoiceDocument(
+        string Markdown,
+        string Title,
+        string? Subtitle,
+        string ClientLabel,
+        List<KeyValuePair<string, string>> Rows);
+
     public async Task<string?> BuildMarkdownAsync(int projectId, int invoiceId)
+        => (await BuildAsync(projectId, invoiceId))?.Markdown;
+
+    public async Task<InvoiceDocument?> BuildAsync(int projectId, int invoiceId)
     {
         var invoice = await db.Milestones
             .AsNoTracking()
@@ -44,10 +57,26 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         sb.AppendLine($"# Invoice {invoice.InvoiceNumber}");
         sb.AppendLine();
 
-        var issued = DateOnly.FromDateTime(DateTime.UtcNow);
-        var terms = string.IsNullOrWhiteSpace(profile.TermsNote)
-            ? (invoice.DateDue is { } due ? $"Payment due {due.ToString("d MMMM yyyy", Inv)}." : "")
-            : profile.TermsNote;
+        // Stamped when the invoice was raised, never "today". Re-downloading an invoice
+        // months later has to reproduce the document that was actually sent.
+        var issued = invoice.InvoiceDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // "per the SOW" is a clause, not a sentence: it hangs off a concrete due date so
+        // the client reads one line instead of a date and then a separate rule about dates.
+        var clause = FirstNonBlank(project.InvoiceTermsNote, profile.TermsNote);
+        string terms;
+        if (invoice.DateDue is { } due)
+        {
+            var approx = project.PaymentDueDayOfMonth is not null ? "on or about " : "";
+            var tail = clause is null ? "" : $", {clause.TrimEnd('.', ' ')}";
+            terms = $"Payment due {approx}{due.ToString("d MMMM yyyy", Inv)}{tail}.";
+        }
+        else
+        {
+            // No due date to hang it off, so whatever was written stands alone.
+            terms = clause is null ? "" : (clause.EndsWith('.') ? clause : clause + ".");
+        }
+
         // A milestone can carry an invoice number without a period if it was typed in
         // by hand rather than generated, so the period clause is optional.
         var period = invoice.PeriodStart is { } ps && invoice.PeriodEnd is { } pe
@@ -90,11 +119,14 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
 
         sb.AppendLine("## Work performed");
         sb.AppendLine();
-        if (!string.IsNullOrWhiteSpace(invoice.Description))
+        var work = FirstNonBlank(invoice.Description, project.InvoiceWorkDescription);
+        if (work is not null)
         {
-            sb.AppendLine(invoice.Description);
+            sb.AppendLine(work);
             sb.AppendLine();
         }
+
+        var lineLabel = FirstNonBlank(project.InvoiceLineLabel) ?? "Engineering services, hourly";
 
         sb.AppendLine("| Description | Hours | Rate | Amount |");
         sb.AppendLine("|---|---:|---:|---:|");
@@ -105,7 +137,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             // One summary line, matching the invoices already sent.
             var rate = entries[0].RateApplied;
             var hours = entries.Sum(e => e.Hours);
-            sb.AppendLine($"| Engineering services, hourly | {Num(hours)} | "
+            sb.AppendLine($"| {lineLabel} | {Num(hours)} | "
                           + $"{cur} {Money(rate)} | {cur} {Money(hours * rate)} |");
         }
         else
@@ -137,32 +169,74 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
                 sb.AppendLine(profile.PaymentNotes);
                 sb.AppendLine();
             }
-            sb.AppendLine("| | |");
-            sb.AppendLine("|---|---|");
+            // Raw HTML, not a markdown table: markdown insists on a header row, and an
+            // empty one renders as a black bar across the page in the house style.
+            sb.AppendLine("<table class=\"kv\">");
             Row("Account holder", profile.AccountHolder);
             Row("Bank", profile.BankName);
             Row("IBAN", profile.Iban);
             Row("BIC / SWIFT", profile.BicSwift);
             Row("Payment reference", invoice.InvoiceNumber);
+            sb.AppendLine("</table>");
             sb.AppendLine();
         }
 
         if (!string.IsNullOrWhiteSpace(profile.IssuerEmail))
             sb.AppendLine($"Any questions on this invoice, reply to me directly at {profile.IssuerEmail}.");
 
-        return sb.ToString();
+        // --- Cover page ---
+        // The client label is the legal entity, first line of Bill to, because that is
+        // who the document is addressed to. The display name is often the person.
+        var clientLabel = billTo.Count > 0
+            ? billTo[0]
+            : (project.Client?.Name ?? project.ClientName);
+
+        // The line label already contains commas ("Engineering services, hourly"), so the
+        // period hangs off a middot rather than a third comma.
+        var coverPeriod = invoice.PeriodStart is { } cps && invoice.PeriodEnd is { } cpe
+            ? $" · {cps.ToString("d MMMM", Inv)} to {cpe.ToString("d MMMM yyyy", Inv)}"
+            : "";
+
+        var coverRows = new List<KeyValuePair<string, string>>
+        {
+            new("Invoice number", invoice.InvoiceNumber!),
+            new("Invoice date", issued.ToString("d MMMM yyyy", Inv)),
+            new("Total due", $"{cur} {Money(invoice.Amount)}"),
+        };
+        if (invoice.DateDue is { } coverDue)
+        {
+            var approx = project.PaymentDueDayOfMonth is not null ? "On or about " : "";
+            coverRows.Add(new("Payment due", $"{approx}{coverDue.ToString("d MMMM yyyy", Inv)}"));
+        }
+        if (invoice.Status == MilestoneStatus.Paid && invoice.DatePaid is { } paidOn)
+            coverRows.Add(new("Paid", paidOn.ToString("d MMMM yyyy", Inv)));
+
+        return new InvoiceDocument(
+            Markdown: sb.ToString(),
+            Title: $"Invoice {invoice.InvoiceNumber}",
+            Subtitle: $"{lineLabel}{coverPeriod}",
+            ClientLabel: clientLabel,
+            Rows: coverRows);
 
         void Row(string label, string? value)
         {
             if (!string.IsNullOrWhiteSpace(value))
-                sb.AppendLine($"| {label} | {value} |");
+                sb.AppendLine($"<tr><th>{Escape(label)}</th><td>{Escape(value)}</td></tr>");
         }
     }
+
+    /// Bank details are free text typed in Settings and land in raw HTML, so an
+    /// ampersand in a bank name has to survive rather than start an entity.
+    private static string Escape(string value) => System.Net.WebUtility.HtmlEncode(value);
+
+    /// First value that is neither null nor whitespace, trimmed. Null when there is none.
+    private static string? FirstNonBlank(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 
     /// Renders the markdown to PDF with the vendored Consulting Bold renderer.
     /// Returns null when the renderer is unavailable, so callers can fall back to
     /// offering the markdown instead of failing outright.
-    public async Task<byte[]?> RenderPdfAsync(string markdown, string invoiceNumber, string clientName)
+    public async Task<byte[]?> RenderPdfAsync(InvoiceDocument doc)
     {
         var renderer = FindRenderer();
         if (renderer is null)
@@ -174,13 +248,15 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         var outPath = Path.Combine(Path.GetTempPath(), $"invoice-{Guid.NewGuid():N}.pdf");
         var payload = System.Text.Json.JsonSerializer.Serialize(new
         {
-            markdown,
+            markdown = doc.Markdown,
             output_path = outPath,
             meta = new
             {
-                title = $"Invoice {invoiceNumber}",
-                client = clientName,
-                subtitle = (string?)null,
+                title = doc.Title,
+                client = doc.ClientLabel,
+                subtitle = doc.Subtitle,
+                // The renderer takes rows as [label, value] pairs, in order.
+                rows = doc.Rows.Select(r => new[] { r.Key, r.Value }).ToArray(),
             },
         });
 
