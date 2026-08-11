@@ -16,6 +16,7 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
     public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
     public DbSet<ProjectRate> ProjectRates => Set<ProjectRate>();
     public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
+    public DbSet<InvoiceProfile> InvoiceProfiles => Set<InvoiceProfile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

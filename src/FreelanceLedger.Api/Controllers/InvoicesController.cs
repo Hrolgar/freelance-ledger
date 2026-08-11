@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,8 +11,50 @@ namespace FreelanceLedger.Api.Controllers;
 /// earns money through the same path a fixed-price one does.
 [ApiController]
 [Route("api/projects/{projectId:int}/invoices")]
-public class InvoicesController(LedgerDbContext db) : ControllerBase
+public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs) : ControllerBase
 {
+    /// The invoice as markdown -- the editable source, and the fallback when the PDF
+    /// renderer is not available.
+    [HttpGet("{id:int}/markdown")]
+    public async Task<IActionResult> GetMarkdown(int projectId, int id)
+    {
+        var markdown = await docs.BuildMarkdownAsync(projectId, id);
+        if (markdown is null)
+            return Problem(title: "Not Found", detail: $"Invoice {id} not found.", statusCode: 404);
+
+        return Content(markdown, "text/markdown; charset=utf-8");
+    }
+
+    /// The invoice as a PDF, in the same house style as the invoices already sent.
+    /// Available at any time, for any invoice, however old.
+    [HttpGet("{id:int}/pdf")]
+    public async Task<IActionResult> GetPdf(int projectId, int id)
+    {
+        var invoice = await db.Milestones
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == id && m.ProjectId == projectId && m.InvoiceNumber != null);
+        if (invoice is null)
+            return Problem(title: "Not Found", detail: $"Invoice {id} not found.", statusCode: 404);
+
+        var markdown = await docs.BuildMarkdownAsync(projectId, id);
+        if (markdown is null)
+            return Problem(title: "Not Found", detail: $"Invoice {id} not found.", statusCode: 404);
+
+        var project = await db.Projects.AsNoTracking()
+            .Include(p => p.Client)
+            .FirstAsync(p => p.Id == projectId);
+        var clientName = project.Client?.Name ?? project.ClientName;
+
+        var pdf = await docs.RenderPdfAsync(markdown, invoice.InvoiceNumber!, clientName);
+        if (pdf is null)
+            return Problem(
+                title: "Renderer Unavailable",
+                detail: "The PDF renderer could not run. The markdown version is available at the /markdown endpoint.",
+                statusCode: 503);
+
+        return File(pdf, "application/pdf", $"Invoice-{invoice.InvoiceNumber}.pdf");
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll(int projectId)
     {
