@@ -206,8 +206,9 @@ export function Checkbox(props: InputHTMLAttributes<HTMLInputElement>) {
 export function Field({
   label,
   required,
+  hint,
   children,
-}: PropsWithChildren<{ label: string; required?: boolean }>) {
+}: PropsWithChildren<{ label: string; required?: boolean; hint?: string }>) {
   return (
     <div className="space-y-1.5">
       <label className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
@@ -215,6 +216,9 @@ export function Field({
         {required && <span className="ml-1" style={{ color: 'var(--overdue)' }}>*</span>}
       </label>
       {children}
+      {hint && (
+        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{hint}</p>
+      )}
     </div>
   )
 }

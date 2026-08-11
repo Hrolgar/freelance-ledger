@@ -21,6 +21,12 @@ const emptyProject: ProjectInput = {
   dateAwarded: null,
   dateCompleted: null,
   notes: null,
+  billingType: 'Fixed',
+  invoicePrefix: null,
+  billTo: null,
+  cadence: 'None',
+  committedHours: null,
+  files: [],
 }
 
 const emptyNewClient: ClientInput = {

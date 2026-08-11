@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { autoFetchRates, createPlatform, deletePlatform, getExchangeRates, getPlatforms, updatePlatform } from '../api'
 import { AppCard, Button, ErrorState, Field, Input, PageIntro, SectionHeading, Select } from '../components/ui'
+import { InvoiceProfileCard } from '../components/InvoiceProfileCard'
 import { Modal } from '../components/Modal'
 import { useMainCurrency } from '../lib/useMainCurrency'
 import { useMyTimezone } from '../lib/useMyTimezone'
@@ -312,6 +313,8 @@ export default function Settings() {
           </table>
         </div>
       </AppCard>
+
+      <InvoiceProfileCard />
     </div>
   )
 }
