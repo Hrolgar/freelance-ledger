@@ -14,6 +14,8 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
     public DbSet<Investment> Investments => Set<Investment>();
     public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
     public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
+    public DbSet<ProjectRate> ProjectRates => Set<ProjectRate>();
+    public DbSet<TimeEntry> TimeEntries => Set<TimeEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,12 +55,44 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
                 .WithOne(f => f.Project)
                 .HasForeignKey(f => f.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(p => p.Rates)
+                .WithOne(r => r.Project)
+                .HasForeignKey(r => r.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(p => p.TimeEntries)
+                .WithOne(t => t.Project)
+                .HasForeignKey(t => t.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Milestone>(e =>
         {
             e.HasKey(m => m.Id);
             e.Property(m => m.Amount).HasPrecision(18, 2);
+            e.Property(m => m.Hours).HasPrecision(9, 2);
+            e.Property(m => m.RateApplied).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<ProjectRate>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Rate).HasPrecision(18, 2);
+            e.HasIndex(r => new { r.ProjectId, r.EffectiveFrom });
+        });
+
+        modelBuilder.Entity<TimeEntry>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Hours).HasPrecision(9, 2);
+            e.Property(t => t.RateApplied).HasPrecision(18, 2);
+            e.HasIndex(t => new { t.ProjectId, t.PeriodStart });
+            // An invoice is a Milestone. Deleting that milestone must NOT delete the
+            // logged weeks -- it releases them back to unbilled so they can be
+            // re-invoiced, which is what you want if an invoice is issued in error.
+            e.HasOne(t => t.InvoiceMilestone)
+                .WithMany(m => m.TimeEntries)
+                .HasForeignKey(t => t.InvoiceMilestoneId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Tip>(e =>
