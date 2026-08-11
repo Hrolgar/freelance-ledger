@@ -164,7 +164,7 @@ export function InvoicingCard({
 
           <Field
             label="Pays on day of month"
-            hint="Sets the due date to that day of the following month, and prints it as on or about."
+            hint="Sets the due date to that day of the following month. For your own overdue tracking only, never printed on the invoice."
           >
             <Input
               type="number"
@@ -180,12 +180,12 @@ export function InvoicingCard({
         </div>
 
         <Field
-          label="Terms clause"
-          hint="Hangs off the due date, so write it as a clause. With 20 above and this set to per the SOW, the invoice reads: Payment due on or about 20 August 2026, per the SOW."
+          label="Terms note"
+          hint="Optional. Printed word for word under the invoice date. Leave it blank and the invoice says nothing about when payment is due."
         >
           <Input
             value={draft.invoiceTermsNote ?? ''}
-            placeholder="per the SOW"
+            placeholder="(nothing about payment timing)"
             onChange={(e) => set('invoiceTermsNote', e.target.value || null)}
           />
         </Field>

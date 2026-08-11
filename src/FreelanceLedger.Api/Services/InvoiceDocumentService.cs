@@ -61,21 +61,18 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         // months later has to reproduce the document that was actually sent.
         var issued = invoice.InvoiceDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
 
-        // "per the SOW" is a clause, not a sentence: it hangs off a concrete due date so
-        // the client reads one line instead of a date and then a separate rule about dates.
-        var clause = FirstNonBlank(project.InvoiceTermsNote, profile.TermsNote);
-        string terms;
-        if (invoice.DateDue is { } due)
-        {
-            var approx = project.PaymentDueDayOfMonth is not null ? "on or about " : "";
-            var tail = clause is null ? "" : $", {clause.TrimEnd('.', ' ')}";
-            terms = $"Payment due {approx}{due.ToString("d MMMM yyyy", Inv)}{tail}.";
-        }
-        else
-        {
-            // No due date to hang it off, so whatever was written stands alone.
-            terms = clause is null ? "" : (clause.EndsWith('.') ? clause : clause + ".");
-        }
+        // NO PAYMENT DUE DATE ON THE DOCUMENT. Hrolgar's decision 2026-08-11: he does not
+        // want a due date indicated to the client. `Milestone.DateDue` is still set and
+        // still drives the overdue flagging inside the ledger -- it is simply never
+        // printed, and neither is a cover row for it.
+        //
+        // The terms note survives as an optional free sentence, printed VERBATIM. It used
+        // to be a clause interpolated onto the due date ("per the SOW"), which no longer
+        // has anything to hang off. Blank, which is how it currently is, prints nothing.
+        var termsNote = FirstNonBlank(project.InvoiceTermsNote, profile.TermsNote);
+        var terms = termsNote is null
+            ? ""
+            : (termsNote.EndsWith('.') ? termsNote : termsNote + ".");
 
         // A milestone can carry an invoice number without a period if it was typed in
         // by hand rather than generated, so the period clause is optional.
@@ -203,11 +200,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             new("Invoice date", issued.ToString("d MMMM yyyy", Inv)),
             new("Total due", $"{cur} {Money(invoice.Amount)}"),
         };
-        if (invoice.DateDue is { } coverDue)
-        {
-            var approx = project.PaymentDueDayOfMonth is not null ? "On or about " : "";
-            coverRows.Add(new("Payment due", $"{approx}{coverDue.ToString("d MMMM yyyy", Inv)}"));
-        }
+        // Deliberately no "Payment due" row -- see the note above.
         if (invoice.Status == MilestoneStatus.Paid && invoice.DatePaid is { } paidOn)
             coverRows.Add(new("Paid", paidOn.ToString("d MMMM yyyy", Inv)));
 

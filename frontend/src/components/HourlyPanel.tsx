@@ -948,8 +948,8 @@ export function HourlyPanel({
               label="Due date"
               hint={
                 invoiceDraft.dateDue || !suggestedDue()
-                  ? undefined
-                  : `Blank uses ${formatDate(suggestedDue())}.`
+                  ? 'Yours, not theirs. Never printed on the invoice.'
+                  : `Blank uses ${formatDate(suggestedDue())}. Never printed on the invoice.`
               }
             >
               <Input type="date" value={invoiceDraft.dateDue} onChange={(e) => setInvoiceDraft({ ...invoiceDraft, dateDue: e.target.value })} />
