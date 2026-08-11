@@ -46,11 +46,15 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
 
         var issued = DateOnly.FromDateTime(DateTime.UtcNow);
         var terms = string.IsNullOrWhiteSpace(profile.TermsNote)
-            ? (invoice.DateDue is { } due ? $"Payment due {due:d MMMM yyyy}." : "")
+            ? (invoice.DateDue is { } due ? $"Payment due {due.ToString("d MMMM yyyy", Inv)}." : "")
             : profile.TermsNote;
+        // A milestone can carry an invoice number without a period if it was typed in
+        // by hand rather than generated, so the period clause is optional.
+        var period = invoice.PeriodStart is { } ps && invoice.PeriodEnd is { } pe
+            ? $"Period covered {ps.ToString("d MMMM", Inv)} to {pe.ToString("d MMMM yyyy", Inv)}. "
+            : "";
         sb.AppendLine(
-            $"Invoice date {issued:d MMMM yyyy}. Period covered "
-            + $"{invoice.PeriodStart:d MMMM} to {invoice.PeriodEnd:d MMMM yyyy}. {terms}".Trim());
+            $"Invoice date {issued.ToString("d MMMM yyyy", Inv)}. {period}{terms}".Trim());
         sb.AppendLine();
 
         // Address blocks need explicit <br> or the markdown collapses them onto one line.
@@ -109,7 +113,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             // A rate change inside the period: show each period so the total is checkable.
             foreach (var e in entries)
                 sb.AppendLine(
-                    $"| {e.PeriodStart:d MMM} to {e.PeriodEnd:d MMM yyyy} | {Num(e.Hours)} | "
+                    $"| {e.PeriodStart.ToString("d MMM", Inv)} to {e.PeriodEnd.ToString("d MMM yyyy", Inv)} | {Num(e.Hours)} | "
                     + $"{cur} {Money(e.RateApplied)} | {cur} {Money(e.Hours * e.RateApplied)} |");
         }
 
