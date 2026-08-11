@@ -98,6 +98,17 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
         if (request.To < request.From)
             return Problem(title: "Invalid Range", detail: "'to' is before 'from'.", statusCode: 400);
 
+        // A mistyped year would otherwise silently create thousands of rows against
+        // real financial data. Two years of weeks is well past any sane catch-up.
+        const int maxPeriods = 120;
+        var periodCount = RateResolutionService
+            .PeriodsBetween(project.Cadence, request.From, request.To).Take(maxPeriods + 1).Count();
+        if (periodCount > maxPeriods)
+            return Problem(
+                title: "Range Too Wide",
+                detail: $"That range covers more than {maxPeriods} periods. Narrow it down.",
+                statusCode: 400);
+
         var existing = await db.TimeEntries
             .Where(t => t.ProjectId == projectId)
             .Select(t => new { t.PeriodStart, t.PeriodEnd })
