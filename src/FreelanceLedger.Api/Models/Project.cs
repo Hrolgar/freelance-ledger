@@ -26,6 +26,12 @@ public class Project
     /// Prefix for generated invoice numbers, e.g. "OC" yields OC-2026-001.
     public string? InvoicePrefix { get; set; }
 
+    /// Who the invoice is addressed to, one line per line. This is often NOT the
+    /// client's display name: an invoice usually has to name the legal entity rather
+    /// than the person or the brand, or it stalls in their accounts payable. Falls
+    /// back to the client name when blank.
+    public string? BillTo { get; set; }
+
     /// How often committed hours recur on this project: weekly, monthly, or not at all.
     public HoursCadence Cadence { get; set; } = HoursCadence.None;
 

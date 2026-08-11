@@ -18,10 +18,20 @@ RUN npm run build
 
 # --- Stage 3: runtime ---
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
-RUN apt-get update && apt-get install -y curl --no-install-recommends && rm -rf /var/lib/apt/lists/*
+# python3 + WeasyPrint render invoice PDFs in the Consulting Bold house style, so a
+# generated invoice matches the ones already sent by hand. The alternative was a
+# second container purely to render a one-page PDF.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl \
+      python3 \
+      python3-weasyprint \
+      python3-markdown \
+      python3-pypdf \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=api-build /app/publish ./
 COPY --from=frontend-build /src/frontend/dist ./wwwroot/
+COPY invoice-renderer/ ./invoice-renderer/
 
 EXPOSE 8989
 VOLUME ["/data"]
