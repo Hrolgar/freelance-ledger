@@ -106,6 +106,14 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
         if (milestone is null)
             return Problem(title: "Not Found", detail: $"Milestone {id} not found.", statusCode: 404);
 
+        // A generated invoice is a milestone, so this route could otherwise delete a
+        // PAID invoice that the invoices route refuses to touch. Same rule both ways.
+        if (milestone.InvoiceNumber is not null && milestone.Status == MilestoneStatus.Paid)
+            return Problem(
+                title: "Invoice Paid",
+                detail: $"Milestone {id} is invoice {milestone.InvoiceNumber} and is marked paid. Change its status first if you really mean to remove it.",
+                statusCode: 409);
+
         db.Milestones.Remove(milestone);
         await db.SaveChangesAsync();
         return NoContent();

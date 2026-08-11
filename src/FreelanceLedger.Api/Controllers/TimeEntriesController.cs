@@ -209,6 +209,14 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
         if (entry.Hours <= 0)
             return Problem(title: "Invalid Hours", detail: "Hours must be greater than zero.", statusCode: 400);
 
+        // There are 744 hours in the longest month. A figure past this is a typo, and
+        // a typo here becomes an invoice sent to a client.
+        if (entry.Hours > 744)
+            return Problem(
+                title: "Implausible Hours",
+                detail: $"{entry.Hours:0.##} hours in one period is more than there are hours in a month. Check the figure.",
+                statusCode: 400);
+
         if (entry.PeriodEnd < entry.PeriodStart)
             return Problem(
                 title: "Invalid Period",

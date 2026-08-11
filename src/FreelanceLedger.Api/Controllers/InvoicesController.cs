@@ -154,23 +154,56 @@ public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs)
         };
 
         // Two writes are needed because the entries need the milestone's generated id.
-        // Wrapped in a transaction so a failure between them cannot leave an invoice
-        // standing with its hours still marked unbilled, which would invite billing
-        // the same work twice.
-        await using (var tx = await db.Database.BeginTransactionAsync())
+        // Both happen in one transaction, and the periods are re-checked inside it:
+        // two concurrent requests would otherwise each sweep the same unbilled hours
+        // and the second would steal them, leaving the first invoice carrying an
+        // amount with nothing behind it.
+        await using var tx = await db.Database.BeginTransactionAsync();
+
+        var ids = entries.Select(e => e.Id).ToList();
+        var stillUnbilled = await db.TimeEntries
+            .Where(t => ids.Contains(t.Id) && t.InvoiceMilestoneId == null)
+            .ToListAsync();
+
+        if (stillUnbilled.Count != entries.Count)
         {
-            db.Milestones.Add(invoice);
-            await db.SaveChangesAsync();
-
-            foreach (var entry in entries)
-                entry.InvoiceMilestoneId = invoice.Id;
-            await db.SaveChangesAsync();
-
-            await tx.CommitAsync();
+            await tx.RollbackAsync();
+            return Problem(
+                title: "Periods Already Invoiced",
+                detail: "Some of those periods were invoiced while this request was in flight. Reload and try again.",
+                statusCode: 409);
         }
 
+        db.Milestones.Add(invoice);
+        var duplicateNumber = false;
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // The unique index caught a number this request had already checked was
+            // free -- another request took it in between.
+            duplicateNumber = true;
+        }
+
+        if (duplicateNumber)
+        {
+            await tx.RollbackAsync();
+            return Problem(
+                title: "Duplicate Invoice Number",
+                detail: $"Invoice {invoiceNumber} was created by another request. Try again.",
+                statusCode: 409);
+        }
+
+        foreach (var entry in stillUnbilled)
+            entry.InvoiceMilestoneId = invoice.Id;
+        await db.SaveChangesAsync();
+
+        await tx.CommitAsync();
+
         return CreatedAtAction(nameof(GetById), new { projectId, id = invoice.Id },
-            new { invoice, periods = entries.Count, totalHours });
+            new { invoice, periods = stillUnbilled.Count, totalHours });
     }
 
     [HttpGet("{id:int}")]
