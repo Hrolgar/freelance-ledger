@@ -20,4 +20,17 @@ public class Milestone
     public DateOnly? DateDue { get; set; }
     public DateOnly? DatePaid { get; set; }
     public int SortOrder { get; set; }
+
+    // --- Hourly invoice fields. All null on ordinary fixed-price milestones. ---
+    // When a milestone represents a generated invoice, these record how the Amount
+    // was derived so the line reads "19.5h x USD 60.00" and stays reproducible.
+    public decimal? Hours { get; set; }
+    public decimal? RateApplied { get; set; }
+    public DateOnly? PeriodStart { get; set; }
+    public DateOnly? PeriodEnd { get; set; }
+    public string? InvoiceNumber { get; set; }
+
+    [JsonIgnore]
+    [ValidateNever]
+    public ICollection<TimeEntry> TimeEntries { get; set; } = [];
 }

@@ -19,6 +19,20 @@ public enum ProjectStatus
     Paid
 }
 
+public enum BillingType
+{
+    Fixed = 0,
+    Hourly = 1
+}
+
+/// How often an hourly project's committed hours recur. None = purely ad-hoc logging.
+public enum HoursCadence
+{
+    None = 0,
+    Weekly = 1,
+    Monthly = 2
+}
+
 public enum MilestoneStatus
 {
     Pending,

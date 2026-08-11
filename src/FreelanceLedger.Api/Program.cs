@@ -21,6 +21,7 @@ builder.Services
     });
 builder.Services.AddHttpClient<ExchangeRateService>();
 builder.Services.AddScoped<ExchangeRateService>();
+builder.Services.AddScoped<RateResolutionService>();
 builder.Services.AddHostedService<BackupHostedService>();
 builder.Services.AddHealthChecks().AddDbContextCheck<LedgerDbContext>();
 builder.Services.AddOpenApi();
