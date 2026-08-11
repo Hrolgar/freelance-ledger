@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createClient, createProject, deleteProject, getClients, getPlatforms, getProjects } from '../api'
 import { ProjectStatusBadge } from '../components/StatusBadge'
+import { BillingFields } from '../components/BillingFields'
 import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
@@ -36,6 +37,7 @@ const emptyNewClient: ClientInput = {
 
 export default function Projects() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
@@ -68,6 +70,25 @@ export default function Projects() {
   useEffect(() => {
     void load()
   }, [])
+
+  // Arriving from a client page as /projects?new=1&clientId=20 opens the Add Project
+  // modal with that client already chosen, so the client detail page does not need a
+  // second copy of this form. The params are cleared once consumed so a refresh or a
+  // back-navigation does not reopen it.
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return
+    if (clients.length === 0) return // wait for the client list before preselecting
+
+    const requested = Number(searchParams.get('clientId'))
+    const client = clients.find((c) => c.id === requested)
+    setDraft({
+      ...emptyProject,
+      clientId: client?.id ?? null,
+      clientName: client?.name ?? '',
+    })
+    setShowAddProject(true)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, clients, setSearchParams])
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -415,6 +436,7 @@ export default function Projects() {
                 <Input type="date" value={isoDate(draft.dateCompleted)} onChange={(e) => setDraft((c) => ({ ...c, dateCompleted: e.target.value || null }))} />
               </Field>
             </div>
+            <BillingFields draft={draft} onChange={(patch) => setDraft((c) => ({ ...c, ...patch }))} />
             <Field label="Notes">
               <Textarea value={draft.notes ?? ''} onChange={(e) => setDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>

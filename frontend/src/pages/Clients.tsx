@@ -228,6 +228,9 @@ function ClientDetail() {
         description={[client.aliases, client.country].filter(Boolean).join(' · ') || 'Client profile'}
         action={
           <div className="flex gap-2">
+            <Link to={`/projects?new=1&clientId=${client.id}`}>
+              <Button>+ New Project</Button>
+            </Link>
             <Button variant="secondary" onClick={() => setEditing(true)}>Edit</Button>
             <Button variant="danger" onClick={() => void handleDelete()}>Delete</Button>
             <Link to="/clients"><Button variant="ghost">All Clients</Button></Link>
@@ -302,7 +305,15 @@ function ClientDetail() {
 
       {/* Projects */}
       <AppCard>
-        <SectionHeading title="Projects" description={`${client.projects.length} total`} />
+        <SectionHeading
+          title="Projects"
+          description={`${client.projects.length} total`}
+          action={
+            <Link to={`/projects?new=1&clientId=${client.id}`}>
+              <Button variant="secondary" className="text-xs">+ Add</Button>
+            </Link>
+          }
+        />
         <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-sm">
             <thead>
