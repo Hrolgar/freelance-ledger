@@ -412,17 +412,22 @@ export default function Projects() {
                 })()}
               </Field>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Initial Full Price (optional)">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={draft.initialFullPrice ?? ''}
-                  onChange={(e) => setDraft((c) => ({ ...c, initialFullPrice: e.target.value === '' ? null : Number(e.target.value) }))}
-                />
-              </Field>
-            </div>
+            <BillingFields draft={draft} onChange={(patch) => setDraft((c) => ({ ...c, ...patch }))} />
+            {/* Meaningless on hourly work, where the total is however many hours
+                end up worked rather than a figure agreed up front. */}
+            {draft.billingType !== 'Hourly' && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <Field label="Initial Full Price (optional)">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={draft.initialFullPrice ?? ''}
+                    onChange={(e) => setDraft((c) => ({ ...c, initialFullPrice: e.target.value === '' ? null : Number(e.target.value) }))}
+                  />
+                </Field>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <Field label="Status">
                 <Select value={draft.status} onChange={(e) => setDraft((c) => ({ ...c, status: e.target.value as Project['status'] }))}>
@@ -436,7 +441,6 @@ export default function Projects() {
                 <Input type="date" value={isoDate(draft.dateCompleted)} onChange={(e) => setDraft((c) => ({ ...c, dateCompleted: e.target.value || null }))} />
               </Field>
             </div>
-            <BillingFields draft={draft} onChange={(patch) => setDraft((c) => ({ ...c, ...patch }))} />
             <Field label="Notes">
               <Textarea value={draft.notes ?? ''} onChange={(e) => setDraft((c) => ({ ...c, notes: e.target.value || null }))} />
             </Field>
