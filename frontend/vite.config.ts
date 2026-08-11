@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+const useDevPolling = (globalThis as any).process?.env?.VITE_DEV_POLLING === '1'
+
 export default defineConfig({
   plugins: [
     react(),
@@ -46,6 +48,7 @@ export default defineConfig({
     }),
   ],
   server: {
+    watch: useDevPolling ? { usePolling: true, interval: 250 } : undefined,
     proxy: {
       '/api': {
         target: 'http://localhost:5145',
