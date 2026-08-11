@@ -21,10 +21,12 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # python3 + WeasyPrint render invoice PDFs in the Consulting Bold house style, so a
 # generated invoice matches the ones already sent by hand. The alternative was a
 # second container purely to render a one-page PDF.
+# The base image is Ubuntu 24.04, where the package is 'weasyprint' and it pulls in
+# python3-weasyprint plus the pango/cairo stack. There is no python3-weasyprint to
+# install directly.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl \
-      python3 \
-      python3-weasyprint \
+      weasyprint \
       python3-markdown \
       python3-pypdf \
     && rm -rf /var/lib/apt/lists/*
