@@ -51,6 +51,7 @@ import {
 } from '../api'
 import { BillingFields } from '../components/BillingFields'
 import { HourlyPanel } from '../components/HourlyPanel'
+import { InvoicingCard } from '../components/InvoicingCard'
 import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge } from '../components/StatusBadge'
@@ -74,6 +75,10 @@ const emptyProjectDraft: ProjectInput = {
   billingType: 'Fixed',
   invoicePrefix: null,
   billTo: null,
+  invoiceWorkDescription: null,
+  invoiceLineLabel: null,
+  paymentDueDayOfMonth: null,
+  invoiceTermsNote: null,
   cadence: 'None',
   committedHours: null,
   files: [],
@@ -120,8 +125,14 @@ export default function ProjectDetail() {
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Blank the page for the FIRST load only. Every edit calls load() again, and
+  // flipping this back on unmounted the entire page for a few hundred milliseconds:
+  // the hourly panel lost its state and the scroll position jumped to the top after
+  // every single action.
+  const loadedOnce = useRef(false)
+
   const load = async () => {
-    setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     setError(null)
     try {
       const [projectData, summaryData, clientsData, platformsData] = await Promise.all([
@@ -154,6 +165,10 @@ export default function ProjectDetail() {
         billingType: hydrated.billingType ?? 'Fixed',
         invoicePrefix: hydrated.invoicePrefix ?? null,
         billTo: hydrated.billTo ?? null,
+        invoiceWorkDescription: hydrated.invoiceWorkDescription ?? null,
+        invoiceLineLabel: hydrated.invoiceLineLabel ?? null,
+        paymentDueDayOfMonth: hydrated.paymentDueDayOfMonth ?? null,
+        invoiceTermsNote: hydrated.invoiceTermsNote ?? null,
         cadence: hydrated.cadence ?? 'None',
         committedHours: hydrated.committedHours ?? null,
         files: hydrated.files ?? [],
@@ -167,6 +182,7 @@ export default function ProjectDetail() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load project.')
     } finally {
+      loadedOnce.current = true
       setLoading(false)
     }
   }
@@ -177,6 +193,9 @@ export default function ProjectDetail() {
       setLoading(false)
       return
     }
+    // Switching to another project is a first load again: the route param changes
+    // without remounting, so the previous project would otherwise stay on screen.
+    loadedOnce.current = false
     void load()
   }, [projectId])
 
@@ -326,6 +345,13 @@ export default function ProjectDetail() {
   const selectedPlatform = platforms.find(p => p.id === projectDraft.platformId)
   const feeIsLocked = selectedPlatform?.isLocked ?? false
   const paidCount = project.milestones.filter(m => m.status === 'Paid').length
+
+  // An invoice IS a milestone, so without this every invoice is listed twice on the
+  // page: once in the Invoices table above and again here. Progress and revenue still
+  // count all of them -- only this list is narrowed.
+  const plainMilestones = project.billingType === 'Hourly'
+    ? project.milestones.filter(m => m.invoiceNumber === null)
+    : project.milestones
 
   const handleQuickMarkPaid = async (milestone: Milestone) => {
     const today = new Date().toISOString().slice(0, 10)
@@ -630,13 +656,21 @@ export default function ProjectDetail() {
       {/* Hourly billing: rates, logged periods and invoices. Fixed-price projects
           never see this, and their milestone flow is untouched. */}
       {project.billingType === 'Hourly' && (
-        <HourlyPanel project={project} onChanged={() => void load()} />
+        <>
+          <InvoicingCard project={project} onSaved={() => void load()} />
+          <HourlyPanel project={project} onChanged={() => void load()} />
+        </>
       )}
 
       {/* Milestones */}
       <AppCard>
         <SectionHeading
-          title={project.billingType === 'Hourly' ? 'Milestones and invoices' : 'Milestones'}
+          title="Milestones"
+          description={
+            project.billingType === 'Hourly'
+              ? 'Anything billed outside the hours. Invoices are listed above.'
+              : undefined
+          }
           action={
             <Button variant="secondary" className="text-xs" onClick={() => { resetMilestoneForm(); setShowMilestoneModal(true) }}>
               + Add
@@ -656,17 +690,19 @@ export default function ProjectDetail() {
                 </tr>
               </thead>
               <tbody>
-                {project.milestones.length === 0 ? (
+                {plainMilestones.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-4 py-8">
                       <EmptyState
                         title="No milestones yet"
-                        description="Add payment stages to track pipeline and settled revenue."
+                        description={project.billingType === 'Hourly'
+                          ? 'Add one only for something billed outside the logged hours.'
+                          : 'Add payment stages to track pipeline and settled revenue.'}
                       />
                     </td>
                   </tr>
                 ) : (
-                  project.milestones.map((milestone) => (
+                  plainMilestones.map((milestone) => (
                     <tr
                       key={milestone.id}
                       className={`border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)] ${
@@ -723,16 +759,18 @@ export default function ProjectDetail() {
               </tbody>
             </table>
           </div>
-          {project.milestones.length === 0 ? (
+          {plainMilestones.length === 0 ? (
             <div className="p-4 lg:hidden">
               <EmptyState
                 title="No milestones yet"
-                description="Add payment stages to track pipeline and settled revenue."
+                description={project.billingType === 'Hourly'
+                  ? 'Add one only for something billed outside the logged hours.'
+                  : 'Add payment stages to track pipeline and settled revenue.'}
               />
             </div>
           ) : (
             <ul className="flex flex-col gap-2 p-4 lg:hidden">
-              {project.milestones.map((milestone) => {
+              {plainMilestones.map((milestone) => {
                 const overdue = isMilestoneOverdue(milestone)
                 return (
                   <li

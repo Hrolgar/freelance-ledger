@@ -32,6 +32,22 @@ public class Project
     /// back to the client name when blank.
     public string? BillTo { get; set; }
 
+    /// The paragraph printed under "Work performed", above the table. Describes what the
+    /// hours were spent on and under which agreement. Prefills every new invoice on this
+    /// project, and each invoice keeps its own copy so editing this never rewrites history.
+    public string? InvoiceWorkDescription { get; set; }
+
+    /// What the single table row is called, e.g. "Engineering services, hourly".
+    public string? InvoiceLineLabel { get; set; }
+
+    /// Day of the month this client pays, e.g. 20 for "on or about the 20th". Used to
+    /// default the due date on a new invoice and to phrase the payment sentence.
+    public int? PaymentDueDayOfMonth { get; set; }
+
+    /// Payment terms for THIS client, overriding the one in the invoice profile.
+    /// e.g. "Payment due on or about the 20th of the following month, per the SOW."
+    public string? InvoiceTermsNote { get; set; }
+
     /// How often committed hours recur on this project: weekly, monthly, or not at all.
     public HoursCadence Cadence { get; set; } = HoursCadence.None;
 

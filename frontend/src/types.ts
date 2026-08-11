@@ -38,6 +38,8 @@ export interface ProjectFile {
   sizeBytes: number
   storageKey: string
   uploadedAt: string
+  /// Set when the file was filed automatically by raising an invoice.
+  sourceInvoiceMilestoneId: number | null
 }
 
 export interface Project {
@@ -58,6 +60,10 @@ export interface Project {
   billingType: BillingType
   invoicePrefix: string | null
   billTo: string | null
+  invoiceWorkDescription: string | null
+  invoiceLineLabel: string | null
+  paymentDueDayOfMonth: number | null
+  invoiceTermsNote: string | null
   cadence: HoursCadence
   committedHours: number | null
   milestones: Milestone[]
@@ -126,6 +132,7 @@ export interface CreateInvoiceRequest {
   name?: string | null
   description?: string | null
   dateDue?: string | null
+  invoiceDate?: string | null
 }
 
 export interface InvoiceDetail {
@@ -166,6 +173,7 @@ export interface Milestone {
   periodStart: string | null
   periodEnd: string | null
   invoiceNumber: string | null
+  invoiceDate: string | null
 }
 
 export interface Tip {
@@ -266,7 +274,8 @@ export interface ProjectSummary {
 export type ProjectInput = Omit<Project, 'id' | 'milestones' | 'tips' | 'client' | 'platform'> & { platformId: number | null }
 // The invoice fields are only ever set by the server when generating an invoice, so
 // creating an ordinary milestone by hand does not have to supply them.
-type MilestoneInvoiceFields = 'hours' | 'rateApplied' | 'periodStart' | 'periodEnd' | 'invoiceNumber'
+type MilestoneInvoiceFields =
+  'hours' | 'rateApplied' | 'periodStart' | 'periodEnd' | 'invoiceNumber' | 'invoiceDate'
 export type MilestoneInput = Omit<Milestone, 'id' | 'projectId' | MilestoneInvoiceFields> &
   Partial<Pick<Milestone, MilestoneInvoiceFields>>
 export type TipInput = Omit<Tip, 'id' | 'projectId'>

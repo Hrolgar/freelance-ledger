@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,14 +8,10 @@ namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
 [Route("api/projects/{projectId:int}/files")]
-public class FilesController(LedgerDbContext db, IConfiguration config) : ControllerBase
+public class FilesController(LedgerDbContext db, ProjectFileStore store) : ControllerBase
 {
     private static readonly string[] AllowedExtensions = { ".pdf", ".docx", ".xlsx", ".pptx", ".md", ".txt", ".zip", ".png", ".jpg", ".jpeg", ".gif", ".csv", ".json" };
     private const long MaxSizeBytes = 25 * 1024 * 1024; // 25 MB
-
-    private string FilesRoot =>
-        config.GetValue<string>("Storage:FilesRoot")
-        ?? Path.Combine(AppContext.BaseDirectory, "data", "files");
 
     [HttpGet]
     public async Task<IActionResult> GetAll(int projectId)
@@ -48,17 +45,8 @@ public class FilesController(LedgerDbContext db, IConfiguration config) : Contro
         if (!AllowedExtensions.Contains(ext))
             return Problem(title: "Unsupported Media Type", detail: $"Extension '{ext}' not allowed.", statusCode: 415);
 
-        var uuid = Guid.NewGuid().ToString("N");
-        var relativeDir = Path.Combine("projects", projectId.ToString());
-        var storageKey = Path.Combine(relativeDir, uuid + ext);
-        var absoluteDir = Path.Combine(FilesRoot, relativeDir);
-        Directory.CreateDirectory(absoluteDir);
-
-        var absolutePath = Path.Combine(FilesRoot, storageKey);
-        await using (var stream = System.IO.File.Create(absolutePath))
-        {
-            await file.CopyToAsync(stream);
-        }
+        await using var upload = file.OpenReadStream();
+        var storageKey = await store.WriteAsync(projectId, ext, upload);
 
         var record = new ProjectFile
         {
@@ -83,7 +71,7 @@ public class FilesController(LedgerDbContext db, IConfiguration config) : Contro
         if (record is null)
             return Problem(title: "Not Found", detail: $"File {fileId} not found.", statusCode: 404);
 
-        var path = Path.Combine(FilesRoot, record.StorageKey);
+        var path = store.AbsolutePath(record);
         if (!System.IO.File.Exists(path))
             return Problem(title: "Gone", detail: "File missing on disk.", statusCode: 410);
 
@@ -105,9 +93,7 @@ public class FilesController(LedgerDbContext db, IConfiguration config) : Contro
         if (record is null)
             return Problem(title: "Not Found", detail: $"File {fileId} not found.", statusCode: 404);
 
-        var path = Path.Combine(FilesRoot, record.StorageKey);
-        try { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
-        catch { /* best-effort; metadata still gets removed */ }
+        store.DeleteBlob(record);
 
         db.ProjectFiles.Remove(record);
         await db.SaveChangesAsync();

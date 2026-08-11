@@ -30,6 +30,11 @@ public class Milestone
     public DateOnly? PeriodEnd { get; set; }
     public string? InvoiceNumber { get; set; }
 
+    /// The date the invoice was issued, stamped once when it is raised. Without this the
+    /// document would print whatever today happens to be, so re-downloading an invoice
+    /// next month would silently change its date.
+    public DateOnly? InvoiceDate { get; set; }
+
     [JsonIgnore]
     [ValidateNever]
     public ICollection<TimeEntry> TimeEntries { get; set; } = [];
