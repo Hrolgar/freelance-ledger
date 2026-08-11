@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +8,7 @@ namespace FreelanceLedger.Api.Controllers;
 
 [ApiController]
 [Route("api/projects/{projectId:int}/milestones")]
-public class MilestonesController(LedgerDbContext db) : ControllerBase
+public class MilestonesController(LedgerDbContext db, ProjectFileStore files) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(int projectId)
@@ -113,6 +114,13 @@ public class MilestonesController(LedgerDbContext db) : ControllerBase
                 title: "Invoice Paid",
                 detail: $"Milestone {id} is invoice {milestone.InvoiceNumber} and is marked paid. Change its status first if you really mean to remove it.",
                 statusCode: 409);
+
+        // Raising an invoice files a PDF against the project. The invoices route removes
+        // it on delete; without this, deleting the same milestone through THIS route left
+        // the document in the Files list forever, pointing at an invoice that is gone.
+        // The time entries look after themselves: the foreign key is ON DELETE SET NULL.
+        if (milestone.InvoiceNumber is not null)
+            await files.RemoveInvoiceFilesAsync(projectId, id);
 
         db.Milestones.Remove(milestone);
         await db.SaveChangesAsync();
