@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using System.Globalization;
 using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,8 @@ namespace FreelanceLedger.Api.Controllers;
 [Route("api/projects/{projectId:int}/invoices")]
 public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs) : ControllerBase
 {
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+
     /// The invoice as markdown -- the editable source, and the fallback when the PDF
     /// renderer is not available.
     [HttpGet("{id:int}/markdown")]
@@ -123,12 +126,18 @@ public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs)
             .Where(m => m.ProjectId == projectId)
             .MaxAsync(m => (int?)m.SortOrder) ?? 0;
 
+        // Name the invoice after the periods it actually covers, not the search range
+        // that was swept -- asking for "all of 2026" and catching one week should not
+        // produce a line claiming to cover the year.
+        var coveredFrom = entries.Min(e => e.PeriodStart);
+        var coveredTo = entries.Max(e => e.PeriodEnd);
+
         var invoice = new Milestone
         {
             ProjectId = projectId,
             Name = request.Name?.Trim() is { Length: > 0 } n
                 ? n
-                : $"{invoiceNumber} ({request.From:d MMM} to {request.To:d MMM yyyy})",
+                : $"{invoiceNumber} ({coveredFrom.ToString("d MMM", Inv)} to {coveredTo.ToString("d MMM yyyy", Inv)})",
             Description = request.Description,
             Amount = amount,
             Currency = currencies[0],
@@ -139,8 +148,8 @@ public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs)
             // Only meaningful when every period billed at the same rate. Across a rate
             // change it stays null and the per-period lines carry the detail.
             RateApplied = distinctRates.Count == 1 ? distinctRates[0] : null,
-            PeriodStart = entries.Min(e => e.PeriodStart),
-            PeriodEnd = entries.Max(e => e.PeriodEnd),
+            PeriodStart = coveredFrom,
+            PeriodEnd = coveredTo,
             InvoiceNumber = invoiceNumber,
         };
 
