@@ -49,6 +49,7 @@ import {
   updateTip,
   uploadProjectFile,
 } from '../api'
+import { BillingFields } from '../components/BillingFields'
 import { HourlyPanel } from '../components/HourlyPanel'
 import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
@@ -549,60 +550,10 @@ export default function ProjectDetail() {
                 />
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-              <Field label="Billing">
-                <Select
-                  value={projectDraft.billingType}
-                  onChange={(e) => setProjectDraft((c) => ({ ...c, billingType: e.target.value as Project['billingType'] }))}
-                >
-                  <option value="Fixed">Fixed price</option>
-                  <option value="Hourly">Hourly</option>
-                </Select>
-              </Field>
-              {projectDraft.billingType === 'Hourly' && (
-                <>
-                  <Field label="Cadence">
-                    <Select
-                      value={projectDraft.cadence}
-                      onChange={(e) => setProjectDraft((c) => ({ ...c, cadence: e.target.value as Project['cadence'] }))}
-                    >
-                      <option value="None">Ad hoc</option>
-                      <option value="Weekly">Weekly</option>
-                      <option value="Monthly">Monthly</option>
-                    </Select>
-                  </Field>
-                  <Field label="Committed hours">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.25"
-                      value={projectDraft.committedHours ?? ''}
-                      onChange={(e) => setProjectDraft((c) => ({ ...c, committedHours: e.target.value === '' ? null : Number(e.target.value) }))}
-                    />
-                  </Field>
-                  <Field label="Invoice prefix">
-                    <Input
-                      value={projectDraft.invoicePrefix ?? ''}
-                      placeholder="OC"
-                      onChange={(e) => setProjectDraft((c) => ({ ...c, invoicePrefix: e.target.value || null }))}
-                    />
-                  </Field>
-                </>
-              )}
-            </div>
-            {projectDraft.billingType === 'Hourly' && (
-              <Field label="Bill to">
-                <Textarea
-                  rows={3}
-                  value={projectDraft.billTo ?? ''}
-                  placeholder={'Operation Golden Rule, LLC\nDBA Outside Communications\nAttn: Lance Fisher, Managing Partner'}
-                  onChange={(e) => setProjectDraft((c) => ({ ...c, billTo: e.target.value || null }))}
-                />
-                <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                  Printed on the invoice instead of the client name. Usually the legal entity, one line per line.
-                </p>
-              </Field>
-            )}
+            <BillingFields
+              draft={projectDraft}
+              onChange={(patch) => setProjectDraft((c) => ({ ...c, ...patch }))}
+            />
             <Field label="Notes">
               <Textarea
                 value={projectDraft.notes ?? ''}
