@@ -55,9 +55,98 @@ export interface Project {
   dateAwarded: string | null
   dateCompleted: string | null
   notes: string | null
+  billingType: BillingType
+  invoicePrefix: string | null
+  billTo: string | null
+  cadence: HoursCadence
+  committedHours: number | null
   milestones: Milestone[]
   tips: Tip[]
   files: ProjectFile[]
+}
+
+export type BillingType = 'Fixed' | 'Hourly'
+export type HoursCadence = 'None' | 'Weekly' | 'Monthly'
+
+export interface ProjectRate {
+  id: number
+  projectId: number
+  rate: number
+  currency: Currency
+  effectiveFrom: string
+  notes: string | null
+}
+
+export interface ProjectRateInput {
+  rate: number
+  currency: Currency
+  effectiveFrom: string
+  notes?: string | null
+}
+
+export interface TimeEntry {
+  id: number
+  projectId: number
+  periodStart: string
+  periodEnd: string
+  hours: number
+  notes: string | null
+  rateApplied: number
+  currency: Currency
+  invoiceMilestoneId: number | null
+  amount: number
+}
+
+export interface TimeEntryInput {
+  periodStart: string
+  periodEnd?: string
+  hours: number
+  notes?: string | null
+  rateApplied?: number
+  currency?: Currency
+}
+
+export interface GenerateEntriesRequest {
+  from: string
+  to: string
+  hours?: number | null
+  notes?: string | null
+}
+
+export interface GenerateEntriesResult {
+  created: number
+  skipped: string[]
+  entries: TimeEntry[]
+}
+
+export interface CreateInvoiceRequest {
+  from: string
+  to: string
+  invoiceNumber?: string | null
+  name?: string | null
+  description?: string | null
+  dateDue?: string | null
+}
+
+export interface InvoiceDetail {
+  invoice: Milestone
+  entries: TimeEntry[]
+}
+
+export interface InvoiceProfile {
+  id?: number
+  issuerName: string
+  issuerAddressLine1: string | null
+  issuerAddressLine2: string | null
+  issuerCountry: string | null
+  issuerEmail: string | null
+  accountHolder: string | null
+  bankName: string | null
+  iban: string | null
+  bicSwift: string | null
+  paymentNotes: string | null
+  vatNote: string | null
+  termsNote: string | null
 }
 
 export interface Milestone {
@@ -71,6 +160,12 @@ export interface Milestone {
   dateDue: string | null
   datePaid: string | null
   sortOrder: number
+  // Present only when the milestone is a generated hourly invoice.
+  hours: number | null
+  rateApplied: number | null
+  periodStart: string | null
+  periodEnd: string | null
+  invoiceNumber: string | null
 }
 
 export interface Tip {
@@ -169,7 +264,11 @@ export interface ProjectSummary {
 }
 
 export type ProjectInput = Omit<Project, 'id' | 'milestones' | 'tips' | 'client' | 'platform'> & { platformId: number | null }
-export type MilestoneInput = Omit<Milestone, 'id' | 'projectId'>
+// The invoice fields are only ever set by the server when generating an invoice, so
+// creating an ordinary milestone by hand does not have to supply them.
+type MilestoneInvoiceFields = 'hours' | 'rateApplied' | 'periodStart' | 'periodEnd' | 'invoiceNumber'
+export type MilestoneInput = Omit<Milestone, 'id' | 'projectId' | MilestoneInvoiceFields> &
+  Partial<Pick<Milestone, MilestoneInvoiceFields>>
 export type TipInput = Omit<Tip, 'id' | 'projectId'>
 export type CostInput = Omit<Cost, 'id'>
 export type CostPayloadFixed = CostInput

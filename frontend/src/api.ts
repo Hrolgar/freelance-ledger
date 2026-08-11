@@ -8,10 +8,19 @@ import type {
   ExchangeRateInput,
   Investment,
   InvestmentInput,
+  CreateInvoiceRequest,
+  GenerateEntriesRequest,
+  GenerateEntriesResult,
+  InvoiceDetail,
+  InvoiceProfile,
   Milestone,
   MilestoneInput,
   MilestonePatchRequest,
   Pipeline,
+  ProjectRate,
+  ProjectRateInput,
+  TimeEntry,
+  TimeEntryInput,
   Platform,
   PlatformInput,
   Project,
@@ -68,7 +77,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
-function query(params: Record<string, string | number | undefined>) {
+function query(params: Record<string, string | number | boolean | undefined>) {
   const search = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
@@ -204,6 +213,119 @@ export const deleteProjectFile = (projectId: number, fileId: number) =>
 export const projectFileDownloadUrl = (projectId: number, fileId: number, inline = false) =>
   `${API_BASE}/projects/${projectId}/files/${fileId}/download${inline ? '?inline=true' : ''}`
 
+// --- Hourly billing ---
+
+export const getProjectRates = (projectId: number) =>
+  request<ProjectRate[]>(`/projects/${projectId}/rates`)
+
+export const createProjectRate = (projectId: number, input: ProjectRateInput) =>
+  request<ProjectRate>(`/projects/${projectId}/rates`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+
+export const updateProjectRate = (projectId: number, id: number, input: ProjectRateInput) =>
+  request<ProjectRate>(`/projects/${projectId}/rates/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+
+export const deleteProjectRate = (projectId: number, id: number) =>
+  request<void>(`/projects/${projectId}/rates/${id}`, { method: 'DELETE' })
+
+export const getTimeEntries = (
+  projectId: number,
+  opts?: { from?: string; to?: string; unbilledOnly?: boolean },
+) => request<TimeEntry[]>(`/projects/${projectId}/time-entries${query(opts ?? {})}`)
+
+export const createTimeEntry = (projectId: number, input: TimeEntryInput) =>
+  request<TimeEntry>(`/projects/${projectId}/time-entries`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+
+export const updateTimeEntry = (projectId: number, id: number, input: TimeEntryInput) =>
+  request<TimeEntry>(`/projects/${projectId}/time-entries/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+
+export const deleteTimeEntry = (projectId: number, id: number) =>
+  request<void>(`/projects/${projectId}/time-entries/${id}`, { method: 'DELETE' })
+
+export const generateTimeEntries = (projectId: number, input: GenerateEntriesRequest) =>
+  request<GenerateEntriesResult>(`/projects/${projectId}/time-entries/generate`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+
+export const getInvoices = (projectId: number) =>
+  request<Milestone[]>(`/projects/${projectId}/invoices`)
+
+export const getInvoice = (projectId: number, id: number) =>
+  request<InvoiceDetail>(`/projects/${projectId}/invoices/${id}`)
+
+export const createInvoice = (projectId: number, input: CreateInvoiceRequest) =>
+  request<{ invoice: Milestone; periods: number; totalHours: number }>(
+    `/projects/${projectId}/invoices`,
+    { method: 'POST', body: JSON.stringify(input) },
+  )
+
+export const deleteInvoice = (projectId: number, id: number) =>
+  request<{ released: number }>(`/projects/${projectId}/invoices/${id}`, { method: 'DELETE' })
+
+export const invoicePdfUrl = (projectId: number, id: number) =>
+  `${API_BASE}/projects/${projectId}/invoices/${id}/pdf`
+
+export const invoiceMarkdownUrl = (projectId: number, id: number) =>
+  `${API_BASE}/projects/${projectId}/invoices/${id}/markdown`
+
+export const getInvoiceProfile = () => request<InvoiceProfile>('/invoice-profile')
+
+export const saveInvoiceProfile = (input: InvoiceProfile) =>
+  request<InvoiceProfile>('/invoice-profile', {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+
+/// Downloads through fetch rather than a bare link so an expired Authentik session
+/// triggers reauth instead of silently rendering the login page as a broken file.
+export const downloadInvoice = async (
+  projectId: number,
+  id: number,
+  format: 'pdf' | 'markdown',
+  filename: string,
+): Promise<void> => {
+  const url = format === 'pdf' ? invoicePdfUrl(projectId, id) : invoiceMarkdownUrl(projectId, id)
+  const response = await fetch(url, { redirect: 'manual' })
+
+  if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 403) {
+    triggerReauth()
+    throw new Error('Your session expired — signing you back in…')
+  }
+
+  if (!response.ok) {
+    let message = `Download failed with status ${response.status}`
+    try {
+      const problem = (await response.json()) as { title?: string; detail?: string }
+      message = problem.detail ?? problem.title ?? message
+    } catch {
+      /* not a problem document */
+    }
+    throw new Error(message)
+  }
+
+  const blob = await response.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(objectUrl)
+}
+
 export const api = {
   getPlatforms,
   getPlatform,
@@ -240,4 +362,20 @@ export const api = {
   createExchangeRate,
   upsertExchangeRate,
   deleteExchangeRate,
+  getProjectRates,
+  createProjectRate,
+  updateProjectRate,
+  deleteProjectRate,
+  getTimeEntries,
+  createTimeEntry,
+  updateTimeEntry,
+  deleteTimeEntry,
+  generateTimeEntries,
+  getInvoices,
+  getInvoice,
+  createInvoice,
+  deleteInvoice,
+  downloadInvoice,
+  getInvoiceProfile,
+  saveInvoiceProfile,
 }
