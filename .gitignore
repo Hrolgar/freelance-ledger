@@ -21,3 +21,7 @@ seed*.py
 _internal/
 _backups/
 .playwright-cli/
+
+# Vendored renderer bytecode
+__pycache__/
+*.pyc

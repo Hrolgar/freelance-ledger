@@ -98,6 +98,10 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         if (project is null)
             return Problem(title: "Not Found", detail: $"Project {id} not found.", statusCode: 404);
 
+        // ClientId, not just ClientName. Without it, reassigning a project to another
+        // client changed the name on screen but left the foreign key pointing at the old
+        // one, so the Clients page kept crediting the revenue to the wrong client.
+        project.ClientId = updated.ClientId;
         project.ClientName = updated.ClientName;
         project.ProjectName = updated.ProjectName;
         project.PlatformId = updated.PlatformId;

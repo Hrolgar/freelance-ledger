@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   createInvoice,
   createProjectRate,
@@ -283,7 +283,7 @@ export function HourlyPanel({
             <EmptyState title="No rate set" description="Add an hourly rate before logging any time." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
@@ -332,6 +332,39 @@ export function HourlyPanel({
               </tbody>
             </table>
           </div>
+        )}
+        {!loading && rates.length > 0 && (
+          <ul className="flex flex-col gap-2 p-4 lg:hidden">
+            {rates.map((rate) => (
+              <RowCard
+                key={rate.id}
+                title={formatDate(rate.effectiveFrom)}
+                subtitle={rate.notes}
+                amount={<>{formatCurrency(rate.rate, rate.currency)} /h</>}
+                badge={currentRate?.id === rate.id ? (
+                  <span
+                    className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                    style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                  >
+                    Current
+                  </span>
+                ) : undefined}
+                actions={
+                  <Button
+                    variant="danger"
+                    className="min-h-11 px-4 text-xs"
+                    disabled={busy}
+                    onClick={() => {
+                      if (!confirm(`Delete the rate effective ${formatDate(rate.effectiveFrom)}?`)) return
+                      void run(() => deleteProjectRate(project.id, rate.id))
+                    }}
+                  >
+                    Del
+                  </Button>
+                }
+              />
+            ))}
+          </ul>
         )}
       </AppCard>
 
@@ -384,7 +417,7 @@ export function HourlyPanel({
             <EmptyState title="Nothing logged yet" description="Log a period, or generate them from the committed hours." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
@@ -457,6 +490,55 @@ export function HourlyPanel({
             </table>
           </div>
         )}
+        {!loading && entries.length > 0 && (
+          <ul className="flex flex-col gap-2 p-4 lg:hidden">
+            {entries.map((entry) => (
+              <RowCard
+                key={entry.id}
+                title={periodLabel(entry)}
+                subtitle={entry.notes}
+                amount={formatCurrency(entry.hours * entry.rateApplied, entry.currency)}
+                badge={entry.invoiceMilestoneId ? (
+                  <span
+                    className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                    style={{ border: '1px solid var(--border-default)', color: 'var(--text-tertiary)' }}
+                  >
+                    Invoiced
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                    style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                  >
+                    Unbilled
+                  </span>
+                )}
+                facts={[
+                  ['Hours', <span className="font-mono tabular-nums">{hoursLabel(entry.hours)}</span>],
+                  ['Rate', <span className="font-mono tabular-nums">{formatCurrency(entry.rateApplied, entry.currency)}</span>],
+                ]}
+                actions={entry.invoiceMilestoneId ? undefined : (
+                  <>
+                    <Button variant="ghost" className="min-h-11 px-4 text-xs" onClick={() => openEditEntry(entry)}>
+                      Edit
+                    </Button>
+                    <Button
+                      variant="danger"
+                      className="min-h-11 px-4 text-xs"
+                      disabled={busy}
+                      onClick={() => {
+                        if (!confirm(`Delete ${periodLabel(entry)}?`)) return
+                        void run(() => deleteTimeEntry(project.id, entry.id))
+                      }}
+                    >
+                      Del
+                    </Button>
+                  </>
+                )}
+              />
+            ))}
+          </ul>
+        )}
       </AppCard>
 
       {/* --- Invoices --- */}
@@ -477,7 +559,7 @@ export function HourlyPanel({
             <EmptyState title="No invoices yet" description="Log some hours, then raise one for any date range." />
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
@@ -571,6 +653,64 @@ export function HourlyPanel({
               </tbody>
             </table>
           </div>
+        )}
+        {!loading && invoices.length > 0 && (
+          <ul className="flex flex-col gap-2 p-4 lg:hidden">
+            {invoices.map((inv) => (
+              <RowCard
+                key={inv.id}
+                title={inv.invoiceNumber ?? ''}
+                subtitle={`${formatDate(inv.periodStart)} to ${formatDate(inv.periodEnd)}`}
+                amount={formatCurrency(inv.amount, inv.currency)}
+                badge={<MilestoneStatusBadge status={inv.status} />}
+                facts={[
+                  ['Hours', <span className="font-mono tabular-nums">{inv.hours === null ? '—' : hoursLabel(inv.hours)}</span>],
+                  ['Due', formatDate(inv.dateDue)],
+                ]}
+                actions={
+                  <>
+                    {inv.status !== 'Paid' && (
+                      <Button
+                        variant="ghost"
+                        className="min-h-11 px-4 text-xs"
+                        style={{ color: 'var(--paid)' }}
+                        disabled={busy}
+                        onClick={() => void markInvoicePaid(inv)}
+                      >
+                        Mark Paid
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      className="min-h-11 px-4 text-xs"
+                      style={{ color: 'var(--accent)' }}
+                      disabled={busy}
+                      onClick={() => {
+                        setError(null)
+                        void downloadInvoice(project.id, inv.id, 'pdf', `Invoice-${inv.invoiceNumber}.pdf`)
+                          .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Download failed'))
+                      }}
+                    >
+                      PDF
+                    </Button>
+                    {inv.status !== 'Paid' && (
+                      <Button
+                        variant="danger"
+                        className="min-h-11 px-4 text-xs"
+                        disabled={busy}
+                        onClick={() => {
+                          if (!confirm(`Delete ${inv.invoiceNumber}? Its periods go back to unbilled and the filed PDF is removed.`)) return
+                          void run(() => deleteInvoice(project.id, inv.id))
+                        }}
+                      >
+                        Del
+                      </Button>
+                    )}
+                  </>
+                }
+              />
+            ))}
+          </ul>
         )}
       </AppCard>
 
@@ -849,6 +989,63 @@ export function HourlyPanel({
       </Modal>
       )}
     </div>
+  )
+}
+
+/// One row of a table, as a card, for phone widths. The three tables here differ only
+/// in which fields they show, so they share this shell: title line, an amount on the
+/// right, a badge row, a small definition grid, then the actions.
+function RowCard({
+  title,
+  subtitle,
+  amount,
+  badge,
+  facts,
+  actions,
+}: {
+  title: string
+  subtitle?: string | null
+  amount?: ReactNode
+  badge?: ReactNode
+  facts?: Array<[string, ReactNode]>
+  actions?: ReactNode
+}) {
+  return (
+    <li
+      className="rounded-lg p-4"
+      style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{title}</p>
+          {subtitle && (
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>{subtitle}</p>
+          )}
+        </div>
+        {amount && (
+          <div
+            className="shrink-0 text-right font-mono text-sm font-semibold tabular-nums"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            {amount}
+          </div>
+        )}
+      </div>
+      {badge && <div className="mt-3 flex flex-wrap items-center gap-1.5">{badge}</div>}
+      {facts && facts.length > 0 && (
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt className="uppercase tracking-[0.12em]" style={{ color: 'var(--text-tertiary)' }}>
+                {label}
+              </dt>
+              <dd className="mt-1" style={{ color: 'var(--text-secondary)' }}>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {actions && <div className="mt-4 flex flex-wrap justify-end gap-2">{actions}</div>}
+    </li>
   )
 }
 
