@@ -144,12 +144,21 @@ public class InvoicesController(LedgerDbContext db, InvoiceDocumentService docs)
             InvoiceNumber = invoiceNumber,
         };
 
-        db.Milestones.Add(invoice);
-        await db.SaveChangesAsync();
+        // Two writes are needed because the entries need the milestone's generated id.
+        // Wrapped in a transaction so a failure between them cannot leave an invoice
+        // standing with its hours still marked unbilled, which would invite billing
+        // the same work twice.
+        await using (var tx = await db.Database.BeginTransactionAsync())
+        {
+            db.Milestones.Add(invoice);
+            await db.SaveChangesAsync();
 
-        foreach (var entry in entries)
-            entry.InvoiceMilestoneId = invoice.Id;
-        await db.SaveChangesAsync();
+            foreach (var entry in entries)
+                entry.InvoiceMilestoneId = invoice.Id;
+            await db.SaveChangesAsync();
+
+            await tx.CommitAsync();
+        }
 
         return CreatedAtAction(nameof(GetById), new { projectId, id = invoice.Id },
             new { invoice, periods = entries.Count, totalHours });

@@ -108,6 +108,11 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         project.DateAwarded = updated.DateAwarded;
         project.DateCompleted = updated.DateCompleted;
         project.Notes = updated.Notes;
+        project.BillingType = updated.BillingType;
+        project.InvoicePrefix = updated.InvoicePrefix;
+        project.BillTo = updated.BillTo;
+        project.Cadence = updated.Cadence;
+        project.CommittedHours = updated.CommittedHours;
 
         await db.SaveChangesAsync();
         return Ok(project);

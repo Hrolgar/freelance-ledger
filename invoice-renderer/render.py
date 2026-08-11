@@ -6,7 +6,21 @@ import html as html_lib
 import markdown as md_lib
 from pypdf import PdfReader
 from styles import build_css  # flat layout here, not a package (was: from .styles)
-from weasyprint import HTML
+from weasyprint import HTML, default_url_fetcher
+
+
+def _offline_url_fetcher(url: str, timeout: int = 10, ssl_context=None):
+    """Serve local files only; never reach the network.
+
+    Invoice text can contain markdown, which permits raw HTML, and some of it is
+    copied in from client correspondence. Without this, an <img> pointing at a
+    remote host would be fetched by the server the moment an invoice is rendered.
+    The fonts are loaded as file:// URIs, so those still resolve.
+    """
+    if url.startswith(("file:", "data:")):
+        return default_url_fetcher(url, timeout=timeout, ssl_context=ssl_context)
+    raise ValueError(f"refusing to fetch remote resource while rendering: {url}")
+
 
 CONTACT_EMAIL = "helgi@skjortnes.dev"
 PORTFOLIO_URL = "hrolgar.com"
@@ -95,7 +109,7 @@ def render_document(
         f'<body>{cover_html}<main>{body_html}</main></body></html>'
     )
 
-    HTML(string=full_html).write_pdf(output_path)
+    HTML(string=full_html, url_fetcher=_offline_url_fetcher).write_pdf(output_path)
 
     reader = PdfReader(output_path)
     pages = len(reader.pages)
