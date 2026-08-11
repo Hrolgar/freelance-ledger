@@ -16,16 +16,32 @@ import {
 import { Modal } from './Modal'
 import { MilestoneStatusBadge } from './StatusBadge'
 import { AppCard, Button, EmptyState, Field, Input, SectionHeading, Select, Textarea } from './ui'
-import { formatCurrency, formatDate, isoDate } from '../lib/format'
+import { formatCurrency, formatDate } from '../lib/format'
 import type { Currency, Milestone, Project, ProjectRate, TimeEntry } from '../types'
 import { CURRENCIES } from '../types'
 
+/// Today as YYYY-MM-DD in LOCAL time.
+///
+/// Not `new Date().toISOString()`: that is a full timestamp, which an
+/// <input type="date"> rejects outright and renders blank, and it is UTC, which
+/// reads as yesterday from Norway late in the evening.
+function todayIso(): string {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10)
+}
+
 /// Monday of the week containing a date, matching the server's period rule.
+/// Takes and returns YYYY-MM-DD.
 function mondayOf(value: string): string {
   const d = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return value
   const offset = (d.getDay() + 6) % 7
   d.setDate(d.getDate() - offset)
-  return isoDate(d.toISOString())
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10)
 }
 
 function firstOfMonth(value: string): string {
@@ -58,14 +74,14 @@ export function HourlyPanel({
   const [rateDraft, setRateDraft] = useState({
     rate: 0,
     currency: project.currency as Currency,
-    effectiveFrom: isoDate(new Date().toISOString()),
+    effectiveFrom: todayIso(),
     notes: '',
   })
 
   const [showEntryModal, setShowEntryModal] = useState(false)
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null)
   const [entryDraft, setEntryDraft] = useState({
-    periodStart: isoDate(new Date().toISOString()),
+    periodStart: todayIso(),
     periodEnd: '',
     hours: project.committedHours ?? 0,
     notes: '',
@@ -73,8 +89,8 @@ export function HourlyPanel({
 
   const [showGenerateModal, setShowGenerateModal] = useState(false)
   const [genDraft, setGenDraft] = useState({
-    from: isoDate(new Date().toISOString()),
-    to: isoDate(new Date().toISOString()),
+    from: todayIso(),
+    to: todayIso(),
     hours: '' as string,
     notes: '',
   })
@@ -132,7 +148,7 @@ export function HourlyPanel({
   const unbilledHours = unbilled.reduce((sum, e) => sum + e.hours, 0)
   const unbilledValue = unbilled.reduce((sum, e) => sum + e.hours * e.rateApplied, 0)
   const currentRate = rates
-    .filter((r) => r.effectiveFrom <= isoDate(new Date().toISOString()))
+    .filter((r) => r.effectiveFrom <= todayIso())
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
 
   const openInvoiceModal = () => {
@@ -145,7 +161,7 @@ export function HourlyPanel({
 
   const openNewEntry = () => {
     setEditingEntryId(null)
-    const today = isoDate(new Date().toISOString())
+    const today = todayIso()
     const start =
       project.cadence === 'Weekly' ? mondayOf(today)
       : project.cadence === 'Monthly' ? firstOfMonth(today)
@@ -188,7 +204,7 @@ export function HourlyPanel({
               setRateDraft({
                 rate: currentRate?.rate ?? 0,
                 currency: currentRate?.currency ?? project.currency,
-                effectiveFrom: isoDate(new Date().toISOString()),
+                effectiveFrom: todayIso(),
                 notes: '',
               })
               setShowRateModal(true)

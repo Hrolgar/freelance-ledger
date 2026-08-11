@@ -22,11 +22,12 @@ export function BillingFields({
             value={draft.billingType}
             onChange={(e) => {
               const billingType = e.target.value as ProjectInput['billingType']
-              // Leaving hourly should not strand a cadence and committed hours that
-              // nothing will read again.
+              // Clear whichever side no longer applies, so nothing stale is left
+              // feeding a derived display. An initially quoted total means nothing
+              // on an hourly project, and a cadence means nothing on a fixed one.
               onChange(
                 billingType === 'Hourly'
-                  ? { billingType }
+                  ? { billingType, initialFullPrice: null }
                   : { billingType, cadence: 'None', committedHours: null },
               )
             }}

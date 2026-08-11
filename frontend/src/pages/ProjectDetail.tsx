@@ -406,6 +406,9 @@ export default function ProjectDetail() {
         const initial = summary?.initialFullPrice
         const pipelineTotal = summary?.pipelineTotal ?? 0
         if (initial == null || initial <= 0) return null
+        // "Allocated against the initial budget, upsell beyond it" is fixed-price
+        // reasoning. An hourly project has no budget to allocate against.
+        if (project.billingType === 'Hourly') return null
         const diff = pipelineTotal - initial
         const budgetState = Math.abs(diff) < 0.01
           ? { tone: 'matches' as const, amount: 0 }
@@ -513,17 +516,25 @@ export default function ProjectDetail() {
                 {feeIsLocked && <p className="mt-1 text-xs text-[var(--text-tertiary)]">Locked by platform.</p>}
               </Field>
             </div>
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
-              <Field label="Initial Full Price (optional)">
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={projectDraft.initialFullPrice ?? ''}
-                  onChange={(e) => setProjectDraft((c) => ({ ...c, initialFullPrice: e.target.value === '' ? null : Number(e.target.value) }))}
-                />
-              </Field>
-            </div>
+            <BillingFields
+              draft={projectDraft}
+              onChange={(patch) => setProjectDraft((c) => ({ ...c, ...patch }))}
+            />
+            {/* An initially quoted total is a fixed-price idea. On hourly work the
+                total is however many hours get worked, so the field is meaningless. */}
+            {projectDraft.billingType !== 'Hourly' && (
+              <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+                <Field label="Initial Full Price (optional)">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={projectDraft.initialFullPrice ?? ''}
+                    onChange={(e) => setProjectDraft((c) => ({ ...c, initialFullPrice: e.target.value === '' ? null : Number(e.target.value) }))}
+                  />
+                </Field>
+              </div>
+            )}
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
               <Field label="Status">
                 <Select
@@ -550,10 +561,6 @@ export default function ProjectDetail() {
                 />
               </Field>
             </div>
-            <BillingFields
-              draft={projectDraft}
-              onChange={(patch) => setProjectDraft((c) => ({ ...c, ...patch }))}
-            />
             <Field label="Notes">
               <Textarea
                 value={projectDraft.notes ?? ''}
