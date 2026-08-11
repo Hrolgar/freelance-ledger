@@ -113,6 +113,20 @@ public class InvoicesController(
             ? await NextInvoiceNumberAsync(project, request.From)
             : request.InvoiceNumber.Trim();
 
+        // The number leaves the database now: it becomes the filed PDF's filename and
+        // rides in a Content-Disposition header on download. A slash or a newline in it
+        // is meaningless on an invoice and a nuisance everywhere else.
+        static bool IsAllowed(char c) =>
+            char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or ' ';
+
+        if (invoiceNumber.Length > 40
+            || !invoiceNumber.All(IsAllowed)
+            || invoiceNumber.Contains(".."))
+            return Problem(
+                title: "Invalid Invoice Number",
+                detail: "Use up to 40 letters, digits, spaces, dots, dashes or underscores.",
+                statusCode: 400);
+
         var clash = await db.Milestones.AnyAsync(m => m.InvoiceNumber == invoiceNumber);
         if (clash)
             return Problem(
