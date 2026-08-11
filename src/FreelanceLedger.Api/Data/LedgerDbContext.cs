@@ -72,6 +72,11 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
             e.Property(m => m.Amount).HasPrecision(18, 2);
             e.Property(m => m.Hours).HasPrecision(9, 2);
             e.Property(m => m.RateApplied).HasPrecision(18, 2);
+            // Two invoices must never share a number. A code-level check alone is a
+            // read-then-write race: two concurrent requests both saw "next is 003".
+            // SQLite permits many NULLs in a unique index, so ordinary milestones,
+            // which have no invoice number, are unaffected.
+            e.HasIndex(m => m.InvoiceNumber).IsUnique();
         });
 
         modelBuilder.Entity<ProjectRate>(e =>
