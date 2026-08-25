@@ -783,7 +783,7 @@ export function HourlyPanel({
                 onChange={(e) => setEntryDraft({ ...entryDraft, periodStart: e.target.value })}
               />
             </Field>
-            <Field label="Period end" hint={project.cadence !== 'None' ? 'Blank uses the whole period.' : undefined}>
+            <Field label="Period end" hint={project.cadence !== 'None' ? 'Blank uses the whole period.' : 'Blank logs a single day.'}>
               <Input
                 type="date" value={entryDraft.periodEnd}
                 onChange={(e) => setEntryDraft({ ...entryDraft, periodEnd: e.target.value })}

@@ -61,13 +61,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const fallback = `Request failed with status ${response.status}`
+    let message = fallback
 
+    // The throw used to live inside the try, so its own Error was caught by the
+    // catch below and every API message got replaced by the bare status line.
     try {
       const problem = (await response.json()) as { title?: string; detail?: string }
-      throw new Error(problem.detail ?? problem.title ?? fallback)
+      message = problem.detail ?? problem.title ?? fallback
     } catch {
-      throw new Error(fallback)
+      // Not a ProblemDetails body. The status line is all we have.
     }
+
+    throw new Error(message)
   }
 
   if (response.status === 204) {

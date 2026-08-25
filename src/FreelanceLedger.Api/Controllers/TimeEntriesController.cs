@@ -55,10 +55,7 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
         if (project is null)
             return Problem(title: "Not Found", detail: $"Project {projectId} not found.", statusCode: 404);
 
-        // Snap to the project's cadence when the caller gave only a start date.
-        var snapped = RateResolutionService.PeriodContaining(project.Cadence, entry.PeriodStart);
-        if (snapped is not null && entry.PeriodEnd == default)
-            (entry.PeriodStart, entry.PeriodEnd) = snapped.Value;
+        FillInPeriod(project, entry);
 
         var failure = await ValidateAsync(project, entry, excludeId: null);
         if (failure is not null)
@@ -168,6 +165,8 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
                 statusCode: 409);
 
         var project = await db.Projects.FirstAsync(p => p.Id == projectId);
+        FillInPeriod(project, updated);
+
         var failure = await ValidateAsync(project, updated, excludeId: id);
         if (failure is not null)
             return failure;
@@ -201,6 +200,20 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
         db.TimeEntries.Remove(entry);
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    /// Fills in the end date when the caller gave only a start. With a cadence that
+    /// means the whole week or month the start falls in; without one it means a single
+    /// day, which is how an hourly project with no cadence gets logged. Leaving it at
+    /// the DateOnly default put 0001-01-01 in front of the validator, which then
+    /// rejected the entry as ending before it started.
+    private static void FillInPeriod(Project project, TimeEntry entry)
+    {
+        if (entry.PeriodEnd != default)
+            return;
+
+        var snapped = RateResolutionService.PeriodContaining(project.Cadence, entry.PeriodStart);
+        (entry.PeriodStart, entry.PeriodEnd) = snapped ?? (entry.PeriodStart, entry.PeriodStart);
     }
 
     /// Shared rules for create and update. Mutates `entry` to snapshot the rate.
