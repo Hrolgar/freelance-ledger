@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
@@ -34,6 +35,18 @@ public class Milestone
     /// document would print whatever today happens to be, so re-downloading an invoice
     /// next month would silently change its date.
     public DateOnly? InvoiceDate { get; set; }
+
+    /// The VAT rate applied when this invoice was raised, as a percentage. Null when no
+    /// VAT was charged. Frozen: changing the project's rate must not restate an invoice
+    /// already sent.
+    public decimal? VatRate { get; set; }
+
+    /// VAT in currency, rounded once at raise time. Stored rather than derived so the
+    /// document reproduces exactly, to the øre, however the rate is later edited.
+    public decimal? VatAmount { get; set; }
+
+    [NotMapped]
+    public decimal TotalDue => Amount + (VatAmount ?? 0m);
 
     [JsonIgnore]
     [ValidateNever]

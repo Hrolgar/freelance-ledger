@@ -56,6 +56,15 @@ public class Project
     /// it is invoiced.
     public decimal? CommittedHours { get; set; }
 
+    /// VAT charged on this project's invoices, as a percentage (25 for Norwegian MVA).
+    /// NULL means no VAT is charged and the profile's VatNote explains why; 0 means
+    /// explicitly zero-rated. The distinction matters on the printed document.
+    public decimal? VatRate { get; set; }
+
+    /// When true, the background service raises last month's retainer invoice on its
+    /// own. Retainer projects only.
+    public bool AutoRaiseInvoice { get; set; }
+
     public ICollection<Milestone> Milestones { get; set; } = [];
     public ICollection<Tip> Tips { get; set; } = [];
     public ICollection<ProjectFile> Files { get; set; } = [];

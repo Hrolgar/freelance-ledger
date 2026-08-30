@@ -66,13 +66,30 @@ export interface Project {
   invoiceTermsNote: string | null
   cadence: HoursCadence
   committedHours: number | null
+  // percent; null = no VAT charged (see the VAT note in Settings), 0 = explicitly zero-rated.
+  vatRate: number | null
+  // Retainer only: whether a period's invoice is raised automatically once the month ends.
+  autoRaiseInvoice: boolean
   milestones: Milestone[]
   tips: Tip[]
   files: ProjectFile[]
 }
 
-export type BillingType = 'Fixed' | 'Hourly'
+export type BillingType = 'Fixed' | 'Hourly' | 'Retainer'
 export type HoursCadence = 'None' | 'Weekly' | 'Monthly'
+
+/// One calendar month of a retainer project. The server, not the browser, resolves which
+/// fee is in force for the month -- that is what `fee` carries. Re-deriving it client-side
+/// from the rate history is how the two answers drift apart on the month a fee changes.
+export interface RetainerPeriod {
+  periodStart: string
+  periodEnd: string
+  fee: number | null
+  currency: Currency | null
+  invoiceMilestoneId: number | null
+  invoiceNumber: string | null
+  status: MilestoneStatus | null
+}
 
 export interface ProjectRate {
   id: number
@@ -154,6 +171,8 @@ export interface InvoiceProfile {
   paymentNotes: string | null
   vatNote: string | null
   termsNote: string | null
+  // Prefill only, for new projects. The rate actually charged is the project's own vatRate.
+  defaultVatRate: number | null
 }
 
 export interface Milestone {
@@ -161,6 +180,7 @@ export interface Milestone {
   projectId: number
   name: string
   description: string | null
+  // The NET figure. Every revenue stat in the app counts this one, VAT or not.
   amount: number
   currency: Currency
   status: MilestoneStatus
@@ -174,6 +194,10 @@ export interface Milestone {
   periodEnd: string | null
   invoiceNumber: string | null
   invoiceDate: string | null
+  vatRate: number | null
+  vatAmount: number | null
+  // = amount + (vatAmount ?? 0), computed server-side.
+  totalDue: number
 }
 
 export interface Tip {
@@ -273,9 +297,11 @@ export interface ProjectSummary {
 
 export type ProjectInput = Omit<Project, 'id' | 'milestones' | 'tips' | 'client' | 'platform'> & { platformId: number | null }
 // The invoice fields are only ever set by the server when generating an invoice, so
-// creating an ordinary milestone by hand does not have to supply them.
+// creating an ordinary milestone by hand does not have to supply them. vatRate/vatAmount/
+// totalDue are the same story: the server stamps them from the project's VAT rate.
 type MilestoneInvoiceFields =
-  'hours' | 'rateApplied' | 'periodStart' | 'periodEnd' | 'invoiceNumber' | 'invoiceDate'
+  | 'hours' | 'rateApplied' | 'periodStart' | 'periodEnd' | 'invoiceNumber' | 'invoiceDate'
+  | 'vatRate' | 'vatAmount' | 'totalDue'
 export type MilestoneInput = Omit<Milestone, 'id' | 'projectId' | MilestoneInvoiceFields> &
   Partial<Pick<Milestone, MilestoneInvoiceFields>>
 export type TipInput = Omit<Tip, 'id' | 'projectId'>

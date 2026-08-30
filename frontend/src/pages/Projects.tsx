@@ -31,6 +31,8 @@ const emptyProject: ProjectInput = {
   invoiceTermsNote: null,
   cadence: 'None',
   committedHours: null,
+  vatRate: null,
+  autoRaiseInvoice: false,
   files: [],
 }
 

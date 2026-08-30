@@ -22,7 +22,8 @@ public enum ProjectStatus
 public enum BillingType
 {
     Fixed = 0,
-    Hourly = 1
+    Hourly = 1,
+    Retainer = 2
 }
 
 /// How often an hourly project's committed hours recur. None = purely ad-hoc logging.

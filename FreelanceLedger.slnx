@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/FreelanceLedger.Api/FreelanceLedger.Api.csproj" />
+    <Project Path="src/FreelanceLedger.Tests/FreelanceLedger.Tests.csproj" />
   </Folder>
 </Solution>
