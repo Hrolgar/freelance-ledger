@@ -168,13 +168,12 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             }
         }
 
-        // VAT block: three rows (Subtotal / VAT / Total due) when the invoice charged
-        // VAT, otherwise the single Total due row exactly as before.
-        if (invoice.VatRate is { } bodyVatRate)
+        // No org number to show the client yet, so VAT is never itemised on the
+        // document -- just one row carrying the gross and saying so. The Subtotal/VAT
+        // split still lives on the invoice for Hrolgar's own MVA return; see VatAmount.
+        if (invoice.VatRate is not null)
         {
-            sb.AppendLine(TotalsRow("Subtotal", $"{cur} {Money(invoice.Amount)}"));
-            sb.AppendLine(TotalsRow($"VAT {Num(bodyVatRate)}%", $"{cur} {Money(invoice.VatAmount ?? 0m)}"));
-            sb.AppendLine(TotalsRow("**Total due**", $"**{cur} {Money(invoice.TotalDue)}**"));
+            sb.AppendLine(TotalsRow("**Total due (inkl. VAT)**", $"**{cur} {Money(invoice.TotalDue)}**"));
         }
         else
         {
@@ -235,14 +234,13 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             new("Invoice number", invoice.InvoiceNumber!),
             new("Invoice date", issued.ToString("d MMMM yyyy", Inv)),
         };
-        // When VAT applies, the cover breaks the total into Subtotal/VAT/Total due --
-        // and Total due is the GROSS figure here, since that is what the client
-        // actually pays, unlike Milestone.Amount which stays net everywhere else.
-        if (invoice.VatRate is { } coverVatRate)
+        // When VAT applies the cover shows one gross total row, same as the body --
+        // no org number to show the client yet, so no itemised Subtotal/VAT split here
+        // either. Total due is the GROSS figure, unlike Milestone.Amount which stays
+        // net everywhere else.
+        if (invoice.VatRate is not null)
         {
-            coverRows.Add(new("Subtotal", $"{cur} {Money(invoice.Amount)}"));
-            coverRows.Add(new($"VAT {Num(coverVatRate)}%", $"{cur} {Money(invoice.VatAmount ?? 0m)}"));
-            coverRows.Add(new("Total due", $"{cur} {Money(invoice.TotalDue)}"));
+            coverRows.Add(new("Total due (inkl. VAT)", $"{cur} {Money(invoice.TotalDue)}"));
         }
         else
         {
