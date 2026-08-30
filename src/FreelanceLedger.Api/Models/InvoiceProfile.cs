@@ -27,6 +27,10 @@ public class InvoiceProfile
     /// Why no VAT is charged. Printed verbatim.
     public string? VatNote { get; set; }
 
+    /// Prefills the VAT rate on a new project. The per-project rate is what actually
+    /// gets applied; this is only a default so it is typed once.
+    public decimal? DefaultVatRate { get; set; }
+
     /// Default payment terms sentence, e.g. "Payment due on or about the 20th".
     public string? TermsNote { get; set; }
 }
