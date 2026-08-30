@@ -15,20 +15,11 @@ import { InvoiceList } from './InvoiceList'
 import { Modal } from './Modal'
 import { MilestoneStatusBadge } from './StatusBadge'
 import { AppCard, Button, EmptyState, Field, Input, ModalActions, RowCard, SectionHeading, Select, Textarea } from './ui'
-import { firstOfMonth, formatCurrency, formatDate, todayIso } from '../lib/format'
+import { formatCurrency, formatDate, todayIso } from '../lib/format'
 import type { Currency, Milestone, Project, ProjectRate, RetainerPeriod } from '../types'
 import { CURRENCIES, MONTH_NAMES } from '../types'
 
-function oneYearAgo(today: string): string {
-  const [y, m] = today.split('-').map(Number)
-  return `${y - 1}-${String(m).padStart(2, '0')}-01`
-}
-
-function lastOfMonth(today: string): string {
-  const [y, m] = today.split('-').map(Number)
-  const d = new Date(y, m, 0)
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-}
+const thisYear = new Date().getFullYear()
 
 function periodLabel(period: RetainerPeriod): string {
   const [y, m] = period.periodStart.split('-').map(Number)
@@ -52,6 +43,8 @@ export function RetainerPanel({
   const [rates, setRates] = useState<ProjectRate[]>([])
   const [periods, setPeriods] = useState<RetainerPeriod[]>([])
   const [invoices, setInvoices] = useState<Milestone[]>([])
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [firstMonth, setFirstMonth] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -75,22 +68,20 @@ export function RetainerPanel({
     description: '',
   })
 
+  // One calendar year at a time. A retainer that runs for years would otherwise grow an
+  // unbounded list, and the months furthest down are the ones you never look at.
   const load = async () => {
     setLoading(true)
     setError(null)
     try {
-      const today = todayIso()
-      const rangeFrom = firstOfMonth(
-        project.dateAwarded && project.dateAwarded < today ? project.dateAwarded : oneYearAgo(today),
-      )
-      const rangeTo = lastOfMonth(today)
       const [r, p, i] = await Promise.all([
         getProjectRates(project.id),
-        getRetainerPeriods(project.id, { from: rangeFrom, to: rangeTo }),
+        getRetainerPeriods(project.id, { from: `${year}-01-01`, to: `${year}-12-31` }),
         getInvoices(project.id),
       ])
       setRates(r)
-      setPeriods(p)
+      setFirstMonth(p.firstMonth)
+      setPeriods(p.months)
       setInvoices(i)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load retainer data')
@@ -102,7 +93,7 @@ export function RetainerPanel({
   useEffect(() => {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id])
+  }, [project.id, year])
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true)
@@ -318,12 +309,47 @@ export function RetainerPanel({
         <SectionHeading
           title="Months"
           description="One row per calendar month, with the fee the server resolved for it. Raise the invoice once the month is done."
+          action={
+            // Only worth a nav when there is somewhere to go. A retainer that started
+            // this year has exactly one year, and arrows that cannot move are worse
+            // than no arrows.
+            firstMonth && Number(firstMonth.slice(0, 4)) < thisYear ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setYear((y) => y - 1)}
+                  disabled={year <= Number(firstMonth.slice(0, 4))}
+                  className="rounded-md px-2 py-1 text-sm transition-colors hover:bg-[var(--bg-surface)] disabled:cursor-not-allowed disabled:opacity-30"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  aria-label="Previous year"
+                >
+                  ‹
+                </button>
+                <span className="px-2 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{year}</span>
+                <button
+                  onClick={() => setYear((y) => y + 1)}
+                  disabled={year >= thisYear}
+                  className="rounded-md px-2 py-1 text-sm transition-colors hover:bg-[var(--bg-surface)] disabled:cursor-not-allowed disabled:opacity-30"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  aria-label="Next year"
+                >
+                  ›
+                </button>
+              </div>
+            ) : undefined
+          }
         />
         {loading ? (
           <p className="px-4 py-6 text-sm" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
         ) : sortedPeriods.length === 0 ? (
           <div className="p-4">
-            <EmptyState title="No months yet" description="Months appear once the project has a start date." />
+            <EmptyState
+              title={firstMonth ? `Nothing in ${year}` : 'No months yet'}
+              description={
+                firstMonth
+                  ? 'This retainer had not started yet in that year.'
+                  : 'Add a monthly fee above. Months start from the fee’s effective date.'
+              }
+            />
           </div>
         ) : (
           <div className="hidden overflow-x-auto lg:block">

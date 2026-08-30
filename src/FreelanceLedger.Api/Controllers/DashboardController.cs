@@ -113,6 +113,7 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
                     project.ClientName,
                     project.ProjectName,
                     project.Status,
+                    project.BillingType,
                     project.Currency,
                     gross,
                     net,
@@ -161,6 +162,9 @@ public record PipelineProjectResponse(
     string ClientName,
     string ProjectName,
     ProjectStatus Status,
+    // Carried so the dashboard can word a retainer's status the way its own page does
+    // ("Active" rather than "In Progress"). Presentation only.
+    BillingType BillingType,
     Currency Currency,
     decimal GrossValue,
     decimal NetValue,

@@ -342,7 +342,7 @@ function ClientDetail() {
                     <td className="px-4 py-3">
                       <Link to={`/projects/${p.id}`} className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)] transition-colors">{p.projectName}</Link>
                     </td>
-                    <td className="px-4 py-3"><ProjectStatusBadge status={p.status} /></td>
+                    <td className="px-4 py-3"><ProjectStatusBadge status={p.status} billingType={p.billingType} /></td>
                     <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{p.platform?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">{formatDate(p.dateAwarded)}</td>
                     <td className="px-4 py-3 text-right font-mono tabular-nums text-[var(--text-secondary)]">
@@ -419,7 +419,7 @@ function ClientDetail() {
                         <p className="break-words text-sm font-medium text-[var(--text-primary)]">{p.projectName}</p>
                         <p className="mt-1 text-xs text-[var(--text-tertiary)]">{p.platform?.name ?? '—'}</p>
                       </div>
-                      <ProjectStatusBadge status={p.status} />
+                      <ProjectStatusBadge status={p.status} billingType={p.billingType} />
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <div>

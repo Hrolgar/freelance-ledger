@@ -55,11 +55,11 @@ import { InvoicingCard } from '../components/InvoicingCard'
 import { RetainerPanel } from '../components/RetainerPanel'
 import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
-import { MilestoneStatusBadge } from '../components/StatusBadge'
+import { MilestoneStatusBadge, projectStatusLabel } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
 import { formatCurrency, formatDate, formatFileSize, getNextMilestoneOrder, isMilestoneOverdue, isoDate } from '../lib/format'
 import type { Client, Milestone, MilestoneInput, MilestonePatchRequest, Platform, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
-import { CURRENCIES, MILESTONE_STATUSES, PROJECT_STATUSES } from '../types'
+import { CURRENCIES, MILESTONE_STATUSES, PROJECT_STATUSES, RETAINER_STATUSES } from '../types'
 
 const emptyProjectDraft: ProjectInput = {
   clientId: null,
@@ -354,6 +354,7 @@ export default function ProjectDetail() {
   // An invoice IS a milestone, so without this every invoice is listed twice on the
   // page: once in the Invoices table above (Hourly/Retainer panels) and again here.
   // Progress and revenue still count all of them -- only this list is narrowed.
+  const isRetainer = projectDraft.billingType === 'Retainer'
   const plainMilestones = project.billingType === 'Hourly' || project.billingType === 'Retainer'
     ? project.milestones.filter(m => m.invoiceNumber === null)
     : project.milestones
@@ -558,7 +559,7 @@ export default function ProjectDetail() {
             />
             {/* An initially quoted total is a fixed-price idea. On hourly work the
                 total is however many hours get worked, so the field is meaningless. */}
-            {projectDraft.billingType !== 'Hourly' && (
+            {projectDraft.billingType === 'Fixed' && (
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
                 <Field label="Initial Full Price (optional)">
                   <Input
@@ -577,19 +578,22 @@ export default function ProjectDetail() {
                   value={projectDraft.status}
                   onChange={(e) => setProjectDraft((c) => ({ ...c, status: e.target.value as Project['status'] }))}
                 >
-                  {PROJECT_STATUSES.map((s) => (
-                    <option key={s} value={s}>{s === 'InProgress' ? 'In Progress' : s}</option>
+                  {/* A retainer is never quoted, awarded or finally paid -- it just runs
+                      until it stops. The two it does use keep their stored values, so the
+                      auto-raise sweep and the pipeline exclusion are unaffected. */}
+                  {(isRetainer ? RETAINER_STATUSES : PROJECT_STATUSES).map((s) => (
+                    <option key={s} value={s}>{projectStatusLabel(s, projectDraft.billingType)}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Awarded">
+              <Field label={isRetainer ? 'Started' : 'Awarded'}>
                 <Input
                   type="date"
                   value={isoDate(projectDraft.dateAwarded)}
                   onChange={(e) => setProjectDraft((c) => ({ ...c, dateAwarded: e.target.value || null }))}
                 />
               </Field>
-              <Field label="Completed">
+              <Field label={isRetainer ? 'Ended' : 'Completed'}>
                 <Input
                   type="date"
                   value={isoDate(projectDraft.dateCompleted)}

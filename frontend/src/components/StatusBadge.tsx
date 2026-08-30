@@ -1,4 +1,4 @@
-import type { MilestoneStatus, ProjectStatus } from '../types'
+import type { BillingType, MilestoneStatus, ProjectStatus } from '../types'
 
 const PROJECT_STATUS_DOT: Record<ProjectStatus, string> = {
   Quoted: 'bg-[var(--text-tertiary)]',
@@ -16,8 +16,22 @@ const MILESTONE_STATUS_DOT: Record<MilestoneStatus, string> = {
   Disputed: 'bg-[var(--overdue)]',
 }
 
-export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
-  const label = status === 'InProgress' ? 'In Progress' : status
+/// A retainer has no beginning and no end the way a job does, so "In Progress" and
+/// "Completed" read oddly on one. The STORED value is unchanged -- it still drives the
+/// auto-raise sweep and the pipeline exclusion server-side -- only the wording differs.
+export function projectStatusLabel(status: ProjectStatus, billingType?: BillingType): string {
+  if (billingType === 'Retainer') {
+    if (status === 'InProgress') return 'Active'
+    if (status === 'Completed') return 'Ended'
+  }
+  return status === 'InProgress' ? 'In Progress' : status
+}
+
+export function ProjectStatusBadge({ status, billingType }: {
+  status: ProjectStatus
+  billingType?: BillingType
+}) {
+  const label = projectStatusLabel(status, billingType)
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"

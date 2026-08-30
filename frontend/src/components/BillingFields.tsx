@@ -78,7 +78,9 @@ export function BillingFields({
           obvious next question here is "where do I type the amount", so answer it. */}
       {retainer && (
         <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-          The monthly fee is set in the retainer panel below, not here.
+          Save the project first. A “Monthly fee” panel then appears further down, and that
+          is where the amount goes — plus every later change to it, so the fee keeps a
+          dated history.
         </p>
       )}
     </>

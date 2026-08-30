@@ -276,7 +276,7 @@ export default function Projects() {
                 </Button>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
-                <ProjectStatusBadge status={project.status} />
+                <ProjectStatusBadge status={project.status} billingType={project.billingType} />
                 <span className="font-mono text-xs text-[var(--text-secondary)]">{project.currency}</span>
               </div>
               <dl className="mt-3 grid gap-2 text-sm">
@@ -348,7 +348,7 @@ export default function Projects() {
                   </td>
                   <td className="px-4 py-3.5 text-[var(--text-tertiary)]">{project.platform?.name ?? '—'}</td>
                   <td className="px-4 py-3.5 font-mono text-xs text-[var(--text-secondary)]">{project.currency}</td>
-                  <td className="px-4 py-3.5"><ProjectStatusBadge status={project.status} /></td>
+                  <td className="px-4 py-3.5"><ProjectStatusBadge status={project.status} billingType={project.billingType} /></td>
                   <td className="px-4 py-3.5 text-xs text-[var(--text-secondary)]">{formatDate(project.dateAwarded)}</td>
                   <td className="px-4 py-3.5 text-right font-mono tabular-nums"><MoneyAmount amount={calculateProjectGrossPaid(project)} currency={project.currency} /></td>
                   <td className="px-4 py-3.5 text-right font-mono tabular-nums"><MoneyAmount amount={calculateProjectGrossPipeline(project)} currency={project.currency} /></td>
