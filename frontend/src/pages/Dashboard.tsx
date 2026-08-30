@@ -218,7 +218,7 @@ export default function Dashboard() {
                           </Link>
                         </td>
                         <td className="px-5 py-3.5 align-middle">
-                          <ProjectStatusBadge status={project.status} />
+                          <ProjectStatusBadge status={project.status} billingType={project.billingType} />
                         </td>
                         <td className="px-5 py-3.5 text-right font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
                           <MoneyAmount amount={calculateProjectRevenue(project)} currency={project.currency} />
@@ -264,7 +264,7 @@ export default function Dashboard() {
                           </Link>
                         </td>
                         <td className="px-5 py-3.5 align-middle">
-                          <ProjectStatusBadge status={project.status} />
+                          <ProjectStatusBadge status={project.status} billingType={project.billingType} />
                         </td>
                         <td className="px-5 py-3.5 text-right font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
                           <MoneyAmount amount={project.unpaidNet} currency={project.currency} />

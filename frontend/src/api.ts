@@ -19,7 +19,7 @@ import type {
   Pipeline,
   ProjectRate,
   ProjectRateInput,
-  RetainerPeriod,
+  RetainerPeriods,
   TimeEntry,
   TimeEntryInput,
   Platform,
@@ -244,7 +244,7 @@ export const deleteProjectRate = (projectId: number, id: number) =>
 export const getRetainerPeriods = (
   projectId: number,
   opts?: { from?: string; to?: string },
-) => request<RetainerPeriod[]>(`/projects/${projectId}/retainer/periods${query(opts ?? {})}`)
+) => request<RetainerPeriods>(`/projects/${projectId}/retainer/periods${query(opts ?? {})}`)
 
 export const getTimeEntries = (
   projectId: number,

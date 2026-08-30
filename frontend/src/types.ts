@@ -91,6 +91,16 @@ export interface RetainerPeriod {
   status: MilestoneStatus | null
 }
 
+/// The months the server returned, plus where the retainer actually begins.
+///
+/// `firstMonth` is the month of the earliest fee, and it is what bounds the year
+/// selector: a retainer that started in August 2026 has no 2025 to page back to. It is
+/// null until a fee exists, at which point there is nothing to show at all.
+export interface RetainerPeriods {
+  firstMonth: string | null
+  months: RetainerPeriod[]
+}
+
 export interface ProjectRate {
   id: number
   projectId: number
@@ -267,6 +277,7 @@ export interface PipelineProject {
   clientName: string
   projectName: string
   status: ProjectStatus
+  billingType: BillingType
   currency: Currency
   grossValue: number
   netValue: number
@@ -324,6 +335,10 @@ export interface MilestonePatchRequest {
 }
 
 export const CURRENCIES: Currency[] = ['GBP', 'USD', 'EUR', 'CAD', 'INR', 'NOK']
+/// The only two that mean anything on a retainer: it is running, or it has stopped.
+/// Same stored values as everywhere else -- see projectStatusLabel for the wording.
+export const RETAINER_STATUSES: ProjectStatus[] = ['InProgress', 'Completed']
+
 export const PROJECT_STATUSES: ProjectStatus[] = [
   'Quoted',
   'Awarded',

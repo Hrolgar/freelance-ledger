@@ -47,6 +47,14 @@ public class RetainerController(LedgerDbContext db, RateResolutionService rates)
             : (DateOnly?)null;
 
         var rangeFrom = from ?? firstMonth ?? project.DateAwarded ?? new DateOnly(today.Year, today.Month, 1);
+
+        // An explicit `from` is clamped to the first fee rather than honoured blindly.
+        // The year selector asks for a whole calendar year, so without this a retainer
+        // that began in August would list January to July as empty, uninvoiceable rows --
+        // which is the exact noise the first-fee rule exists to remove.
+        if (firstMonth is { } fm && rangeFrom < fm)
+            rangeFrom = fm;
+
         var rangeTo = to is { } explicitTo && explicitTo < endOfThisMonth ? explicitTo : endOfThisMonth;
 
         // A retainer invoice is always raised for a whole calendar month, so the period

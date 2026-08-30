@@ -207,6 +207,33 @@ public class RetainerAndVatTests : IDisposable
         Assert.Equal(firstOfThisMonth, month.PeriodStart);
     }
 
+    /// The year selector asks for a whole calendar year, so it hands in 1 January. Without
+    /// the clamp that reintroduces the empty leading months the first-fee rule exists to
+    /// remove -- rows with no fee, which can never be invoiced.
+    [Fact]
+    public async Task ExplicitFromIsClampedToTheFirstFeeMonth()
+    {
+        var project = await AddRetainerProjectAsync(vatRate: null);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var august = new DateOnly(today.Year, 8, 1);
+        await AddRateAsync(project.Id, 12000m, august);
+
+        var controller = new RetainerController(Db, _fixture.Rates);
+        var response = await controller.GetPeriods(
+            project.Id,
+            from: new DateOnly(today.Year, 1, 1),
+            to: new DateOnly(today.Year, 12, 31));
+
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<RetainerController.PeriodsResponse>(ok.Value);
+
+        Assert.Equal(august, payload.FirstMonth);
+        Assert.Equal(august, payload.Months[0].PeriodStart);
+        Assert.DoesNotContain(payload.Months, m => m.PeriodStart < august);
+        // And still nothing beyond the month we are actually in.
+        Assert.DoesNotContain(payload.Months, m => m.PeriodStart > new DateOnly(today.Year, today.Month, 1));
+    }
+
     [Fact]
     public async Task AutomaticRaisingIsIdempotentAcrossTwoRuns()
     {
