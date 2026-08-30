@@ -1,6 +1,8 @@
+using FreelanceLedger.Api.Controllers;
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
 using FreelanceLedger.Api.Services;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -160,6 +162,49 @@ public class RetainerAndVatTests : IDisposable
 
         var reloadedJanuary = await Db.Milestones.AsNoTracking().SingleAsync(m => m.Id == january.Invoice.Id);
         Assert.Equal(5000m, reloadedJanuary.Amount);
+    }
+
+    [Fact]
+    public async Task VatInvoiceDocumentPrintsOneGrossTotalRowWhileAmountStaysNet()
+    {
+        var project = await AddRetainerProjectAsync(vatRate: 25m);
+        await AddRateAsync(project.Id, 10000m, new DateOnly(2026, 8, 1));
+
+        var result = await _fixture.Retainer.RaiseAsync(
+            project, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31));
+        Assert.Equal(RetainerInvoiceService.RaiseStatus.Ok, result.Status);
+
+        var markdown = await _fixture.Docs.BuildMarkdownAsync(project.Id, result.Invoice!.Id);
+        Assert.NotNull(markdown);
+        Assert.DoesNotContain("Subtotal", markdown);
+        Assert.DoesNotContain("VAT 25", markdown);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(markdown, "Total due"));
+        Assert.Contains("Total due (inkl. VAT)", markdown);
+        Assert.Contains("12,500.00", markdown);
+
+        var reloaded = await Db.Milestones.AsNoTracking().SingleAsync(m => m.Id == result.Invoice.Id);
+        Assert.Equal(10000m, reloaded.Amount);
+        Assert.Equal(25m, reloaded.VatRate);
+        Assert.Equal(2500m, reloaded.VatAmount);
+    }
+
+    [Fact]
+    public async Task GetPeriodsDefaultsToFirstFeeMonthAndExcludesFutureMonths()
+    {
+        var project = await AddRetainerProjectAsync(vatRate: null);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
+        await AddRateAsync(project.Id, 5000m, firstOfThisMonth);
+
+        var controller = new RetainerController(Db, _fixture.Rates);
+        var response = await controller.GetPeriods(project.Id, from: null, to: null);
+
+        var ok = Assert.IsType<OkObjectResult>(response);
+        var payload = Assert.IsType<RetainerController.PeriodsResponse>(ok.Value);
+
+        Assert.Equal(firstOfThisMonth, payload.FirstMonth);
+        var month = Assert.Single(payload.Months);
+        Assert.Equal(firstOfThisMonth, month.PeriodStart);
     }
 
     [Fact]
