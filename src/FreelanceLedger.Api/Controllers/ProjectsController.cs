@@ -98,6 +98,12 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         if (project is null)
             return Problem(title: "Not Found", detail: $"Project {id} not found.", statusCode: 404);
 
+        if (updated.VatRate is { } vatRate && (vatRate < 0 || vatRate > 100))
+            return Problem(
+                title: "Invalid VAT Rate",
+                detail: "VAT rate must be between 0 and 100.",
+                statusCode: 400);
+
         // ClientId, not just ClientName. Without it, reassigning a project to another
         // client changed the name on screen but left the foreign key pointing at the old
         // one, so the Clients page kept crediting the revenue to the wrong client.
@@ -121,6 +127,8 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         project.InvoiceLineLabel = updated.InvoiceLineLabel;
         project.PaymentDueDayOfMonth = updated.PaymentDueDayOfMonth;
         project.InvoiceTermsNote = updated.InvoiceTermsNote;
+        project.VatRate = updated.VatRate;
+        project.AutoRaiseInvoice = updated.AutoRaiseInvoice;
 
         await db.SaveChangesAsync();
         return Ok(project);
