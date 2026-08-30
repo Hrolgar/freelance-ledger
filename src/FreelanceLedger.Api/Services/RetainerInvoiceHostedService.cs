@@ -28,7 +28,9 @@ public class RetainerInvoiceHostedService(
         }
     }
 
-    private async Task RaisePastMonth()
+    /// Internal rather than private so a test can drive it directly without waiting on
+    /// the loop's real-time delays.
+    internal async Task RaisePastMonth()
     {
         // RetainerInvoiceService is scoped and this hosted service is a singleton, so a
         // scope is created per run -- the same pattern Program.cs uses around the
