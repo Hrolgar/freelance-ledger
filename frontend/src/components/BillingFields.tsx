@@ -17,6 +17,7 @@ export function BillingFields({
   onChange: (patch: Partial<ProjectInput>) => void
 }) {
   const hourly = draft.billingType === 'Hourly'
+  const retainer = draft.billingType === 'Retainer'
 
   return (
     <>
@@ -28,16 +29,20 @@ export function BillingFields({
               const billingType = e.target.value as ProjectInput['billingType']
               // Clear whichever side no longer applies, so nothing stale is left
               // feeding a derived display. An initially quoted total means nothing
-              // on an hourly project, and a cadence means nothing on a fixed one.
+              // on an hourly or retainer project. A cadence and committed hours are
+              // an hourly idea; a retainer is monthly by definition, not a choice.
               onChange(
                 billingType === 'Hourly'
                   ? { billingType, initialFullPrice: null }
-                  : { billingType, cadence: 'None', committedHours: null },
+                  : billingType === 'Retainer'
+                    ? { billingType, initialFullPrice: null, cadence: 'Monthly', committedHours: null }
+                    : { billingType, cadence: 'None', committedHours: null },
               )
             }}
           >
             <option value="Fixed">Fixed price</option>
             <option value="Hourly">Hourly</option>
+            <option value="Retainer">Monthly retainer</option>
           </Select>
         </Field>
 
@@ -68,6 +73,14 @@ export function BillingFields({
         )}
       </div>
 
+      {/* Neither cadence nor committed hours is a choice on a retainer -- it is monthly
+          and worth whatever the fee history below says, not a per-period number. The
+          obvious next question here is "where do I type the amount", so answer it. */}
+      {retainer && (
+        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+          The monthly fee is set in the retainer panel below, not here.
+        </p>
+      )}
     </>
   )
 }

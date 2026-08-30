@@ -284,3 +284,86 @@ export function LoadingState({ label = 'Loading…' }: { label?: string }) {
     </div>
   )
 }
+
+/// One row of a table, as a card, for phone widths. Shared by every billing panel's
+/// tables (rate/fee history, logged periods, invoices) since they differ only in which
+/// fields they show: title line, an amount on the right, a badge row, a small definition
+/// grid, then the actions.
+export function RowCard({
+  title,
+  subtitle,
+  amount,
+  badge,
+  facts,
+  actions,
+}: {
+  title: string
+  subtitle?: string | null
+  amount?: ReactNode
+  badge?: ReactNode
+  facts?: Array<[string, ReactNode]>
+  actions?: ReactNode
+}) {
+  return (
+    <li
+      className="rounded-lg p-4"
+      style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{title}</p>
+          {subtitle && (
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>{subtitle}</p>
+          )}
+        </div>
+        {amount && (
+          <div
+            className="shrink-0 text-right font-mono text-sm font-semibold tabular-nums"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            {amount}
+          </div>
+        )}
+      </div>
+      {badge && <div className="mt-3 flex flex-wrap items-center gap-1.5">{badge}</div>}
+      {facts && facts.length > 0 && (
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt className="uppercase tracking-[0.12em]" style={{ color: 'var(--text-tertiary)' }}>
+                {label}
+              </dt>
+              <dd className="mt-1" style={{ color: 'var(--text-secondary)' }}>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {actions && <div className="mt-4 flex flex-wrap justify-end gap-2">{actions}</div>}
+    </li>
+  )
+}
+
+/// The footer every modal shares: sticks to the bottom on a phone, where the form
+/// scrolls, and sits inline on a desktop.
+export function ModalActions({
+  onCancel,
+  onConfirm,
+  confirmLabel,
+  busy,
+  disabled,
+}: {
+  onCancel: () => void
+  onConfirm: () => void | Promise<void>
+  confirmLabel: string
+  busy?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <div className="sticky bottom-0 -mx-6 mt-2 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
+      <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
+      <Button type="button" disabled={busy || disabled} onClick={() => void onConfirm()}>
+        {busy ? 'Saving…' : confirmLabel}
+      </Button>
+    </div>
+  )
+}
