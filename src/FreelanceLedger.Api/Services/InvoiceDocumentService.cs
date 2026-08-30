@@ -123,33 +123,69 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             sb.AppendLine();
         }
 
-        var lineLabel = FirstNonBlank(project.InvoiceLineLabel) ?? "Engineering services, hourly";
+        // Hours and rate are meaningless on a retainer invoice, so its table collapses
+        // to a plain description/amount line rather than the hourly four columns.
+        var isRetainer = project.BillingType == BillingType.Retainer;
+        var lineLabel = FirstNonBlank(project.InvoiceLineLabel)
+            ?? (isRetainer ? "Monthly retainer" : "Engineering services, hourly");
 
-        sb.AppendLine("| Description | Hours | Rate | Amount |");
-        sb.AppendLine("|---|---:|---:|---:|");
+        // A totals row continues whichever table was just printed, so it needs the same
+        // cell count -- the label and amount always take the last two columns, padded
+        // on the left with as many empty cells as the table has beyond those two.
+        string TotalsRow(string label, string amount) =>
+            isRetainer ? $"| {label} | {amount} |" : $"| | | {label} | {amount} |";
 
-        var uniformRate = entries.Select(e => e.RateApplied).Distinct().Count() <= 1;
-        if (uniformRate && entries.Count > 0)
+        if (isRetainer)
         {
-            // One summary line, matching the invoices already sent.
-            var rate = entries[0].RateApplied;
-            var hours = entries.Sum(e => e.Hours);
-            sb.AppendLine($"| {lineLabel} | {Num(hours)} | "
-                          + $"{cur} {Money(rate)} | {cur} {Money(hours * rate)} |");
+            sb.AppendLine("| Description | Amount |");
+            sb.AppendLine("|---|---:|");
+            var periodLabel = invoice.PeriodStart is { } rps
+                ? $"{lineLabel}, {rps.ToString("MMMM yyyy", Inv)}"
+                : lineLabel;
+            sb.AppendLine($"| {periodLabel} | {cur} {Money(invoice.Amount)} |");
         }
         else
         {
-            // A rate change inside the period: show each period so the total is checkable.
-            foreach (var e in entries)
-                sb.AppendLine(
-                    $"| {e.PeriodStart.ToString("d MMM", Inv)} to {e.PeriodEnd.ToString("d MMM yyyy", Inv)} | {Num(e.Hours)} | "
-                    + $"{cur} {Money(e.RateApplied)} | {cur} {Money(e.Hours * e.RateApplied)} |");
+            sb.AppendLine("| Description | Hours | Rate | Amount |");
+            sb.AppendLine("|---|---:|---:|---:|");
+
+            var uniformRate = entries.Select(e => e.RateApplied).Distinct().Count() <= 1;
+            if (uniformRate && entries.Count > 0)
+            {
+                // One summary line, matching the invoices already sent.
+                var rate = entries[0].RateApplied;
+                var hours = entries.Sum(e => e.Hours);
+                sb.AppendLine($"| {lineLabel} | {Num(hours)} | "
+                              + $"{cur} {Money(rate)} | {cur} {Money(hours * rate)} |");
+            }
+            else
+            {
+                // A rate change inside the period: show each period so the total is checkable.
+                foreach (var e in entries)
+                    sb.AppendLine(
+                        $"| {e.PeriodStart.ToString("d MMM", Inv)} to {e.PeriodEnd.ToString("d MMM yyyy", Inv)} | {Num(e.Hours)} | "
+                        + $"{cur} {Money(e.RateApplied)} | {cur} {Money(e.Hours * e.RateApplied)} |");
+            }
         }
 
-        sb.AppendLine($"| | | **Total due** | **{cur} {Money(invoice.Amount)}** |");
+        // VAT block: three rows (Subtotal / VAT / Total due) when the invoice charged
+        // VAT, otherwise the single Total due row exactly as before.
+        if (invoice.VatRate is { } bodyVatRate)
+        {
+            sb.AppendLine(TotalsRow("Subtotal", $"{cur} {Money(invoice.Amount)}"));
+            sb.AppendLine(TotalsRow($"VAT {Num(bodyVatRate)}%", $"{cur} {Money(invoice.VatAmount ?? 0m)}"));
+            sb.AppendLine(TotalsRow("**Total due**", $"**{cur} {Money(invoice.TotalDue)}**"));
+        }
+        else
+        {
+            sb.AppendLine(TotalsRow("**Total due**", $"**{cur} {Money(invoice.Amount)}**"));
+        }
         sb.AppendLine();
 
-        if (!string.IsNullOrWhiteSpace(profile.VatNote))
+        // profile.VatNote is the sentence explaining why NO VAT is charged. Printing it
+        // under a line that just charged VAT would put a flat contradiction on a
+        // document going to a client, so it only appears when this invoice charged none.
+        if (invoice.VatRate is null && !string.IsNullOrWhiteSpace(profile.VatNote))
         {
             sb.AppendLine(profile.VatNote);
             sb.AppendLine();
@@ -198,8 +234,20 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         {
             new("Invoice number", invoice.InvoiceNumber!),
             new("Invoice date", issued.ToString("d MMMM yyyy", Inv)),
-            new("Total due", $"{cur} {Money(invoice.Amount)}"),
         };
+        // When VAT applies, the cover breaks the total into Subtotal/VAT/Total due --
+        // and Total due is the GROSS figure here, since that is what the client
+        // actually pays, unlike Milestone.Amount which stays net everywhere else.
+        if (invoice.VatRate is { } coverVatRate)
+        {
+            coverRows.Add(new("Subtotal", $"{cur} {Money(invoice.Amount)}"));
+            coverRows.Add(new($"VAT {Num(coverVatRate)}%", $"{cur} {Money(invoice.VatAmount ?? 0m)}"));
+            coverRows.Add(new("Total due", $"{cur} {Money(invoice.TotalDue)}"));
+        }
+        else
+        {
+            coverRows.Add(new("Total due", $"{cur} {Money(invoice.Amount)}"));
+        }
         // Deliberately no "Payment due" row -- see the note above.
         if (invoice.Status == MilestoneStatus.Paid && invoice.DatePaid is { } paidOn)
             coverRows.Add(new("Paid", paidOn.ToString("d MMMM yyyy", Inv)));

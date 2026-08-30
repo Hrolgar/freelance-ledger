@@ -15,7 +15,9 @@ namespace FreelanceLedger.Api.Controllers;
 public class InvoicesController(
     LedgerDbContext db,
     InvoiceDocumentService docs,
-    ProjectFileStore files) : ControllerBase
+    ProjectFileStore files,
+    InvoiceNumberService invoiceNumbers,
+    RetainerInvoiceService retainer) : ControllerBase
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
@@ -84,6 +86,36 @@ public class InvoicesController(
         if (request.To < request.From)
             return Problem(title: "Invalid Range", detail: "'to' is before 'from'.", statusCode: 400);
 
+        if (project.BillingType == BillingType.Fixed)
+            return Problem(
+                title: "Not Applicable",
+                detail: "This project bills through milestones.",
+                statusCode: 400);
+
+        if (project.BillingType == BillingType.Retainer)
+        {
+            var result = await retainer.RaiseAsync(
+                project, request.From, request.To,
+                request.InvoiceNumber, request.Name, request.Description,
+                request.DateDue, request.InvoiceDate);
+
+            return result.Status switch
+            {
+                RetainerInvoiceService.RaiseStatus.Ok => CreatedAtAction(
+                    nameof(GetById), new { projectId, id = result.Invoice!.Id },
+                    new { invoice = result.Invoice, periods = 0, totalHours = (decimal?)null, file = result.File }),
+                RetainerInvoiceService.RaiseStatus.NoRateInForce =>
+                    Problem(title: "No Rate Set", detail: result.Detail, statusCode: 400),
+                RetainerInvoiceService.RaiseStatus.InvalidInvoiceNumber =>
+                    Problem(title: "Invalid Invoice Number", detail: result.Detail, statusCode: 400),
+                RetainerInvoiceService.RaiseStatus.PeriodOverlap =>
+                    Problem(title: "Period Already Invoiced", detail: result.Detail, statusCode: 409),
+                RetainerInvoiceService.RaiseStatus.DuplicateInvoiceNumber =>
+                    Problem(title: "Duplicate Invoice Number", detail: result.Detail, statusCode: 409),
+                _ => Problem(statusCode: 500),
+            };
+        }
+
         var entries = await db.TimeEntries
             .Where(t => t.ProjectId == projectId
                         && t.InvoiceMilestoneId == null
@@ -110,18 +142,10 @@ public class InvoicesController(
         var distinctRates = entries.Select(e => e.RateApplied).Distinct().ToList();
 
         var invoiceNumber = string.IsNullOrWhiteSpace(request.InvoiceNumber)
-            ? await NextInvoiceNumberAsync(project, request.From)
+            ? await invoiceNumbers.NextAsync(project, request.From)
             : request.InvoiceNumber.Trim();
 
-        // The number leaves the database now: it becomes the filed PDF's filename and
-        // rides in a Content-Disposition header on download. A slash or a newline in it
-        // is meaningless on an invoice and a nuisance everywhere else.
-        static bool IsAllowed(char c) =>
-            char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or ' ';
-
-        if (invoiceNumber.Length > 40
-            || !invoiceNumber.All(IsAllowed)
-            || invoiceNumber.Contains(".."))
+        if (!InvoiceNumberService.IsValid(invoiceNumber))
             return Problem(
                 title: "Invalid Invoice Number",
                 detail: "Use up to 40 letters, digits, spaces, dots, dashes or underscores.",
@@ -145,6 +169,8 @@ public class InvoicesController(
         var coveredTo = entries.Max(e => e.PeriodEnd);
 
         var issued = request.InvoiceDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var vatRate = project.VatRate;
+        var vatAmount = VatCalculator.Amount(amount, vatRate);
 
         var invoice = new Milestone
         {
@@ -160,9 +186,11 @@ public class InvoicesController(
             Amount = amount,
             Currency = currencies[0],
             Status = MilestoneStatus.Pending,
-            DateDue = request.DateDue ?? DefaultDueDate(project, coveredTo),
+            DateDue = request.DateDue ?? InvoiceNumberService.DefaultDueDate(project, coveredTo),
             SortOrder = sortOrder + 1,
             InvoiceDate = issued,
+            VatRate = vatRate,
+            VatAmount = vatAmount,
             Hours = totalHours,
             // Only meaningful when every period billed at the same rate. Across a rate
             // change it stays null and the per-period lines carry the detail.
@@ -238,17 +266,6 @@ public class InvoicesController(
             new { invoice, periods = stillUnbilled.Count, totalHours, file = filed });
     }
 
-    /// When the client pays on a set day of the month, an invoice for July is due on that
-    /// day in August. Clamped, so a 31st on a 30-day month lands on the 30th.
-    private static DateOnly? DefaultDueDate(Project project, DateOnly coveredTo)
-    {
-        if (project.PaymentDueDayOfMonth is not { } day) return null;
-
-        var month = new DateOnly(coveredTo.Year, coveredTo.Month, 1).AddMonths(1);
-        var clamped = Math.Clamp(day, 1, DateTime.DaysInMonth(month.Year, month.Month));
-        return new DateOnly(month.Year, month.Month, clamped);
-    }
-
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int projectId, int id)
     {
@@ -295,29 +312,6 @@ public class InvoicesController(
         await db.SaveChangesAsync();
 
         return Ok(new { released = entries.Count });
-    }
-
-    /// Next sequential number for the project's prefix within the invoice's year,
-    /// e.g. OC-2026-001. Falls back to the project id when no prefix is set.
-    private async Task<string> NextInvoiceNumberAsync(Project project, DateOnly periodStart)
-    {
-        var prefix = string.IsNullOrWhiteSpace(project.InvoicePrefix)
-            ? $"P{project.Id}"
-            : project.InvoicePrefix.Trim().ToUpperInvariant();
-        var year = periodStart.Year;
-        var stem = $"{prefix}-{year}-";
-
-        var used = await db.Milestones
-            .Where(m => m.InvoiceNumber != null && m.InvoiceNumber.StartsWith(stem))
-            .Select(m => m.InvoiceNumber!)
-            .ToListAsync();
-
-        var highest = used
-            .Select(n => int.TryParse(n[stem.Length..], out var seq) ? seq : 0)
-            .DefaultIfEmpty(0)
-            .Max();
-
-        return $"{stem}{highest + 1:D3}";
     }
 }
 

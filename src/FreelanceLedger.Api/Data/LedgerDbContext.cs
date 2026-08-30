@@ -40,6 +40,7 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
         {
             e.HasKey(p => p.Id);
             e.Property(p => p.FeePercentage).HasPrecision(5, 2);
+            e.Property(p => p.VatRate).HasPrecision(5, 2);
             e.HasOne(p => p.Platform)
                 .WithMany(pl => pl.Projects)
                 .HasForeignKey(p => p.PlatformId)
@@ -72,6 +73,8 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
             e.Property(m => m.Amount).HasPrecision(18, 2);
             e.Property(m => m.Hours).HasPrecision(9, 2);
             e.Property(m => m.RateApplied).HasPrecision(18, 2);
+            e.Property(m => m.VatRate).HasPrecision(5, 2);
+            e.Property(m => m.VatAmount).HasPrecision(18, 2);
             // Two invoices must never share a number. A code-level check alone is a
             // read-then-write race: two concurrent requests both saw "next is 003".
             // SQLite permits many NULLs in a unique index, so ordinary milestones,
@@ -118,6 +121,12 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
             e.HasKey(i => i.Id);
             e.Property(i => i.Amount).HasPrecision(18, 2);
             e.Property(i => i.NokRate).HasPrecision(18, 6);
+        });
+
+        modelBuilder.Entity<InvoiceProfile>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.DefaultVatRate).HasPrecision(5, 2);
         });
 
         modelBuilder.Entity<ExchangeRate>(e =>

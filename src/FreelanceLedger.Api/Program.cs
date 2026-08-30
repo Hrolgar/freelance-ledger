@@ -24,7 +24,10 @@ builder.Services.AddScoped<ExchangeRateService>();
 builder.Services.AddScoped<RateResolutionService>();
 builder.Services.AddScoped<InvoiceDocumentService>();
 builder.Services.AddScoped<ProjectFileStore>();
+builder.Services.AddScoped<InvoiceNumberService>();
+builder.Services.AddScoped<RetainerInvoiceService>();
 builder.Services.AddHostedService<BackupHostedService>();
+builder.Services.AddHostedService<RetainerInvoiceHostedService>();
 builder.Services.AddHealthChecks().AddDbContextCheck<LedgerDbContext>();
 builder.Services.AddOpenApi();
 
