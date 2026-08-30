@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { getExchangeRates } from '../api'
 import { formatCurrency } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
-import type { ExchangeRate } from '../types'
+import type { Currency, ExchangeRate } from '../types'
 
 const rateCache: Record<string, ExchangeRate[]> = {}
 
@@ -61,5 +61,23 @@ export function MoneyAmount({ amount, currency, className = '' }: {
         {formatCurrency(converted, mainCurrency)}
       </span>
     </span>
+  )
+}
+
+/// The VAT and gross for an amount that has VAT applied, shown as a quiet second line.
+/// `amount` stays the net figure everywhere else in the app -- this is additive, never a
+/// replacement, and renders nothing at all when vatRate is null (no VAT charged).
+export function VatNote({ vatRate, vatAmount, totalDue, currency }: {
+  vatRate: number | null
+  vatAmount: number | null
+  totalDue: number
+  currency: Currency
+}) {
+  if (vatRate === null) return null
+
+  return (
+    <p className="mt-0.5 text-xs font-normal" style={{ color: 'var(--text-tertiary)' }}>
+      +{vatRate}% VAT {formatCurrency(vatAmount ?? 0, currency)} · Gross {formatCurrency(totalDue, currency)}
+    </p>
   )
 }

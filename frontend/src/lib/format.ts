@@ -28,6 +28,26 @@ export function isoDate(value: string | null | undefined) {
   return value ?? ''
 }
 
+/// Today as YYYY-MM-DD in LOCAL time.
+///
+/// Not `new Date().toISOString()`: that is a full timestamp, which an
+/// <input type="date"> rejects outright and renders blank, and it is UTC, which
+/// reads as yesterday from Norway late in the evening.
+export function todayIso(): string {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10)
+}
+
+export function firstOfMonth(value: string): string {
+  return `${value.slice(0, 7)}-01`
+}
+
+export function hoursLabel(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)))
+}
+
 export function calculateProjectRevenue(project: Project) {
   const paidMilestones = project.milestones
     .filter((milestone) => milestone.status === 'Paid')
