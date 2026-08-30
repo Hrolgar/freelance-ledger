@@ -52,6 +52,7 @@ import {
 import { BillingFields } from '../components/BillingFields'
 import { HourlyPanel } from '../components/HourlyPanel'
 import { InvoicingCard } from '../components/InvoicingCard'
+import { RetainerPanel } from '../components/RetainerPanel'
 import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge } from '../components/StatusBadge'
@@ -81,6 +82,8 @@ const emptyProjectDraft: ProjectInput = {
   invoiceTermsNote: null,
   cadence: 'None',
   committedHours: null,
+  vatRate: null,
+  autoRaiseInvoice: false,
   files: [],
 }
 
@@ -171,6 +174,8 @@ export default function ProjectDetail() {
         invoiceTermsNote: hydrated.invoiceTermsNote ?? null,
         cadence: hydrated.cadence ?? 'None',
         committedHours: hydrated.committedHours ?? null,
+        vatRate: hydrated.vatRate ?? null,
+        autoRaiseInvoice: hydrated.autoRaiseInvoice ?? false,
         files: hydrated.files ?? [],
       })
       setMilestoneDraft({
@@ -347,11 +352,16 @@ export default function ProjectDetail() {
   const paidCount = project.milestones.filter(m => m.status === 'Paid').length
 
   // An invoice IS a milestone, so without this every invoice is listed twice on the
-  // page: once in the Invoices table above and again here. Progress and revenue still
-  // count all of them -- only this list is narrowed.
-  const plainMilestones = project.billingType === 'Hourly'
+  // page: once in the Invoices table above (Hourly/Retainer panels) and again here.
+  // Progress and revenue still count all of them -- only this list is narrowed.
+  const plainMilestones = project.billingType === 'Hourly' || project.billingType === 'Retainer'
     ? project.milestones.filter(m => m.invoiceNumber === null)
     : project.milestones
+
+  const outsideBillingLabel =
+    project.billingType === 'Hourly' ? 'hours'
+    : project.billingType === 'Retainer' ? 'monthly fee'
+    : null
 
   const handleQuickMarkPaid = async (milestone: Milestone) => {
     const today = new Date().toISOString().slice(0, 10)
@@ -653,12 +663,14 @@ export default function ProjectDetail() {
           </div>
         )}
 
-      {/* Hourly billing: rates, logged periods and invoices. Fixed-price projects
-          never see this, and their milestone flow is untouched. */}
-      {project.billingType === 'Hourly' && (
+      {/* Hourly/Retainer billing: rates or fees, periods/months, and invoices.
+          Fixed-price projects never see this, and their milestone flow is untouched. */}
+      {(project.billingType === 'Hourly' || project.billingType === 'Retainer') && (
         <>
           <InvoicingCard project={project} onSaved={() => void load()} />
-          <HourlyPanel project={project} onChanged={() => void load()} />
+          {project.billingType === 'Hourly'
+            ? <HourlyPanel project={project} onChanged={() => void load()} />
+            : <RetainerPanel project={project} onChanged={() => void load()} />}
         </>
       )}
 
@@ -667,8 +679,8 @@ export default function ProjectDetail() {
         <SectionHeading
           title="Milestones"
           description={
-            project.billingType === 'Hourly'
-              ? 'Anything billed outside the hours. Invoices are listed above.'
+            outsideBillingLabel
+              ? `Anything billed outside the ${outsideBillingLabel}. Invoices are listed above.`
               : undefined
           }
           action={
@@ -695,8 +707,8 @@ export default function ProjectDetail() {
                     <td colSpan={6} className="px-4 py-8">
                       <EmptyState
                         title="No milestones yet"
-                        description={project.billingType === 'Hourly'
-                          ? 'Add one only for something billed outside the logged hours.'
+                        description={outsideBillingLabel
+                          ? `Add one only for something billed outside the ${outsideBillingLabel}.`
                           : 'Add payment stages to track pipeline and settled revenue.'}
                       />
                     </td>

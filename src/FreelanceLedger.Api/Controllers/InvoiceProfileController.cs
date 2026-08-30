@@ -41,6 +41,7 @@ public class InvoiceProfileController(LedgerDbContext db) : ControllerBase
         profile.PaymentNotes = updated.PaymentNotes;
         profile.VatNote = updated.VatNote;
         profile.TermsNote = updated.TermsNote;
+        profile.DefaultVatRate = updated.DefaultVatRate;
 
         await db.SaveChangesAsync();
         return Ok(profile);

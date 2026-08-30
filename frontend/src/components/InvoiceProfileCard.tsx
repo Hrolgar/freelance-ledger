@@ -16,6 +16,7 @@ const empty: InvoiceProfile = {
   paymentNotes: null,
   vatNote: null,
   termsNote: null,
+  defaultVatRate: null,
 }
 
 /// The "from" and payment blocks printed on every generated invoice. Stored in the
@@ -116,6 +117,22 @@ export function InvoiceProfileCard() {
           </Field>
           <Field label="VAT note" hint="Why no VAT is charged. Printed verbatim.">
             <Textarea rows={2} value={profile.vatNote ?? ''} onChange={(e) => set('vatNote')(e.target.value)} />
+          </Field>
+          <Field
+            label="Default VAT rate %"
+            hint="Only a prefill for new projects. What actually gets charged is each project's own VAT rate, set on its Invoicing card."
+          >
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={profile.defaultVatRate ?? ''}
+              placeholder="blank = no VAT charged"
+              onChange={(e) =>
+                setProfile((p) => ({ ...p, defaultVatRate: e.target.value === '' ? null : Number(e.target.value) }))
+              }
+            />
           </Field>
 
           <div className="flex items-center justify-end gap-3">

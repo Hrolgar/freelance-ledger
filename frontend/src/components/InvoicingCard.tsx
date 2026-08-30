@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { updateProject } from '../api'
-import { AppCard, Button, Field, Input, SectionHeading, Textarea } from './ui'
+import { AppCard, Button, Checkbox, Field, Input, SectionHeading, Textarea } from './ui'
 import type { Project, ProjectInput } from '../types'
 
 /// Everything that only affects the PRINTED INVOICE for this client: who it is
@@ -27,6 +27,8 @@ export function InvoicingCard({
     invoiceLineLabel: project.invoiceLineLabel,
     paymentDueDayOfMonth: project.paymentDueDayOfMonth,
     invoiceTermsNote: project.invoiceTermsNote,
+    vatRate: project.vatRate,
+    autoRaiseInvoice: project.autoRaiseInvoice,
   }
 
   const [draft, setDraft] = useState(fields)
@@ -39,7 +41,8 @@ export function InvoicingCard({
     setDraft(fields)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, project.invoicePrefix, project.billTo, project.invoiceWorkDescription,
-      project.invoiceLineLabel, project.paymentDueDayOfMonth, project.invoiceTermsNote])
+      project.invoiceLineLabel, project.paymentDueDayOfMonth, project.invoiceTermsNote,
+      project.vatRate, project.autoRaiseInvoice])
 
   const set = <K extends keyof typeof draft>(key: K, value: (typeof draft)[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
@@ -177,6 +180,49 @@ export function InvoicingCard({
               }
             />
           </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="VAT %"
+            hint={
+              draft.vatRate === null
+                ? 'Blank: no VAT is charged. See the VAT note in Settings for why.'
+                : draft.vatRate === 0
+                  ? 'Explicitly zero-rated, not the same as blank.'
+                  : `Added to every invoice for this project.`
+            }
+          >
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={draft.vatRate ?? ''}
+              placeholder="blank = no VAT"
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, vatRate: e.target.value === '' ? null : Number(e.target.value) }))
+              }
+            />
+          </Field>
+
+          {/* A retainer bills the same fee every month, so it is the only billing type
+              where "raise it automatically once the period ends" makes sense. Hourly and
+              fixed invoices depend on a human deciding what to sweep into them. */}
+          {project.billingType === 'Retainer' && (
+            <Field label="Auto-raise invoice">
+              <div className="flex items-center gap-2 pt-2">
+                <Checkbox
+                  id="autoRaiseInvoice"
+                  checked={draft.autoRaiseInvoice}
+                  onChange={(e) => setDraft((d) => ({ ...d, autoRaiseInvoice: e.target.checked }))}
+                />
+                <label htmlFor="autoRaiseInvoice" className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  Raise each month's invoice automatically once it ends.
+                </label>
+              </div>
+            </Field>
+          )}
         </div>
 
         <Field

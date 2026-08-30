@@ -19,6 +19,7 @@ import type {
   Pipeline,
   ProjectRate,
   ProjectRateInput,
+  RetainerPeriod,
   TimeEntry,
   TimeEntryInput,
   Platform,
@@ -238,6 +239,13 @@ export const updateProjectRate = (projectId: number, id: number, input: ProjectR
 export const deleteProjectRate = (projectId: number, id: number) =>
   request<void>(`/projects/${projectId}/rates/${id}`, { method: 'DELETE' })
 
+// --- Retainer billing ---
+
+export const getRetainerPeriods = (
+  projectId: number,
+  opts?: { from?: string; to?: string },
+) => request<RetainerPeriod[]>(`/projects/${projectId}/retainer/periods${query(opts ?? {})}`)
+
 export const getTimeEntries = (
   projectId: number,
   opts?: { from?: string; to?: string; unbilledOnly?: boolean },
@@ -271,7 +279,7 @@ export const getInvoice = (projectId: number, id: number) =>
   request<InvoiceDetail>(`/projects/${projectId}/invoices/${id}`)
 
 export const createInvoice = (projectId: number, input: CreateInvoiceRequest) =>
-  request<{ invoice: Milestone; periods: number; totalHours: number }>(
+  request<{ invoice: Milestone; periods: number; totalHours: number | null }>(
     `/projects/${projectId}/invoices`,
     { method: 'POST', body: JSON.stringify(input) },
   )
@@ -371,6 +379,7 @@ export const api = {
   createProjectRate,
   updateProjectRate,
   deleteProjectRate,
+  getRetainerPeriods,
   getTimeEntries,
   createTimeEntry,
   updateTimeEntry,
