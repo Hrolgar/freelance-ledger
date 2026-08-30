@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import {
   createInvoice,
   createProjectRate,
@@ -14,24 +14,12 @@ import {
   patchMilestone,
   updateTimeEntry,
 } from '../api'
+import { InvoiceList } from './InvoiceList'
 import { Modal } from './Modal'
-import { MilestoneStatusBadge } from './StatusBadge'
-import { AppCard, Button, EmptyState, Field, Input, SectionHeading, Select, Textarea } from './ui'
-import { formatCurrency, formatDate } from '../lib/format'
+import { AppCard, Button, EmptyState, Field, Input, ModalActions, RowCard, SectionHeading, Select, Textarea } from './ui'
+import { firstOfMonth, formatCurrency, formatDate, hoursLabel, todayIso } from '../lib/format'
 import type { Currency, Milestone, Project, ProjectRate, TimeEntry } from '../types'
 import { CURRENCIES } from '../types'
-
-/// Today as YYYY-MM-DD in LOCAL time.
-///
-/// Not `new Date().toISOString()`: that is a full timestamp, which an
-/// <input type="date"> rejects outright and renders blank, and it is UTC, which
-/// reads as yesterday from Norway late in the evening.
-function todayIso(): string {
-  const now = new Date()
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 10)
-}
 
 /// Monday of the week containing a date, matching the server's period rule.
 /// Takes and returns YYYY-MM-DD.
@@ -45,16 +33,8 @@ function mondayOf(value: string): string {
     .slice(0, 10)
 }
 
-function firstOfMonth(value: string): string {
-  return `${value.slice(0, 7)}-01`
-}
-
 function periodLabel(entry: TimeEntry): string {
   return `${formatDate(entry.periodStart)} to ${formatDate(entry.periodEnd)}`
-}
-
-function hoursLabel(value: number): string {
-  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)))
 }
 
 // --- Shared table classes, matching the rest of the app. Every other page builds its
@@ -552,166 +532,25 @@ export function HourlyPanel({
             </Button>
           }
         />
-        {loading ? (
-          <p className="px-4 py-6 text-sm" style={{ color: 'var(--text-secondary)' }}>Loading…</p>
-        ) : invoices.length === 0 ? (
-          <div className="p-4">
-            <EmptyState title="No invoices yet" description="Log some hours, then raise one for any date range." />
-          </div>
-        ) : (
-          <div className="hidden overflow-x-auto lg:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border-faint)] text-left">
-                  <th className={TH}>Number</th>
-                  <th className={TH}>Period</th>
-                  <th className={TH_RIGHT}>Hours</th>
-                  <th className={TH_RIGHT}>Amount</th>
-                  <th className={TH}>Status</th>
-                  <th className={TH}>Due</th>
-                  <th className={TH} />
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((inv) => (
-                  <tr key={inv.id} className={TR}>
-                    <td className={`${TD} font-mono font-medium text-[var(--text-primary)]`}>
-                      {inv.invoiceNumber}
-                    </td>
-                    <td className={`${TD} text-xs text-[var(--text-secondary)]`}>
-                      {formatDate(inv.periodStart)} to {formatDate(inv.periodEnd)}
-                    </td>
-                    <td className={`${TD_NUM} text-[var(--text-primary)]`}>
-                      {inv.hours === null ? '—' : hoursLabel(inv.hours)}
-                    </td>
-                    <td className={`${TD_NUM} text-[var(--text-primary)]`}>
-                      {formatCurrency(inv.amount, inv.currency)}
-                    </td>
-                    <td className={TD}><MilestoneStatusBadge status={inv.status} /></td>
-                    <td className={`${TD} text-xs text-[var(--text-secondary)]`}>{formatDate(inv.dateDue)}</td>
-                    <td className={TD}>
-                      <div className="flex justify-end gap-1">
-                        {inv.status !== 'Paid' && (
-                          <Button
-                            variant="ghost"
-                            className="px-2 text-xs"
-                            style={{ color: 'var(--paid)' }}
-                            disabled={busy}
-                            onClick={() => void markInvoicePaid(inv)}
-                          >
-                            Mark Paid
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          className="px-2 text-xs"
-                          style={{ color: 'var(--accent)' }}
-                          disabled={busy}
-                          onClick={() => {
-                            setError(null)
-                            void downloadInvoice(
-                              project.id, inv.id, 'pdf', `Invoice-${inv.invoiceNumber}.pdf`,
-                            ).catch((err: unknown) =>
-                              setError(err instanceof Error ? err.message : 'Download failed'),
-                            )
-                          }}
-                        >
-                          PDF
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="px-2 text-xs"
-                          disabled={busy}
-                          onClick={() => {
-                            setError(null)
-                            void downloadInvoice(
-                              project.id, inv.id, 'markdown', `Invoice-${inv.invoiceNumber}.md`,
-                            ).catch((err: unknown) =>
-                              setError(err instanceof Error ? err.message : 'Download failed'),
-                            )
-                          }}
-                        >
-                          MD
-                        </Button>
-                        {inv.status !== 'Paid' && (
-                          <Button
-                            variant="danger"
-                            className="px-2 text-xs"
-                            disabled={busy}
-                            onClick={() => {
-                              if (!confirm(`Delete ${inv.invoiceNumber}? Its periods go back to unbilled and the filed PDF is removed.`)) return
-                              void run(() => deleteInvoice(project.id, inv.id))
-                            }}
-                          >
-                            Del
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {!loading && invoices.length > 0 && (
-          <ul className="flex flex-col gap-2 p-4 lg:hidden">
-            {invoices.map((inv) => (
-              <RowCard
-                key={inv.id}
-                title={inv.invoiceNumber ?? ''}
-                subtitle={`${formatDate(inv.periodStart)} to ${formatDate(inv.periodEnd)}`}
-                amount={formatCurrency(inv.amount, inv.currency)}
-                badge={<MilestoneStatusBadge status={inv.status} />}
-                facts={[
-                  ['Hours', <span className="font-mono tabular-nums">{inv.hours === null ? '—' : hoursLabel(inv.hours)}</span>],
-                  ['Due', formatDate(inv.dateDue)],
-                ]}
-                actions={
-                  <>
-                    {inv.status !== 'Paid' && (
-                      <Button
-                        variant="ghost"
-                        className="min-h-11 px-4 text-xs"
-                        style={{ color: 'var(--paid)' }}
-                        disabled={busy}
-                        onClick={() => void markInvoicePaid(inv)}
-                      >
-                        Mark Paid
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      className="min-h-11 px-4 text-xs"
-                      style={{ color: 'var(--accent)' }}
-                      disabled={busy}
-                      onClick={() => {
-                        setError(null)
-                        void downloadInvoice(project.id, inv.id, 'pdf', `Invoice-${inv.invoiceNumber}.pdf`)
-                          .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Download failed'))
-                      }}
-                    >
-                      PDF
-                    </Button>
-                    {inv.status !== 'Paid' && (
-                      <Button
-                        variant="danger"
-                        className="min-h-11 px-4 text-xs"
-                        disabled={busy}
-                        onClick={() => {
-                          if (!confirm(`Delete ${inv.invoiceNumber}? Its periods go back to unbilled and the filed PDF is removed.`)) return
-                          void run(() => deleteInvoice(project.id, inv.id))
-                        }}
-                      >
-                        Del
-                      </Button>
-                    )}
-                  </>
-                }
-              />
-            ))}
-          </ul>
-        )}
+        <InvoiceList
+          invoices={invoices}
+          loading={loading}
+          busy={busy}
+          emptyTitle="No invoices yet"
+          emptyDescription="Log some hours, then raise one for any date range."
+          onMarkPaid={(inv) => void markInvoicePaid(inv)}
+          onDownload={(inv, format) => {
+            setError(null)
+            const filename = format === 'pdf' ? `Invoice-${inv.invoiceNumber}.pdf` : `Invoice-${inv.invoiceNumber}.md`
+            void downloadInvoice(project.id, inv.id, format, filename).catch((err: unknown) =>
+              setError(err instanceof Error ? err.message : 'Download failed'),
+            )
+          }}
+          onDelete={(inv) => {
+            if (!confirm(`Delete ${inv.invoiceNumber}? Its periods go back to unbilled and the filed PDF is removed.`)) return
+            void run(() => deleteInvoice(project.id, inv.id))
+          }}
+        />
       </AppCard>
 
       {/* --- Rate modal --- */}
@@ -988,89 +827,6 @@ export function HourlyPanel({
         </div>
       </Modal>
       )}
-    </div>
-  )
-}
-
-/// One row of a table, as a card, for phone widths. The three tables here differ only
-/// in which fields they show, so they share this shell: title line, an amount on the
-/// right, a badge row, a small definition grid, then the actions.
-function RowCard({
-  title,
-  subtitle,
-  amount,
-  badge,
-  facts,
-  actions,
-}: {
-  title: string
-  subtitle?: string | null
-  amount?: ReactNode
-  badge?: ReactNode
-  facts?: Array<[string, ReactNode]>
-  actions?: ReactNode
-}) {
-  return (
-    <li
-      className="rounded-lg p-4"
-      style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{title}</p>
-          {subtitle && (
-            <p className="mt-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>{subtitle}</p>
-          )}
-        </div>
-        {amount && (
-          <div
-            className="shrink-0 text-right font-mono text-sm font-semibold tabular-nums"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            {amount}
-          </div>
-        )}
-      </div>
-      {badge && <div className="mt-3 flex flex-wrap items-center gap-1.5">{badge}</div>}
-      {facts && facts.length > 0 && (
-        <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
-          {facts.map(([label, value]) => (
-            <div key={label}>
-              <dt className="uppercase tracking-[0.12em]" style={{ color: 'var(--text-tertiary)' }}>
-                {label}
-              </dt>
-              <dd className="mt-1" style={{ color: 'var(--text-secondary)' }}>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {actions && <div className="mt-4 flex flex-wrap justify-end gap-2">{actions}</div>}
-    </li>
-  )
-}
-
-/// The footer every modal on this page shares: sticks to the bottom on a phone, where
-/// the form scrolls, and sits inline on a desktop. Copied from the milestone and tip
-/// modals so all five behave the same way.
-function ModalActions({
-  onCancel,
-  onConfirm,
-  confirmLabel,
-  busy,
-  disabled,
-}: {
-  onCancel: () => void
-  onConfirm: () => void | Promise<void>
-  confirmLabel: string
-  busy?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <div className="sticky bottom-0 -mx-6 mt-2 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
-      <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
-      <Button type="button" disabled={busy || disabled} onClick={() => void onConfirm()}>
-        {busy ? 'Saving…' : confirmLabel}
-      </Button>
     </div>
   )
 }
