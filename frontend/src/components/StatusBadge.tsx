@@ -6,6 +6,7 @@ const PROJECT_STATUS_DOT: Record<ProjectStatus, string> = {
   InProgress: 'bg-[var(--info)]',
   Completed: 'bg-[var(--paid)]',
   Paid: 'bg-[var(--paid)]',
+  OnHold: 'bg-[var(--border-default)]',
 }
 
 const MILESTONE_STATUS_DOT: Record<MilestoneStatus, string> = {
@@ -20,6 +21,7 @@ const MILESTONE_STATUS_DOT: Record<MilestoneStatus, string> = {
 /// "Completed" read oddly on one. The STORED value is unchanged -- it still drives the
 /// auto-raise sweep and the pipeline exclusion server-side -- only the wording differs.
 export function projectStatusLabel(status: ProjectStatus, billingType?: BillingType): string {
+  if (status === 'OnHold') return 'On hold'
   if (billingType === 'Retainer') {
     if (status === 'InProgress') return 'Active'
     if (status === 'Completed') return 'Ended'

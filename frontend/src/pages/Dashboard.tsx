@@ -59,7 +59,9 @@ export default function Dashboard() {
     if (bs.Awarded) parts.push(`${bs.Awarded} awarded`)
     if (bs.InProgress) parts.push(`${bs.InProgress} in progress`)
     if (bs.Completed) parts.push(`${bs.Completed} completed`)
-    return parts.length ? parts.join(' · ') : 'before fee'
+    let hint = parts.length ? parts.join(' · ') : 'before fee'
+    if (pipeline.onHoldCount > 0) hint += ` · ${pipeline.onHoldCount} on hold`
+    return hint
   }, [pipeline])
 
   return (
