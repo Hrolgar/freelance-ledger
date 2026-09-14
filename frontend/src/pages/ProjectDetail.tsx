@@ -580,9 +580,9 @@ export default function ProjectDetail() {
                   value={projectDraft.status}
                   onChange={(e) => setProjectDraft((c) => ({ ...c, status: e.target.value as Project['status'] }))}
                 >
-                  {/* A retainer is never quoted, awarded or finally paid -- it just runs
-                      until it stops. The two it does use keep their stored values, so the
-                      auto-raise sweep and the pipeline exclusion are unaffected. */}
+                  {/* A retainer is never quoted, awarded or finally paid -- it just runs,
+                      pauses, or stops. The three it does use keep their stored values, so
+                      the auto-raise sweep and the pipeline exclusion are unaffected. */}
                   {(isRetainer ? RETAINER_STATUSES : PROJECT_STATUSES).map((s) => (
                     <option key={s} value={s}>{projectStatusLabel(s, projectDraft.billingType)}</option>
                   ))}
