@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Net.Http;
 using FreelanceLedger.Api.Controllers;
 using FreelanceLedger.Api.Data;
@@ -43,6 +42,15 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
             Currency = Currency.NOK,
             Status = ProjectStatus.OnHold,
         };
+        // OnHold but fully paid: has money, but none of it is unpaid, so it must not
+        // count towards OnHoldCount -- that field means "on hold AND still owed money".
+        var onHoldSettled = new Project
+        {
+            ClientName = "Settled Co",
+            ProjectName = "Settled Project",
+            Currency = Currency.NOK,
+            Status = ProjectStatus.OnHold,
+        };
         var active = new Project
         {
             ClientName = "Active Co",
@@ -50,7 +58,7 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
             Currency = Currency.NOK,
             Status = ProjectStatus.InProgress,
         };
-        _db.Projects.AddRange(onHold, active);
+        _db.Projects.AddRange(onHold, onHoldSettled, active);
         await _db.SaveChangesAsync();
 
         _db.Milestones.AddRange(
@@ -61,6 +69,14 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
                 Amount = 5000m,
                 Currency = Currency.NOK,
                 Status = MilestoneStatus.Pending,
+            },
+            new Milestone
+            {
+                ProjectId = onHoldSettled.Id,
+                Name = "M1",
+                Amount = 4000m,
+                Currency = Currency.NOK,
+                Status = MilestoneStatus.Paid,
             },
             new Milestone
             {
@@ -79,8 +95,13 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
         var payload = Assert.IsType<PipelineResponse>(ok.Value);
 
         Assert.DoesNotContain(payload.Projects, p => p.ProjectId == onHold.Id);
+        Assert.DoesNotContain(payload.Projects, p => p.ProjectId == onHoldSettled.Id);
         Assert.Contains(payload.Projects, p => p.ProjectId == active.Id);
+        // Only the on-hold project with unpaid money counts -- the settled one does not.
         Assert.Equal(1, payload.OnHoldCount);
+        // NOK rate is always 1 and fee is 0 here, so the remaining project's unpaid net
+        // (3000) is the whole pipeline value.
+        Assert.Equal(3000m, payload.TotalPipelineValue);
     }
 
     private async Task<(Project Project, Milestone Invoice)> AddVatInvoiceAsync(InvoiceLanguage? language)
@@ -103,6 +124,9 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
             IssuerName = "Helgi Skjortnes",
             OrgNumber = "123 456 789",
             VatNote = "Reverse charge applies; no VAT charged.",
+            AccountHolder = "Helgi Skjortnes",
+            Iban = "NO93 8601 1117 947",
+            PaymentNotes = "Wire transfer only, no checks accepted.",
         });
 
         var invoice = new Milestone
@@ -133,12 +157,23 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
         var markdown = await _docs.BuildMarkdownAsync(project.Id, invoice.Id);
         Assert.NotNull(markdown);
 
-        var nbNo = CultureInfo.GetCultureInfo("nb-NO");
         Assert.Contains("MVA 25 %", markdown);
-        Assert.Contains($"kr {2500m.ToString("N2", nbNo)}", markdown);
+        // Literal expected strings, not built with the same nb-NO culture the code
+        // uses to format them -- an independent check of the actual output shape.
+        // "kr 12 000,00" uses U+00A0 (no-break space) as the thousands separator.
+        Assert.Contains("kr 2 500,00", markdown);
         Assert.Contains("Å betale", markdown);
-        Assert.Contains($"kr {12500m.ToString("N2", nbNo)}", markdown);
+        Assert.Contains("kr 12 500,00", markdown);
         Assert.Contains("Org.nr. 123 456 789 MVA", markdown);
+        Assert.Contains("1. september 2026", markdown);
+
+        // profile.VatNote explains why no VAT is charged -- this invoice charges VAT,
+        // so it must never appear.
+        Assert.DoesNotContain("Reverse charge applies; no VAT charged.", markdown);
+
+        // PaymentNotesNorwegian is blank on this profile, so the Norwegian document
+        // must print nothing in its place -- in particular not the English PaymentNotes.
+        Assert.DoesNotContain("Wire transfer only, no checks accepted.", markdown);
     }
 
     [Fact]
@@ -152,5 +187,50 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
         Assert.Contains("VAT 25 %", markdown);
         Assert.Contains("Total due", markdown);
         Assert.DoesNotContain("Reverse charge applies; no VAT charged.", markdown);
+    }
+
+    [Fact]
+    public async Task OldInvoiceWithNoVatStaysEnglishAfterProjectVatRateLaterRises()
+    {
+        // The project now charges VAT, but this invoice was raised before that and
+        // froze VatRate = null. Automatic language must follow the INVOICE's own
+        // VatRate, not the project's current one, so re-downloading it still
+        // reproduces the English document that was actually sent.
+        var project = new Project
+        {
+            ClientName = "NO Client",
+            ProjectName = "NO Project",
+            Currency = Currency.NOK,
+            BillingType = BillingType.Retainer,
+            Status = ProjectStatus.InProgress,
+            VatRate = 25m,
+            InvoiceLanguage = null,
+        };
+        _db.Projects.Add(project);
+        await _db.SaveChangesAsync();
+
+        _db.InvoiceProfiles.Add(new InvoiceProfile { IssuerName = "Helgi Skjortnes" });
+
+        var invoice = new Milestone
+        {
+            ProjectId = project.Id,
+            Name = "Invoice",
+            Amount = 10000m,
+            Currency = Currency.NOK,
+            Status = MilestoneStatus.Pending,
+            InvoiceNumber = "OC-2026-002",
+            InvoiceDate = new DateOnly(2026, 1, 1),
+            VatRate = null,
+            PeriodStart = new DateOnly(2025, 12, 1),
+            PeriodEnd = new DateOnly(2025, 12, 31),
+        };
+        _db.Milestones.Add(invoice);
+        await _db.SaveChangesAsync();
+
+        var markdown = await _docs.BuildMarkdownAsync(project.Id, invoice.Id);
+        Assert.NotNull(markdown);
+
+        Assert.Contains("Total due", markdown);
+        Assert.DoesNotContain("Å betale", markdown);
     }
 }
