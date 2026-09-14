@@ -15,6 +15,10 @@ public class InvoiceProfile
     public string? IssuerCountry { get; set; }
     public string? IssuerEmail { get; set; }
 
+    /// Organisation number, printed as its own line at the end of the From block
+    /// when set. Optional -- blank prints nothing.
+    public string? OrgNumber { get; set; }
+
     // Payment block
     public string? AccountHolder { get; set; }
     public string? BankName { get; set; }
