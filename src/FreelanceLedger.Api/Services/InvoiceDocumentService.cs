@@ -280,8 +280,15 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             sb.AppendLine("<table class=\"kv\">");
             Row(accountHolderLabel, profile.AccountHolder);
             Row("Bank", profile.BankName);
-            Row("IBAN", profile.Iban);
-            Row("BIC / SWIFT", profile.BicSwift);
+            if (isNo && !string.IsNullOrWhiteSpace(profile.AccountNumber))
+            {
+                Row("Kontonummer", profile.AccountNumber);
+            }
+            else
+            {
+                Row("IBAN", profile.Iban);
+                Row("BIC / SWIFT", profile.BicSwift);
+            }
             Row(paymentRefLabel, invoice.InvoiceNumber);
             sb.AppendLine("</table>");
             sb.AppendLine();
