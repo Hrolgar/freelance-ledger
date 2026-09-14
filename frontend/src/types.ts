@@ -1,5 +1,5 @@
 export type Currency = 'GBP' | 'USD' | 'EUR' | 'CAD' | 'INR' | 'NOK'
-export type ProjectStatus = 'Quoted' | 'Awarded' | 'InProgress' | 'Completed' | 'Paid'
+export type ProjectStatus = 'Quoted' | 'Awarded' | 'InProgress' | 'Completed' | 'Paid' | 'OnHold'
 export type MilestoneStatus = 'Pending' | 'Funded' | 'Released' | 'Paid' | 'Disputed'
 export type CostCategory = 'Software' | 'Hardware' | 'Internet' | 'Office' | 'Other' | 'Marketing'
 export type InvestmentCategory = 'Hardware' | 'Education' | 'Certification' | 'Equipment' | 'Other'
@@ -70,6 +70,8 @@ export interface Project {
   vatRate: number | null
   // Retainer only: whether a period's invoice is raised automatically once the month ends.
   autoRaiseInvoice: boolean
+  // null = automatic: Norwegian when vatRate is set, English otherwise.
+  invoiceLanguage: 'English' | 'Norwegian' | null
   milestones: Milestone[]
   tips: Tip[]
   files: ProjectFile[]
@@ -174,6 +176,7 @@ export interface InvoiceProfile {
   issuerAddressLine2: string | null
   issuerCountry: string | null
   issuerEmail: string | null
+  orgNumber: string | null
   accountHolder: string | null
   bankName: string | null
   iban: string | null
@@ -290,6 +293,7 @@ export interface Pipeline {
   totalPipelineGrossValue: number  // = unpaid gross total
   projects: PipelineProject[]
   byStatus: Partial<Record<ProjectStatus, number>>
+  onHoldCount: number
 }
 
 export interface ProjectSummary {
@@ -337,7 +341,7 @@ export interface MilestonePatchRequest {
 export const CURRENCIES: Currency[] = ['GBP', 'USD', 'EUR', 'CAD', 'INR', 'NOK']
 /// The only two that mean anything on a retainer: it is running, or it has stopped.
 /// Same stored values as everywhere else -- see projectStatusLabel for the wording.
-export const RETAINER_STATUSES: ProjectStatus[] = ['InProgress', 'Completed']
+export const RETAINER_STATUSES: ProjectStatus[] = ['InProgress', 'OnHold', 'Completed']
 
 export const PROJECT_STATUSES: ProjectStatus[] = [
   'Quoted',
@@ -345,6 +349,7 @@ export const PROJECT_STATUSES: ProjectStatus[] = [
   'InProgress',
   'Completed',
   'Paid',
+  'OnHold',
 ]
 export const MILESTONE_STATUSES: MilestoneStatus[] = [
   'Pending',

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createClient, createProject, deleteProject, getClients, getPlatforms, getProjects } from '../api'
-import { ProjectStatusBadge } from '../components/StatusBadge'
+import { ProjectStatusBadge, projectStatusLabel } from '../components/StatusBadge'
 import { BillingFields } from '../components/BillingFields'
 import { Modal } from '../components/Modal'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
@@ -33,6 +33,7 @@ const emptyProject: ProjectInput = {
   committedHours: null,
   vatRate: null,
   autoRaiseInvoice: false,
+  invoiceLanguage: null,
   files: [],
 }
 
@@ -209,7 +210,7 @@ export default function Projects() {
           >
             <option value="All">All statuses</option>
             {PROJECT_STATUSES.map(s => (
-              <option key={s} value={s}>{s === 'InProgress' ? 'In Progress' : s}</option>
+              <option key={s} value={s}>{projectStatusLabel(s)}</option>
             ))}
           </Select>
           <Select
@@ -437,7 +438,7 @@ export default function Projects() {
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <Field label="Status">
                 <Select value={draft.status} onChange={(e) => setDraft((c) => ({ ...c, status: e.target.value as Project['status'] }))}>
-                  {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s === 'InProgress' ? 'In Progress' : s}</option>)}
+                  {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{projectStatusLabel(s)}</option>)}
                 </Select>
               </Field>
               <Field label="Awarded">

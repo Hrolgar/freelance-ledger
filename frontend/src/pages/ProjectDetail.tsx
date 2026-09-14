@@ -84,6 +84,7 @@ const emptyProjectDraft: ProjectInput = {
   committedHours: null,
   vatRate: null,
   autoRaiseInvoice: false,
+  invoiceLanguage: null,
   files: [],
 }
 
@@ -176,6 +177,7 @@ export default function ProjectDetail() {
         committedHours: hydrated.committedHours ?? null,
         vatRate: hydrated.vatRate ?? null,
         autoRaiseInvoice: hydrated.autoRaiseInvoice ?? false,
+        invoiceLanguage: hydrated.invoiceLanguage ?? null,
         files: hydrated.files ?? [],
       })
       setMilestoneDraft({
