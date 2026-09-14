@@ -43,7 +43,7 @@ DOC_TYPES: dict[str, str] = {
 }
 
 
-def _cover_html(doc_label: str, title: str, subtitle: str | None, rows: list) -> str:
+def _cover_html(doc_label: str, title: str, subtitle: str | None, rows: list, lang: str = "en") -> str:
     kicker = html_lib.escape(doc_label.upper())
     title_esc = html_lib.escape(title)
     meta_rows = "".join(
@@ -62,10 +62,11 @@ def _cover_html(doc_label: str, title: str, subtitle: str | None, rows: list) ->
         f'<a href="https://{PORTFOLIO_URL}">{html_lib.escape(PORTFOLIO_URL)}</a>',
         f'<a href="{html_lib.escape(LINKEDIN_URL, quote=True)}">LinkedIn</a>',
     )
+    confidential_word = "Konfidensielt" if lang == "nb" else "Confidential"
     foot = (
         '<div class="cover-foot">'
         f'<div class="cover-contact">{" · ".join(contact_items)}</div>'
-        '<div class="cover-confidential">Confidential</div>'
+        f'<div class="cover-confidential">{confidential_word}</div>'
         '</div>'
     )
     return f'<section class="cover"><div class="cover-inner">{inner}</div>{foot}</section>'
@@ -76,6 +77,7 @@ def render_document(
     doc_type: str,
     meta: dict,
     output_path: str,
+    lang: str = "en",
 ) -> dict:
     """Render a Markdown document to PDF using the Consulting Bold house style.
 
@@ -102,9 +104,9 @@ def render_document(
         markdown,
         extensions=["tables", "fenced_code", "sane_lists"],
     )
-    cover_html = _cover_html(doc_label, title, subtitle, rows)
+    cover_html = _cover_html(doc_label, title, subtitle, rows, lang)
     run_foot = f"{doc_label} · {client}"
-    css = build_css(vendor, run_foot)
+    css = build_css(vendor, run_foot, lang)
 
     full_html = (
         f'<!doctype html><html><head><meta charset="utf-8">'

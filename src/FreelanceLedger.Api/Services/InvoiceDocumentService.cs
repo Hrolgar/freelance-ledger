@@ -25,6 +25,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         string ClientLabel,
         List<KeyValuePair<string, string>> Rows,
         string DocType,
+        string Lang,
         string? ClientRowLabel,
         string? VendorRowLabel);
 
@@ -328,6 +329,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             ClientLabel: clientLabel,
             Rows: coverRows,
             DocType: isNo ? "faktura" : "invoice",
+            Lang: isNo ? "nb" : "en",
             ClientRowLabel: isNo ? "Kunde" : null,
             VendorRowLabel: isNo ? "Leverandør" : null);
 
@@ -364,6 +366,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             markdown = doc.Markdown,
             output_path = outPath,
             doc_type = doc.DocType,
+            lang = doc.Lang,
             meta = new
             {
                 title = doc.Title,

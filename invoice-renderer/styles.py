@@ -37,17 +37,18 @@ def get_font_faces() -> str:
     ])
 
 
-def get_page_css(vendor: str, run_foot: str) -> str:
+def get_page_css(vendor: str, run_foot: str, lang: str = "en") -> str:
     # Gotcha 3: @page:first with margin:0 + all headers/footers suppressed.
     # Gotcha: background on @page:first paints the cover page dark.
     # Gotcha 5: h2 string-set drives @top-right section title.
+    page_word, of_word = ("Side", "av") if lang == "nb" else ("Page", "of")
     return f"""
 @page {{ size:A4; margin:20mm 18mm 18mm 18mm;
   @top-left {{ content:"{vendor}"; font-family:'Archivo'; font-size:7.5pt;
     letter-spacing:.12em; color:{MUTED}; }}
   @top-right {{ content:string(doctitle); font-family:'Inter'; font-size:7.5pt; color:{MUTED}; }}
   @bottom-left {{ content:"{run_foot}"; font-family:'Inter'; font-size:7.5pt; color:{MUTED}; }}
-  @bottom-right {{ content:"Page " counter(page) " of " counter(pages);
+  @bottom-right {{ content:"{page_word} " counter(page) " {of_word} " counter(pages);
     font-family:'Inter'; font-size:7.5pt; color:{MUTED}; }}
 }}
 @page:first {{ margin:0; background:{COVER_BG};
@@ -129,10 +130,10 @@ hr{{ border:none; border-top:1px solid {RULE}; margin:22px 0; }}
 """
 
 
-def build_css(vendor: str, run_foot: str) -> str:
+def build_css(vendor: str, run_foot: str, lang: str = "en") -> str:
     return (
         get_font_faces()
-        + get_page_css(vendor, run_foot)
+        + get_page_css(vendor, run_foot, lang)
         + get_cover_css()
         + get_table_css()
         + get_body_css()
