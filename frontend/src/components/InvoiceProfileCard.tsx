@@ -17,6 +17,7 @@ const empty: InvoiceProfile = {
   paymentNotes: null,
   paymentNotesNorwegian: null,
   vatNote: null,
+  vatNoteNorwegian: null,
   termsNote: null,
   defaultVatRate: null,
 }
@@ -135,6 +136,16 @@ export function InvoiceProfileCard() {
           </Field>
           <Field label="VAT note" hint="Why no VAT is charged. Printed verbatim.">
             <Textarea rows={2} value={profile.vatNote ?? ''} onChange={(e) => set('vatNote')(e.target.value)} />
+          </Field>
+          <Field
+            label="VAT note (Norwegian invoices)"
+            hint="Printed on Norwegian invoices that charge no VAT, e.g. why MVA is not added. Blank prints nothing."
+          >
+            <Textarea
+              rows={2}
+              value={profile.vatNoteNorwegian ?? ''}
+              onChange={(e) => set('vatNoteNorwegian')(e.target.value)}
+            />
           </Field>
           <Field
             label="Default VAT rate %"
