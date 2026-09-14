@@ -35,6 +35,11 @@ public class InvoiceProfile
     /// Why no VAT is charged. Printed verbatim.
     public string? VatNote { get; set; }
 
+    /// Norwegian equivalent of VatNote, printed on Norwegian invoices with no VAT
+    /// instead of VatNote. Optional -- blank prints nothing, and VatNote never
+    /// substitutes for it.
+    public string? VatNoteNorwegian { get; set; }
+
     /// Prefills the VAT rate on a new project. The per-project rate is what actually
     /// gets applied; this is only a default so it is typed once.
     public decimal? DefaultVatRate { get; set; }
