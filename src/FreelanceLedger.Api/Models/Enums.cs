@@ -16,7 +16,8 @@ public enum ProjectStatus
     Awarded,
     InProgress,
     Completed,
-    Paid
+    Paid,
+    OnHold
 }
 
 public enum BillingType
