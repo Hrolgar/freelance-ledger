@@ -68,9 +68,10 @@ function clampToMonth(dateStr: string, key: string): string {
   return dateStr.slice(0, 7) === key ? dateStr : lastDayOfMonth(key)
 }
 
-/// The day after the latest entry in the month, or the 1st when the month is still empty.
+/// The day after the latest entry in the month, or today (clamped into the month)
+/// when the month is still empty.
 function defaultQuickAddDate(key: string, list: TimeEntry[]): string {
-  if (list.length === 0) return `${key}-01`
+  if (list.length === 0) return clampToMonth(todayIso(), key)
   const latest = list.reduce((max, e) => (e.periodEnd > max ? e.periodEnd : max), list[0].periodEnd)
   return clampToMonth(addDays(latest, 1), key)
 }
@@ -171,6 +172,7 @@ export function HourlyPanel({
     description: '',
   })
 
+  const [logMonthKey, setLogMonthKey] = useState(monthKeyOf(todayIso()))
   const [openMonthKey, setOpenMonthKey] = useState<string | null>(null)
   const [monthEditId, setMonthEditId] = useState<number | null>(null)
   const [monthEditDraft, setMonthEditDraft] = useState({
@@ -509,13 +511,26 @@ export function HourlyPanel({
               : 'Log a period of hours. Invoiced periods lock.'
           }
           action={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {project.cadence !== 'None' && (
                 <Button variant="secondary" className="text-xs" onClick={() => setShowGenerateModal(true)}>
                   Generate
                 </Button>
               )}
-              <Button variant="secondary" className="text-xs" onClick={openNewEntry}>+ Log hours</Button>
+              <Input
+                type="month"
+                aria-label="Month to log hours for"
+                className="h-9 w-auto text-xs"
+                value={logMonthKey}
+                onChange={(e) => setLogMonthKey(e.target.value || monthKeyOf(todayIso()))}
+              />
+              <Button
+                className="text-xs"
+                onClick={() => openMonthModal(logMonthKey, monthGroups.find((g) => g.key === logMonthKey)?.entries ?? [])}
+              >
+                + Log hours
+              </Button>
+              <Button variant="ghost" className="text-xs" onClick={openNewEntry}>Log a period</Button>
             </div>
           }
         />
@@ -1050,6 +1065,14 @@ export function HourlyPanel({
                     </tr>
                   )
                 })}
+
+                {openMonth.entries.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className={`${TD} text-sm`} style={{ color: 'var(--text-tertiary)' }}>
+                      Nothing logged in {openMonth.label} yet. Add the first day below.
+                    </td>
+                  </tr>
+                )}
 
                 {/* Quick-add row, pinned at the bottom. Enter in any field adds the
                     line and advances the date so a run of days can be typed without
