@@ -39,6 +39,7 @@ DOC_TYPES: dict[str, str] = {
     # Added here (absent from pdf-mcp at the time of vendoring): without it an
     # invoice had to be rendered as "report" and the cover read STATUS REPORT.
     "invoice":  "Invoice",
+    "faktura":  "Faktura",
 }
 
 
@@ -92,8 +93,10 @@ def render_document(
     client = meta["client"]
     subtitle = meta.get("subtitle")
     vendor = meta.get("vendor", "Helgi Skjortnes")
+    client_label = meta.get("client_label") or "Client"
+    vendor_label = meta.get("vendor_label") or "Vendor"
     # Client + Vendor always lead the cover meta; any caller-supplied rows follow.
-    rows: list = [("Client", client), ("Vendor", vendor)] + list(meta.get("rows") or [])
+    rows: list = [(client_label, client), (vendor_label, vendor)] + list(meta.get("rows") or [])
 
     body_html = md_lib.markdown(
         markdown,
