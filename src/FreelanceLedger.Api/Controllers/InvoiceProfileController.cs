@@ -42,6 +42,7 @@ public class InvoiceProfileController(LedgerDbContext db) : ControllerBase
         profile.PaymentNotes = updated.PaymentNotes;
         profile.PaymentNotesNorwegian = updated.PaymentNotesNorwegian;
         profile.VatNote = updated.VatNote;
+        profile.VatNoteNorwegian = updated.VatNoteNorwegian;
         profile.TermsNote = updated.TermsNote;
         profile.DefaultVatRate = updated.DefaultVatRate;
 

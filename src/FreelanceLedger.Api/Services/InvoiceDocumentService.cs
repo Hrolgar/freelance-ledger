@@ -253,9 +253,13 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         // profile.VatNote is the sentence explaining why NO VAT is charged. Printing it
         // under a line that just charged VAT would put a flat contradiction on a
         // document going to a client, so it only appears when this invoice charged none.
-        if (invoice.VatRate is null && !string.IsNullOrWhiteSpace(profile.VatNote))
+        // VatNoteNorwegian is a separate sentence for Norwegian documents (e.g. not yet
+        // registered in Merverdiavgiftsregisteret) -- it never falls back to VatNote,
+        // which is written for foreign business customers.
+        var vatNote = isNo ? profile.VatNoteNorwegian : profile.VatNote;
+        if (invoice.VatRate is null && !string.IsNullOrWhiteSpace(vatNote))
         {
-            sb.AppendLine(profile.VatNote);
+            sb.AppendLine(vatNote);
             sb.AppendLine();
         }
 
