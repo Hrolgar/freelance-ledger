@@ -141,10 +141,10 @@ export default function Dashboard() {
             />
             <Link to="/vat" className="block">
               <StatCard
-                label="VAT collected YTD"
+                label="VAT invoiced YTD"
                 value={formatCurrency(vat?.totalVatNok ?? 0, 'NOK')}
                 hint={
-                  `${formatCurrency(vat?.paidVatNok ?? 0, 'NOK')} paid`
+                  `${formatCurrency(vat?.paidVatNok ?? 0, 'NOK')} collected`
                   + (openTerm ? ` · termin ${openTerm} open` : '')
                 }
               />
