@@ -184,6 +184,7 @@ export interface InvoiceProfile {
   paymentNotes: string | null
   paymentNotesNorwegian: string | null
   vatNote: string | null
+  vatNoteNorwegian: string | null
   termsNote: string | null
   // Prefill only, for new projects. The rate actually charged is the project's own vatRate.
   defaultVatRate: number | null
