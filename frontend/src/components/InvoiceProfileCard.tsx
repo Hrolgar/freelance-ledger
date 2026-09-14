@@ -14,6 +14,7 @@ const empty: InvoiceProfile = {
   bankName: null,
   iban: null,
   bicSwift: null,
+  accountNumber: null,
   paymentNotes: null,
   paymentNotesNorwegian: null,
   vatNote: null,
@@ -115,6 +116,12 @@ export function InvoiceProfileCard() {
             </Field>
             <Field label="BIC / SWIFT">
               <Input value={profile.bicSwift ?? ''} onChange={(e) => set('bicSwift')(e.target.value)} />
+            </Field>
+            <Field
+              label="Account number (kontonummer)"
+              hint="Printed instead of IBAN and BIC on Norwegian invoices."
+            >
+              <Input value={profile.accountNumber ?? ''} onChange={(e) => set('accountNumber')(e.target.value)} />
             </Field>
           </div>
 
