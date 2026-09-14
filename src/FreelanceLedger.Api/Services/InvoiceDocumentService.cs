@@ -55,9 +55,12 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         var profile = await db.InvoiceProfiles.AsNoTracking().FirstOrDefaultAsync()
                       ?? new InvoiceProfile { IssuerName = "Not configured" };
 
-        // Null means automatic: Norwegian when the project charges VAT, English
-        // otherwise. An explicit InvoiceLanguage overrides that.
-        var isNo = (project.InvoiceLanguage ?? (project.VatRate is not null
+        // Null means automatic: Norwegian when THIS INVOICE charges VAT, English
+        // otherwise. Uses invoice.VatRate (frozen on the milestone), not
+        // project.VatRate, so re-downloading an old invoice reproduces the document
+        // that was actually sent even after the project's VAT rate later changes.
+        // An explicit InvoiceLanguage on the project overrides that.
+        var isNo = (project.InvoiceLanguage ?? (invoice.VatRate is not null
                         ? InvoiceLanguage.Norwegian
                         : InvoiceLanguage.English)) == InvoiceLanguage.Norwegian;
 
