@@ -94,8 +94,17 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             .AsNoTracking()
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
-            .Where(p => p.Status != ProjectStatus.Paid)
+            .Where(p => p.Status != ProjectStatus.Paid && p.Status != ProjectStatus.OnHold)
             .ToListAsync();
+
+        var onHoldProjects = await db.Projects
+            .AsNoTracking()
+            .Include(p => p.Milestones)
+            .Where(p => p.Status == ProjectStatus.OnHold)
+            .ToListAsync();
+
+        var onHoldCount = onHoldProjects.Count(p =>
+            p.Milestones.Where(m => m.Status != MilestoneStatus.Paid).Sum(m => m.Amount) > 0);
 
         var projects = allProjects
             .Select(project =>
@@ -144,7 +153,8 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             Math.Round(totalUnpaidNetNok, 2),
             Math.Round(totalUnpaidGrossNok, 2),
             projects,
-            byStatus));
+            byStatus,
+            onHoldCount));
     }
 }
 
@@ -175,4 +185,5 @@ public record PipelineResponse(
     decimal TotalPipelineValue,
     decimal TotalPipelineGrossValue,
     IReadOnlyList<PipelineProjectResponse> Projects,
-    IReadOnlyDictionary<ProjectStatus, int> ByStatus);
+    IReadOnlyDictionary<ProjectStatus, int> ByStatus,
+    int OnHoldCount);
