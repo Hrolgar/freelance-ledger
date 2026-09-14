@@ -156,6 +156,95 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             byStatus,
             onHoldCount));
     }
+
+    // Norwegian output VAT (utgaende merverdiavgift) is reported to Skatteetaten per
+    // termin, six two-month periods a year, counted by invoice date.
+    private static readonly (int FromMonth, int ToMonth, int DeadlineMonth, int DeadlineDay, int DeadlineYearOffset)[] VatTerms =
+    [
+        (1, 2, 4, 10, 0),
+        (3, 4, 6, 10, 0),
+        (5, 6, 8, 31, 0),
+        (7, 8, 10, 10, 0),
+        (9, 10, 12, 10, 0),
+        (11, 12, 2, 10, 1),
+    ];
+
+    [HttpGet("vat")]
+    public async Task<IActionResult> GetVatSummary([FromQuery] int? year)
+    {
+        var resolvedYear = year ?? DateOnly.FromDateTime(DateTime.UtcNow).Year;
+
+        var projects = await db.Projects
+            .AsNoTracking()
+            .Include(p => p.Milestones)
+            .ToListAsync();
+
+        await rateService.PreloadYear(resolvedYear);
+
+        var invoices = new List<VatInvoiceResponse>();
+        var netNokByInvoice = new Dictionary<int, decimal>();
+        foreach (var project in projects)
+        {
+            foreach (var milestone in project.Milestones)
+            {
+                if (milestone.VatRate is null || milestone.InvoiceNumber is null) continue;
+
+                var invoiceDate = milestone.InvoiceDate ?? milestone.DateDue ?? milestone.DatePaid;
+                if (invoiceDate is null || invoiceDate.Value.Year != resolvedYear) continue;
+
+                var term = TermForMonth(invoiceDate.Value.Month);
+                var rate = await rateService.GetRate(milestone.Currency, invoiceDate.Value.Month, invoiceDate.Value.Year);
+                var vatNok = Math.Round((milestone.VatAmount ?? 0m) * rate, 2);
+                netNokByInvoice[milestone.Id] = Math.Round(milestone.Amount * rate, 2);
+
+                invoices.Add(new VatInvoiceResponse(
+                    project.Id,
+                    project.ProjectName,
+                    project.ClientName,
+                    milestone.Id,
+                    milestone.InvoiceNumber,
+                    invoiceDate.Value,
+                    term,
+                    milestone.Currency,
+                    milestone.Amount,
+                    milestone.VatRate.Value,
+                    milestone.VatAmount ?? 0m,
+                    vatNok,
+                    milestone.Status,
+                    milestone.DatePaid));
+            }
+        }
+
+        invoices = invoices.OrderBy(i => i.InvoiceDate).ToList();
+
+        var terms = new List<VatTermResponse>();
+        for (var i = 0; i < VatTerms.Length; i++)
+        {
+            var (fromMonth, toMonth, deadlineMonth, deadlineDay, deadlineYearOffset) = VatTerms[i];
+            var termNumber = i + 1;
+            var termInvoices = invoices.Where(inv => inv.Term == termNumber).ToList();
+
+            terms.Add(new VatTermResponse(
+                termNumber,
+                fromMonth,
+                toMonth,
+                new DateOnly(resolvedYear + deadlineYearOffset, deadlineMonth, deadlineDay),
+                Math.Round(termInvoices.Sum(inv => netNokByInvoice[inv.InvoiceId]), 2),
+                Math.Round(termInvoices.Sum(inv => inv.VatNok), 2),
+                Math.Round(termInvoices.Where(inv => inv.Status == MilestoneStatus.Paid).Sum(inv => inv.VatNok), 2),
+                termInvoices.Count));
+        }
+
+        return Ok(new VatSummaryResponse(
+            resolvedYear,
+            Math.Round(invoices.Sum(inv => netNokByInvoice[inv.InvoiceId]), 2),
+            Math.Round(invoices.Sum(inv => inv.VatNok), 2),
+            Math.Round(invoices.Where(inv => inv.Status == MilestoneStatus.Paid).Sum(inv => inv.VatNok), 2),
+            terms,
+            invoices));
+    }
+
+    private static int TermForMonth(int month) => (month - 1) / 2 + 1;
 }
 
 public record MonthlyOverviewResponse(int Month, decimal Revenue, decimal Costs, decimal Profit);
@@ -187,3 +276,37 @@ public record PipelineResponse(
     IReadOnlyList<PipelineProjectResponse> Projects,
     IReadOnlyDictionary<ProjectStatus, int> ByStatus,
     int OnHoldCount);
+
+public record VatTermResponse(
+    int Term,
+    int FromMonth,
+    int ToMonth,
+    DateOnly ReportingDeadline,
+    decimal NetNok,
+    decimal VatNok,
+    decimal PaidVatNok,
+    int InvoiceCount);
+
+public record VatInvoiceResponse(
+    int ProjectId,
+    string ProjectName,
+    string ClientName,
+    int InvoiceId,
+    string InvoiceNumber,
+    DateOnly InvoiceDate,
+    int Term,
+    Currency Currency,
+    decimal Amount,
+    decimal VatRate,
+    decimal VatAmount,
+    decimal VatNok,
+    MilestoneStatus Status,
+    DateOnly? DatePaid);
+
+public record VatSummaryResponse(
+    int Year,
+    decimal TotalNetNok,
+    decimal TotalVatNok,
+    decimal PaidVatNok,
+    IReadOnlyList<VatTermResponse> Terms,
+    IReadOnlyList<VatInvoiceResponse> Invoices);
