@@ -7,6 +7,7 @@ import ProjectDetail from './pages/ProjectDetail'
 import FileViewer from './pages/FileViewer'
 import Monthly from './pages/Monthly'
 import Costs from './pages/Costs'
+import Vat from './pages/Vat'
 import Clients from './pages/Clients'
 import Settings from './pages/Settings'
 
@@ -71,6 +72,7 @@ function NavigationGroups() {
       </NavGroup>
       <NavGroup title="Money">
         <NavItem to="/costs" label="Costs" />
+        <NavItem to="/vat" label="MVA" />
       </NavGroup>
     </>
   )
@@ -226,6 +228,7 @@ export default function App() {
         <Route path="/clients/:id" element={<Clients />} />
         <Route path="/monthly" element={<Monthly />} />
         <Route path="/costs" element={<Costs />} />
+        <Route path="/vat" element={<Vat />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

@@ -297,6 +297,43 @@ export interface Pipeline {
   onHoldCount: number
 }
 
+export interface VatTerm {
+  term: number
+  fromMonth: number
+  toMonth: number
+  reportingDeadline: string
+  netNok: number
+  vatNok: number
+  paidVatNok: number
+  invoiceCount: number
+}
+
+export interface VatInvoice {
+  projectId: number
+  projectName: string
+  clientName: string
+  invoiceId: number
+  invoiceNumber: string
+  invoiceDate: string
+  term: number
+  currency: Currency
+  amount: number
+  vatRate: number
+  vatAmount: number
+  vatNok: number
+  status: MilestoneStatus
+  datePaid: string | null
+}
+
+export interface VatSummary {
+  year: number
+  totalNetNok: number
+  totalVatNok: number
+  paidVatNok: number
+  terms: VatTerm[]
+  invoices: VatInvoice[]
+}
+
 export interface ProjectSummary {
   projectId: number
   paidMilestoneTotal: number
