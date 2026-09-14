@@ -97,6 +97,8 @@ export function projectStatusTone(status: ProjectStatus) {
       return 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
     case 'Awarded':
       return 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
+    case 'OnHold':
+      return 'bg-zinc-600/15 text-zinc-300 border border-zinc-500/30'
     default:
       return 'bg-slate-700/60 text-slate-400 border border-slate-600/50'
   }

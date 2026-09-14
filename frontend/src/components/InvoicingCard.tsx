@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { updateProject } from '../api'
-import { AppCard, Button, Checkbox, Field, Input, SectionHeading, Textarea } from './ui'
+import { AppCard, Button, Checkbox, Field, Input, SectionHeading, Select, Textarea } from './ui'
 import type { Project, ProjectInput } from '../types'
 
 /// Everything that only affects the PRINTED INVOICE for this client: who it is
@@ -29,6 +29,7 @@ export function InvoicingCard({
     invoiceTermsNote: project.invoiceTermsNote,
     vatRate: project.vatRate,
     autoRaiseInvoice: project.autoRaiseInvoice,
+    invoiceLanguage: project.invoiceLanguage,
   }
 
   const [draft, setDraft] = useState(fields)
@@ -42,7 +43,7 @@ export function InvoicingCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, project.invoicePrefix, project.billTo, project.invoiceWorkDescription,
       project.invoiceLineLabel, project.paymentDueDayOfMonth, project.invoiceTermsNote,
-      project.vatRate, project.autoRaiseInvoice])
+      project.vatRate, project.autoRaiseInvoice, project.invoiceLanguage])
 
   const set = <K extends keyof typeof draft>(key: K, value: (typeof draft)[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
@@ -223,6 +224,22 @@ export function InvoicingCard({
               </div>
             </Field>
           )}
+
+          <Field
+            label="Invoice language"
+            hint="Automatic uses Norwegian only when this project charges VAT."
+          >
+            <Select
+              value={draft.invoiceLanguage ?? ''}
+              onChange={(e) =>
+                set('invoiceLanguage', e.target.value === '' ? null : (e.target.value as 'English' | 'Norwegian'))
+              }
+            >
+              <option value="">Automatic (Norwegian when VAT applies)</option>
+              <option value="English">English</option>
+              <option value="Norwegian">Norwegian</option>
+            </Select>
+          </Field>
         </div>
 
         <Field
