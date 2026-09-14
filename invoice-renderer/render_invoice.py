@@ -35,11 +35,12 @@ def main() -> int:
     meta = job.get("meta") or {}
     meta.setdefault("title", "Invoice")
     meta.setdefault("client", "")
+    doc_type = job.get("doc_type") or "invoice"
 
     try:
         result = render_document(
             markdown=job["markdown"],
-            doc_type="invoice",
+            doc_type=doc_type,
             meta=meta,
             output_path=job["output_path"],
         )

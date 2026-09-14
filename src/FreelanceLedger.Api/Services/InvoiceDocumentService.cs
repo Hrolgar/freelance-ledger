@@ -13,6 +13,7 @@ namespace FreelanceLedger.Api.Services;
 public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentService> logger)
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+    private static readonly CultureInfo NbNo = CultureInfo.GetCultureInfo("nb-NO");
 
     /// Everything the renderer needs: the body, plus the cover-page fields. The cover is
     /// the first thing the client sees, so it repeats the four facts they actually want
@@ -22,7 +23,10 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         string Title,
         string? Subtitle,
         string ClientLabel,
-        List<KeyValuePair<string, string>> Rows);
+        List<KeyValuePair<string, string>> Rows,
+        string DocType,
+        string? ClientRowLabel,
+        string? VendorRowLabel);
 
     public async Task<string?> BuildMarkdownAsync(int projectId, int invoiceId)
         => (await BuildAsync(projectId, invoiceId))?.Markdown;
@@ -51,10 +55,58 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         var profile = await db.InvoiceProfiles.AsNoTracking().FirstOrDefaultAsync()
                       ?? new InvoiceProfile { IssuerName = "Not configured" };
 
+        // Null means automatic: Norwegian when the project charges VAT, English
+        // otherwise. An explicit InvoiceLanguage overrides that.
+        var isNo = (project.InvoiceLanguage ?? (project.VatRate is not null
+                        ? InvoiceLanguage.Norwegian
+                        : InvoiceLanguage.English)) == InvoiceLanguage.Norwegian;
+
+        var headingWord = isNo ? "Faktura" : "Invoice";
+        var invoiceDateLabel = isNo ? "Fakturadato" : "Invoice date";
+        var periodLabel = isNo ? "Periode" : "Period covered";
+        var periodConnector = isNo ? "til" : "to";
+        var fromLabel = isNo ? "Fra" : "From";
+        var billToLabel = isNo ? "Faktureres til" : "Bill to";
+        var workHeading = isNo ? "Utført arbeid" : "Work performed";
+        var descLabel = isNo ? "Beskrivelse" : "Description";
+        var hoursLabel = isNo ? "Timer" : "Hours";
+        var rateLabel = isNo ? "Sats" : "Rate";
+        var amountLabel = isNo ? "Beløp" : "Amount";
+        var defaultRetainerLabel = isNo ? "Månedlig honorar" : "Monthly retainer";
+        var defaultHourlyLabel = isNo ? "Konsulenttjenester, timebasert" : "Engineering services, hourly";
+        var subtotalLabel = isNo ? "Sum eks. mva" : "Subtotal";
+        var vatLabelPrefix = isNo ? "MVA" : "VAT";
+        var totalDueLabel = isNo ? "Å betale" : "Total due";
+        var paymentHeading = isNo ? "Betalingsinformasjon" : "Payment details";
+        var accountHolderLabel = isNo ? "Kontoeier" : "Account holder";
+        var paymentRefLabel = isNo ? "Betalingsreferanse" : "Payment reference";
+        var closingTemplate = isNo
+            ? "Spørsmål om fakturaen? Svar meg direkte på {0}."
+            : "Any questions on this invoice, reply to me directly at {0}.";
+        var coverInvoiceNumberLabel = isNo ? "Fakturanummer" : "Invoice number";
+        var coverInvoiceDateLabel = isNo ? "Fakturadato" : "Invoice date";
+        var coverPaidLabel = isNo ? "Betalt" : "Paid";
+
+        string LongDate(DateOnly d) => isNo ? d.ToString("d. MMMM yyyy", NbNo) : d.ToString("d MMMM yyyy", Inv);
+        string MonthDate(DateOnly d) => isNo ? d.ToString("d. MMMM", NbNo) : d.ToString("d MMMM", Inv);
+        string MonthYearDate(DateOnly d) => isNo ? d.ToString("MMMM yyyy", NbNo) : d.ToString("MMMM yyyy", Inv);
+        string ShortDate(DateOnly d) => isNo ? d.ToString("d. MMM", NbNo) : d.ToString("d MMM", Inv);
+        string ShortDateYear(DateOnly d) => isNo ? d.ToString("d. MMM yyyy", NbNo) : d.ToString("d MMM yyyy", Inv);
+
         var cur = invoice.Currency.ToString();
+        string Cur(decimal v)
+        {
+            if (isNo)
+            {
+                var prefix = invoice.Currency == Currency.NOK ? "kr" : cur;
+                return $"{prefix} {v.ToString("N2", NbNo)}";
+            }
+            return $"{cur} {Money(v)}";
+        }
+
         var sb = new StringBuilder();
 
-        sb.AppendLine($"# Invoice {invoice.InvoiceNumber}");
+        sb.AppendLine($"# {headingWord} {invoice.InvoiceNumber}");
         sb.AppendLine();
 
         // Stamped when the invoice was raised, never "today". Re-downloading an invoice
@@ -77,23 +129,30 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         // A milestone can carry an invoice number without a period if it was typed in
         // by hand rather than generated, so the period clause is optional.
         var period = invoice.PeriodStart is { } ps && invoice.PeriodEnd is { } pe
-            ? $"Period covered {ps.ToString("d MMMM", Inv)} to {pe.ToString("d MMMM yyyy", Inv)}. "
+            ? $"{periodLabel} {MonthDate(ps)} {periodConnector} {LongDate(pe)}. "
             : "";
         sb.AppendLine(
-            $"Invoice date {issued.ToString("d MMMM yyyy", Inv)}. {period}{terms}".Trim());
+            $"{invoiceDateLabel} {LongDate(issued)}. {period}{terms}".Trim());
         sb.AppendLine();
 
         // Address blocks need explicit <br> or the markdown collapses them onto one line.
-        sb.AppendLine("**From**<br>");
+        sb.AppendLine($"**{fromLabel}**<br>");
+        var fromLines = new List<string>();
         foreach (var line in new[] { profile.IssuerName, profile.IssuerAddressLine1,
                                      profile.IssuerAddressLine2, profile.IssuerCountry })
             if (!string.IsNullOrWhiteSpace(line))
-                sb.AppendLine($"{line}<br>");
+                fromLines.Add(line!);
         if (!string.IsNullOrWhiteSpace(profile.IssuerEmail))
-            sb.AppendLine(profile.IssuerEmail);
+            fromLines.Add(profile.IssuerEmail!);
+        if (!string.IsNullOrWhiteSpace(profile.OrgNumber))
+            fromLines.Add(invoice.VatRate is not null
+                ? $"Org.nr. {profile.OrgNumber} MVA"
+                : $"Org.nr. {profile.OrgNumber}");
+        for (var i = 0; i < fromLines.Count; i++)
+            sb.AppendLine(i == fromLines.Count - 1 ? fromLines[i] : $"{fromLines[i]}<br>");
         sb.AppendLine();
 
-        sb.AppendLine("**Bill to**<br>");
+        sb.AppendLine($"**{billToLabel}**<br>");
         List<string> billTo;
         if (!string.IsNullOrWhiteSpace(project.BillTo))
         {
@@ -114,7 +173,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             sb.AppendLine(i == billTo.Count - 1 ? billTo[i] : $"{billTo[i]}<br>");
         sb.AppendLine();
 
-        sb.AppendLine("## Work performed");
+        sb.AppendLine($"## {workHeading}");
         sb.AppendLine();
         var work = FirstNonBlank(invoice.Description, project.InvoiceWorkDescription);
         if (work is not null)
@@ -127,7 +186,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         // to a plain description/amount line rather than the hourly four columns.
         var isRetainer = project.BillingType == BillingType.Retainer;
         var lineLabel = FirstNonBlank(project.InvoiceLineLabel)
-            ?? (isRetainer ? "Monthly retainer" : "Engineering services, hourly");
+            ?? (isRetainer ? defaultRetainerLabel : defaultHourlyLabel);
 
         // A totals row continues whichever table was just printed, so it needs the same
         // cell count -- the label and amount always take the last two columns, padded
@@ -137,16 +196,16 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
 
         if (isRetainer)
         {
-            sb.AppendLine("| Description | Amount |");
+            sb.AppendLine($"| {descLabel} | {amountLabel} |");
             sb.AppendLine("|---|---:|");
-            var periodLabel = invoice.PeriodStart is { } rps
-                ? $"{lineLabel}, {rps.ToString("MMMM yyyy", Inv)}"
+            var invoicePeriodLabel = invoice.PeriodStart is { } rps
+                ? $"{lineLabel}, {MonthYearDate(rps)}"
                 : lineLabel;
-            sb.AppendLine($"| {periodLabel} | {cur} {Money(invoice.Amount)} |");
+            sb.AppendLine($"| {invoicePeriodLabel} | {Cur(invoice.Amount)} |");
         }
         else
         {
-            sb.AppendLine("| Description | Hours | Rate | Amount |");
+            sb.AppendLine($"| {descLabel} | {hoursLabel} | {rateLabel} | {amountLabel} |");
             sb.AppendLine("|---|---:|---:|---:|");
 
             var uniformRate = entries.Select(e => e.RateApplied).Distinct().Count() <= 1;
@@ -156,28 +215,31 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
                 var rate = entries[0].RateApplied;
                 var hours = entries.Sum(e => e.Hours);
                 sb.AppendLine($"| {lineLabel} | {Num(hours)} | "
-                              + $"{cur} {Money(rate)} | {cur} {Money(hours * rate)} |");
+                              + $"{Cur(rate)} | {Cur(hours * rate)} |");
             }
             else
             {
                 // A rate change inside the period: show each period so the total is checkable.
                 foreach (var e in entries)
                     sb.AppendLine(
-                        $"| {e.PeriodStart.ToString("d MMM", Inv)} to {e.PeriodEnd.ToString("d MMM yyyy", Inv)} | {Num(e.Hours)} | "
-                        + $"{cur} {Money(e.RateApplied)} | {cur} {Money(e.Hours * e.RateApplied)} |");
+                        $"| {ShortDate(e.PeriodStart)} {periodConnector} {ShortDateYear(e.PeriodEnd)} | {Num(e.Hours)} | "
+                        + $"{Cur(e.RateApplied)} | {Cur(e.Hours * e.RateApplied)} |");
             }
         }
 
-        // No org number to show the client yet, so VAT is never itemised on the
-        // document -- just one row carrying the gross and saying so. The Subtotal/VAT
-        // split still lives on the invoice for Hrolgar's own MVA return; see VatAmount.
+        // The organisation number lets VAT be itemised on the document: net, VAT at
+        // rate, and the gross total due. The Subtotal/VAT split also drives Hrolgar's
+        // own MVA return; see VatAmount.
         if (invoice.VatRate is not null)
         {
-            sb.AppendLine(TotalsRow("**Total due (inkl. VAT)**", $"**{cur} {Money(invoice.TotalDue)}**"));
+            var vatRateLabel = $"{vatLabelPrefix} {Num(invoice.VatRate.Value)} %";
+            sb.AppendLine(TotalsRow(subtotalLabel, Cur(invoice.Amount)));
+            sb.AppendLine(TotalsRow(vatRateLabel, Cur(invoice.VatAmount ?? 0m)));
+            sb.AppendLine(TotalsRow($"**{totalDueLabel}**", $"**{Cur(invoice.TotalDue)}**"));
         }
         else
         {
-            sb.AppendLine(TotalsRow("**Total due**", $"**{cur} {Money(invoice.Amount)}**"));
+            sb.AppendLine(TotalsRow($"**{totalDueLabel}**", $"**{Cur(invoice.Amount)}**"));
         }
         sb.AppendLine();
 
@@ -194,7 +256,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
                       || !string.IsNullOrWhiteSpace(profile.AccountHolder);
         if (hasBank)
         {
-            sb.AppendLine("## Payment details");
+            sb.AppendLine($"## {paymentHeading}");
             sb.AppendLine();
             if (!string.IsNullOrWhiteSpace(profile.PaymentNotes))
             {
@@ -204,17 +266,17 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             // Raw HTML, not a markdown table: markdown insists on a header row, and an
             // empty one renders as a black bar across the page in the house style.
             sb.AppendLine("<table class=\"kv\">");
-            Row("Account holder", profile.AccountHolder);
+            Row(accountHolderLabel, profile.AccountHolder);
             Row("Bank", profile.BankName);
             Row("IBAN", profile.Iban);
             Row("BIC / SWIFT", profile.BicSwift);
-            Row("Payment reference", invoice.InvoiceNumber);
+            Row(paymentRefLabel, invoice.InvoiceNumber);
             sb.AppendLine("</table>");
             sb.AppendLine();
         }
 
         if (!string.IsNullOrWhiteSpace(profile.IssuerEmail))
-            sb.AppendLine($"Any questions on this invoice, reply to me directly at {profile.IssuerEmail}.");
+            sb.AppendLine(string.Format(closingTemplate, profile.IssuerEmail));
 
         // --- Cover page ---
         // The client label is the legal entity, first line of Bill to, because that is
@@ -226,36 +288,41 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         // The line label already contains commas ("Engineering services, hourly"), so the
         // period hangs off a middot rather than a third comma.
         var coverPeriod = invoice.PeriodStart is { } cps && invoice.PeriodEnd is { } cpe
-            ? $" · {cps.ToString("d MMMM", Inv)} to {cpe.ToString("d MMMM yyyy", Inv)}"
+            ? $" · {MonthDate(cps)} {periodConnector} {LongDate(cpe)}"
             : "";
 
         var coverRows = new List<KeyValuePair<string, string>>
         {
-            new("Invoice number", invoice.InvoiceNumber!),
-            new("Invoice date", issued.ToString("d MMMM yyyy", Inv)),
+            new(coverInvoiceNumberLabel, invoice.InvoiceNumber!),
+            new(coverInvoiceDateLabel, LongDate(issued)),
         };
-        // When VAT applies the cover shows one gross total row, same as the body --
-        // no org number to show the client yet, so no itemised Subtotal/VAT split here
-        // either. Total due is the GROSS figure, unlike Milestone.Amount which stays
-        // net everywhere else.
+        // When VAT applies the cover itemises net, VAT and the gross total the same way
+        // the body does, rather than a single gross row. Total due is the GROSS figure,
+        // unlike Milestone.Amount which stays net everywhere else.
         if (invoice.VatRate is not null)
         {
-            coverRows.Add(new("Total due (inkl. VAT)", $"{cur} {Money(invoice.TotalDue)}"));
+            var vatRateLabel = $"{vatLabelPrefix} {Num(invoice.VatRate.Value)} %";
+            coverRows.Add(new(subtotalLabel, Cur(invoice.Amount)));
+            coverRows.Add(new(vatRateLabel, Cur(invoice.VatAmount ?? 0m)));
+            coverRows.Add(new(totalDueLabel, Cur(invoice.TotalDue)));
         }
         else
         {
-            coverRows.Add(new("Total due", $"{cur} {Money(invoice.Amount)}"));
+            coverRows.Add(new(totalDueLabel, Cur(invoice.Amount)));
         }
         // Deliberately no "Payment due" row -- see the note above.
         if (invoice.Status == MilestoneStatus.Paid && invoice.DatePaid is { } paidOn)
-            coverRows.Add(new("Paid", paidOn.ToString("d MMMM yyyy", Inv)));
+            coverRows.Add(new(coverPaidLabel, LongDate(paidOn)));
 
         return new InvoiceDocument(
             Markdown: sb.ToString(),
-            Title: $"Invoice {invoice.InvoiceNumber}",
+            Title: $"{headingWord} {invoice.InvoiceNumber}",
             Subtitle: $"{lineLabel}{coverPeriod}",
             ClientLabel: clientLabel,
-            Rows: coverRows);
+            Rows: coverRows,
+            DocType: isNo ? "faktura" : "invoice",
+            ClientRowLabel: isNo ? "Kunde" : null,
+            VendorRowLabel: isNo ? "Leverandør" : null);
 
         void Row(string label, string? value)
         {
@@ -289,11 +356,14 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         {
             markdown = doc.Markdown,
             output_path = outPath,
+            doc_type = doc.DocType,
             meta = new
             {
                 title = doc.Title,
                 client = doc.ClientLabel,
                 subtitle = doc.Subtitle,
+                client_label = doc.ClientRowLabel,
+                vendor_label = doc.VendorRowLabel,
                 // The renderer takes rows as [label, value] pairs, in order.
                 rows = doc.Rows.Select(r => new[] { r.Key, r.Value }).ToArray(),
             },
