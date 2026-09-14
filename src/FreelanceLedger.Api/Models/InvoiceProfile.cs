@@ -25,6 +25,12 @@ public class InvoiceProfile
     public string? Iban { get; set; }
     public string? BicSwift { get; set; }
 
+    /// Norwegian kontonummer, printed on Norwegian documents instead of IBAN and
+    /// BIC / SWIFT (those are for foreign payers). Optional -- when blank, Norwegian
+    /// documents fall back to printing IBAN and BIC / SWIFT so there is always a way
+    /// to pay.
+    public string? AccountNumber { get; set; }
+
     /// Free text under the payment table, e.g. the SHA transfer note.
     public string? PaymentNotes { get; set; }
 
