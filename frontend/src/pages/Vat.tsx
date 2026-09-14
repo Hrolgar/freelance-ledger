@@ -44,7 +44,7 @@ export default function Vat() {
     <div>
       <PageIntro
         title="MVA"
-        description="Output VAT collected per termin, for reporting to Skatteetaten."
+        description="Output VAT per termin, for reporting to Skatteetaten. Invoiced is what goes on the return; collected is what has actually been paid."
         action={
           <div className="flex items-center gap-1">
             <button
@@ -82,8 +82,8 @@ export default function Vat() {
         ) : (
           <>
             <section className="mb-8 grid gap-4 sm:grid-cols-3">
-              <StatCard label="VAT collected" value={formatCurrency(summary.totalVatNok, 'NOK')} />
-              <StatCard label="Of which paid" value={formatCurrency(summary.paidVatNok, 'NOK')} />
+              <StatCard label="VAT invoiced" value={formatCurrency(summary.totalVatNok, 'NOK')} />
+              <StatCard label="VAT collected" value={formatCurrency(summary.paidVatNok, 'NOK')} hint="paid invoices only" />
               <StatCard label="Net invoiced" value={formatCurrency(summary.totalNetNok, 'NOK')} />
             </section>
 
@@ -96,8 +96,8 @@ export default function Vat() {
                       <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Termin</th>
                       <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Invoices</th>
                       <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Net</th>
-                      <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">VAT</th>
-                      <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Paid VAT</th>
+                      <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">VAT invoiced</th>
+                      <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">VAT collected</th>
                       <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Deadline</th>
                     </tr>
                   </thead>
