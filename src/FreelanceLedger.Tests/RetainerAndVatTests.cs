@@ -165,9 +165,13 @@ public class RetainerAndVatTests : IDisposable
     }
 
     [Fact]
-    public async Task VatInvoiceDocumentPrintsOneGrossTotalRowWhileAmountStaysNet()
+    public async Task VatInvoiceDocumentItemisesNetVatAndGrossTotalWhileAmountStaysNet()
     {
+        // VatRate set and no explicit InvoiceLanguage means the document is Norwegian
+        // by default, so force English here to check that side of the itemised totals.
         var project = await AddRetainerProjectAsync(vatRate: 25m);
+        project.InvoiceLanguage = InvoiceLanguage.English;
+        await Db.SaveChangesAsync();
         await AddRateAsync(project.Id, 10000m, new DateOnly(2026, 8, 1));
 
         var result = await _fixture.Retainer.RaiseAsync(
@@ -176,10 +180,11 @@ public class RetainerAndVatTests : IDisposable
 
         var markdown = await _fixture.Docs.BuildMarkdownAsync(project.Id, result.Invoice!.Id);
         Assert.NotNull(markdown);
-        Assert.DoesNotContain("Subtotal", markdown);
-        Assert.DoesNotContain("VAT 25", markdown);
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(markdown, "Total due"));
-        Assert.Contains("Total due (inkl. VAT)", markdown);
+        Assert.Contains("Subtotal", markdown);
+        Assert.Contains("VAT 25 %", markdown);
+        Assert.Contains("**Total due**", markdown);
+        Assert.Contains("10,000.00", markdown);
+        Assert.Contains("2,500.00", markdown);
         Assert.Contains("12,500.00", markdown);
 
         var reloaded = await Db.Milestones.AsNoTracking().SingleAsync(m => m.Id == result.Invoice.Id);
