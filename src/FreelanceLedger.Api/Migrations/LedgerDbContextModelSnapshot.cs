@@ -208,6 +208,9 @@ namespace FreelanceLedger.Api.Migrations
                     b.Property<string>("PaymentNotes")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PaymentNotesNorwegian")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("TermsNote")
                         .HasColumnType("TEXT");
 

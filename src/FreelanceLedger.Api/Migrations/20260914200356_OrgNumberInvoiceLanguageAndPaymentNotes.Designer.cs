@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FreelanceLedger.Api.Migrations
 {
     [DbContext(typeof(LedgerDbContext))]
-    [Migration("20260914194052_OrgNumberAndInvoiceLanguage")]
-    partial class OrgNumberAndInvoiceLanguage
+    [Migration("20260914200356_OrgNumberInvoiceLanguageAndPaymentNotes")]
+    partial class OrgNumberInvoiceLanguageAndPaymentNotes
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -209,6 +209,9 @@ namespace FreelanceLedger.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("PaymentNotes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PaymentNotesNorwegian")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TermsNote")

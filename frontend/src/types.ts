@@ -182,6 +182,7 @@ export interface InvoiceProfile {
   iban: string | null
   bicSwift: string | null
   paymentNotes: string | null
+  paymentNotesNorwegian: string | null
   vatNote: string | null
   termsNote: string | null
   // Prefill only, for new projects. The rate actually charged is the project's own vatRate.

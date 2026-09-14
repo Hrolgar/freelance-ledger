@@ -28,6 +28,10 @@ public class InvoiceProfile
     /// Free text under the payment table, e.g. the SHA transfer note.
     public string? PaymentNotes { get; set; }
 
+    /// Norwegian equivalent of PaymentNotes, printed under Betalingsinformasjon on
+    /// Norwegian invoices instead of PaymentNotes. Optional -- blank prints nothing.
+    public string? PaymentNotesNorwegian { get; set; }
+
     /// Why no VAT is charged. Printed verbatim.
     public string? VatNote { get; set; }
 
