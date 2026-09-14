@@ -233,4 +233,70 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
         Assert.Contains("Total due", markdown);
         Assert.DoesNotContain("Å betale", markdown);
     }
+
+    private async Task<(Project Project, Milestone Invoice)> AddNoVatNorwegianInvoiceAsync(string? vatNoteNorwegian)
+    {
+        var project = new Project
+        {
+            ClientName = "NO Client",
+            ProjectName = "NO Project",
+            Currency = Currency.NOK,
+            BillingType = BillingType.Retainer,
+            Status = ProjectStatus.InProgress,
+            VatRate = null,
+            InvoiceLanguage = InvoiceLanguage.Norwegian,
+        };
+        _db.Projects.Add(project);
+        await _db.SaveChangesAsync();
+
+        _db.InvoiceProfiles.Add(new InvoiceProfile
+        {
+            IssuerName = "Helgi Skjortnes",
+            VatNote = "English foreign note",
+            VatNoteNorwegian = vatNoteNorwegian,
+        });
+
+        var invoice = new Milestone
+        {
+            ProjectId = project.Id,
+            Name = "Invoice",
+            Amount = 10000m,
+            Currency = Currency.NOK,
+            Status = MilestoneStatus.Pending,
+            InvoiceNumber = "OC-2026-003",
+            InvoiceDate = new DateOnly(2026, 9, 1),
+            VatRate = null,
+            PeriodStart = new DateOnly(2026, 8, 1),
+            PeriodEnd = new DateOnly(2026, 8, 31),
+        };
+        _db.Milestones.Add(invoice);
+        await _db.SaveChangesAsync();
+
+        return (project, invoice);
+    }
+
+    [Fact]
+    public async Task NoVatNorwegianInvoicePrintsNorwegianNoteNotEnglishOne()
+    {
+        var (project, invoice) = await AddNoVatNorwegianInvoiceAsync("Norsk mva-merknad");
+
+        var markdown = await _docs.BuildMarkdownAsync(project.Id, invoice.Id);
+        Assert.NotNull(markdown);
+
+        Assert.Contains("Norsk mva-merknad", markdown);
+        Assert.DoesNotContain("English foreign note", markdown);
+        Assert.DoesNotContain("MVA", markdown);
+    }
+
+    [Fact]
+    public async Task NoVatNorwegianInvoiceWithBlankNorwegianNotePrintsNeitherNote()
+    {
+        var (project, invoice) = await AddNoVatNorwegianInvoiceAsync(vatNoteNorwegian: null);
+
+        var markdown = await _docs.BuildMarkdownAsync(project.Id, invoice.Id);
+        Assert.NotNull(markdown);
+
+        Assert.DoesNotContain("Norsk mva-merknad", markdown);
+        Assert.DoesNotContain("English foreign note", markdown);
+    }
 }
