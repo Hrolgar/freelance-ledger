@@ -40,6 +40,7 @@ public class InvoiceProfileController(LedgerDbContext db) : ControllerBase
         profile.Iban = updated.Iban;
         profile.BicSwift = updated.BicSwift;
         profile.PaymentNotes = updated.PaymentNotes;
+        profile.PaymentNotesNorwegian = updated.PaymentNotesNorwegian;
         profile.VatNote = updated.VatNote;
         profile.TermsNote = updated.TermsNote;
         profile.DefaultVatRate = updated.DefaultVatRate;

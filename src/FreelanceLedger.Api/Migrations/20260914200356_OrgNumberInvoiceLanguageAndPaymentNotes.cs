@@ -5,7 +5,7 @@
 namespace FreelanceLedger.Api.Migrations
 {
     /// <inheritdoc />
-    public partial class OrgNumberAndInvoiceLanguage : Migration
+    public partial class OrgNumberInvoiceLanguageAndPaymentNotes : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -21,6 +21,12 @@ namespace FreelanceLedger.Api.Migrations
                 table: "InvoiceProfiles",
                 type: "TEXT",
                 nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "PaymentNotesNorwegian",
+                table: "InvoiceProfiles",
+                type: "TEXT",
+                nullable: true);
         }
 
         /// <inheritdoc />
@@ -32,6 +38,10 @@ namespace FreelanceLedger.Api.Migrations
 
             migrationBuilder.DropColumn(
                 name: "OrgNumber",
+                table: "InvoiceProfiles");
+
+            migrationBuilder.DropColumn(
+                name: "PaymentNotesNorwegian",
                 table: "InvoiceProfiles");
         }
     }

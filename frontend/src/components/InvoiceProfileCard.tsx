@@ -15,6 +15,7 @@ const empty: InvoiceProfile = {
   iban: null,
   bicSwift: null,
   paymentNotes: null,
+  paymentNotesNorwegian: null,
   vatNote: null,
   termsNote: null,
   defaultVatRate: null,
@@ -121,6 +122,16 @@ export function InvoiceProfileCard() {
           </Field>
           <Field label="Payment note" hint="Printed above the bank table.">
             <Textarea rows={2} value={profile.paymentNotes ?? ''} onChange={(e) => set('paymentNotes')(e.target.value)} />
+          </Field>
+          <Field
+            label="Payment note (Norwegian invoices)"
+            hint="Printed under Betalingsinformasjon on Norwegian invoices. Blank prints nothing."
+          >
+            <Textarea
+              rows={2}
+              value={profile.paymentNotesNorwegian ?? ''}
+              onChange={(e) => set('paymentNotesNorwegian')(e.target.value)}
+            />
           </Field>
           <Field label="VAT note" hint="Why no VAT is charged. Printed verbatim.">
             <Textarea rows={2} value={profile.vatNote ?? ''} onChange={(e) => set('vatNote')(e.target.value)} />

@@ -264,9 +264,10 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         {
             sb.AppendLine($"## {paymentHeading}");
             sb.AppendLine();
-            if (!string.IsNullOrWhiteSpace(profile.PaymentNotes))
+            var paymentNotes = isNo ? profile.PaymentNotesNorwegian : profile.PaymentNotes;
+            if (!string.IsNullOrWhiteSpace(paymentNotes))
             {
-                sb.AppendLine(profile.PaymentNotes);
+                sb.AppendLine(paymentNotes);
                 sb.AppendLine();
             }
             // Raw HTML, not a markdown table: markdown insists on a header row, and an
