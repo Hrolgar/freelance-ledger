@@ -55,7 +55,8 @@ public class InvoicesController(
                 detail: "The PDF renderer could not run. The markdown version is available at the /markdown endpoint.",
                 statusCode: 503);
 
-        return File(pdf, "application/pdf", $"Invoice-{invoice.InvoiceNumber}.pdf");
+        var filenamePrefix = doc.DocType == "faktura" ? "Faktura" : "Invoice";
+        return File(pdf, "application/pdf", $"{filenamePrefix}-{invoice.InvoiceNumber}.pdf");
     }
 
     [HttpGet]

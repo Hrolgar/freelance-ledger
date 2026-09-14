@@ -36,6 +36,7 @@ def main() -> int:
     meta.setdefault("title", "Invoice")
     meta.setdefault("client", "")
     doc_type = job.get("doc_type") or "invoice"
+    lang = job.get("lang") or "en"
 
     try:
         result = render_document(
@@ -43,6 +44,7 @@ def main() -> int:
             doc_type=doc_type,
             meta=meta,
             output_path=job["output_path"],
+            lang=lang,
         )
     except Exception as exc:  # surfaced to the API log, which falls back to markdown
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
