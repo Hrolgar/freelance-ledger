@@ -299,4 +299,89 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
         Assert.DoesNotContain("Norsk mva-merknad", markdown);
         Assert.DoesNotContain("English foreign note", markdown);
     }
+
+    private async Task<(Project Project, Milestone Invoice)> AddAccountNumberInvoiceAsync(
+        InvoiceLanguage language, string? accountNumber)
+    {
+        var project = new Project
+        {
+            ClientName = "NO Client",
+            ProjectName = "NO Project",
+            Currency = Currency.NOK,
+            BillingType = BillingType.Retainer,
+            Status = ProjectStatus.InProgress,
+            VatRate = 25m,
+            InvoiceLanguage = language,
+        };
+        _db.Projects.Add(project);
+        await _db.SaveChangesAsync();
+
+        _db.InvoiceProfiles.Add(new InvoiceProfile
+        {
+            IssuerName = "Helgi Skjortnes",
+            AccountHolder = "Helgi Skjortnes",
+            Iban = "NO93 8601 1117 947",
+            BicSwift = "DNBANOKKXXX",
+            AccountNumber = accountNumber,
+        });
+
+        var invoice = new Milestone
+        {
+            ProjectId = project.Id,
+            Name = "Invoice",
+            Amount = 10000m,
+            Currency = Currency.NOK,
+            Status = MilestoneStatus.Pending,
+            InvoiceNumber = "OC-2026-004",
+            InvoiceDate = new DateOnly(2026, 9, 1),
+            VatRate = 25m,
+            VatAmount = 2500m,
+            PeriodStart = new DateOnly(2026, 8, 1),
+            PeriodEnd = new DateOnly(2026, 8, 31),
+        };
+        _db.Milestones.Add(invoice);
+        await _db.SaveChangesAsync();
+
+        return (project, invoice);
+    }
+
+    [Fact]
+    public async Task NorwegianInvoiceWithAccountNumberPrintsKontonummerNotIban()
+    {
+        var (project, invoice) = await AddAccountNumberInvoiceAsync(InvoiceLanguage.Norwegian, "8601 11 17947");
+
+        var markdown = await _docs.BuildMarkdownAsync(project.Id, invoice.Id);
+        Assert.NotNull(markdown);
+
+        Assert.Contains("Kontonummer", markdown);
+        Assert.Contains("8601 11 17947", markdown);
+        Assert.DoesNotContain("IBAN", markdown);
+        Assert.DoesNotContain("DNBANOKKXXX", markdown);
+    }
+
+    [Fact]
+    public async Task EnglishInvoiceWithAccountNumberStillPrintsIbanNotKontonummer()
+    {
+        var (project, invoice) = await AddAccountNumberInvoiceAsync(InvoiceLanguage.English, "8601 11 17947");
+
+        var markdown = await _docs.BuildMarkdownAsync(project.Id, invoice.Id);
+        Assert.NotNull(markdown);
+
+        Assert.Contains("IBAN", markdown);
+        Assert.Contains("DNBANOKKXXX", markdown);
+        Assert.DoesNotContain("Kontonummer", markdown);
+    }
+
+    [Fact]
+    public async Task NorwegianInvoiceWithoutAccountNumberFallsBackToIban()
+    {
+        var (project, invoice) = await AddAccountNumberInvoiceAsync(InvoiceLanguage.Norwegian, accountNumber: null);
+
+        var markdown = await _docs.BuildMarkdownAsync(project.Id, invoice.Id);
+        Assert.NotNull(markdown);
+
+        Assert.Contains("IBAN", markdown);
+        Assert.Contains("NO93 8601 1117 947", markdown);
+        Assert.DoesNotContain("Kontonummer", markdown);
+    }
 }
