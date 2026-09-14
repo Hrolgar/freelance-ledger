@@ -9,6 +9,7 @@ const empty: InvoiceProfile = {
   issuerAddressLine2: null,
   issuerCountry: null,
   issuerEmail: null,
+  orgNumber: null,
   accountHolder: null,
   bankName: null,
   iban: null,
@@ -91,6 +92,12 @@ export function InvoiceProfileCard() {
             </Field>
             <Field label="Country">
               <Input value={profile.issuerCountry ?? ''} onChange={(e) => set('issuerCountry')(e.target.value)} />
+            </Field>
+            <Field
+              label="Organisation number"
+              hint="Printed as Org.nr. … MVA on invoices that charge VAT."
+            >
+              <Input value={profile.orgNumber ?? ''} onChange={(e) => set('orgNumber')(e.target.value)} />
             </Field>
           </div>
 
