@@ -181,6 +181,7 @@ export interface InvoiceProfile {
   bankName: string | null
   iban: string | null
   bicSwift: string | null
+  accountNumber: string | null
   paymentNotes: string | null
   paymentNotesNorwegian: string | null
   vatNote: string | null
