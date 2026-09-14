@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getPipeline, getProjects, getYearOverview } from '../api'
+import { getPipeline, getProjects, getVatSummary, getYearOverview } from '../api'
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, LoadingState, SectionHeading, StatCard } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { calculateProjectRevenue, formatCurrency, formatMonth } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
-import type { Pipeline, Project, YearOverview } from '../types'
+import type { Pipeline, Project, VatSummary, YearOverview } from '../types'
 
 export default function Dashboard() {
   const now = new Date()
@@ -14,6 +14,7 @@ export default function Dashboard() {
   const [overview, setOverview] = useState<YearOverview | null>(null)
   const [pipeline, setPipeline] = useState<Pipeline | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
+  const [vat, setVat] = useState<VatSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [mainCurrency] = useMainCurrency()
@@ -22,14 +23,16 @@ export default function Dashboard() {
     setLoading(true)
     setError(null)
     try {
-      const [overviewData, pipelineData, projectsData] = await Promise.all([
+      const [overviewData, pipelineData, projectsData, vatData] = await Promise.all([
         getYearOverview(year),
         getPipeline(),
         getProjects(),
+        getVatSummary(year),
       ])
       setOverview(overviewData)
       setPipeline(pipelineData)
       setProjects(projectsData)
+      setVat(vatData)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load dashboard.')
     } finally {
@@ -38,6 +41,8 @@ export default function Dashboard() {
   }
 
   useEffect(() => { void load() }, [year])
+
+  const openTerm = year === now.getFullYear() ? Math.ceil((now.getMonth() + 1) / 2) : null
 
   const recentProjects = useMemo(
     () => [...projects].sort((a, b) => b.id - a.id).slice(0, 5),
@@ -117,8 +122,8 @@ export default function Dashboard() {
             </p>
           </section>
 
-          {/* B. Three-card row */}
-          <section className="mb-12 grid gap-4 lg:grid-cols-3">
+          {/* B. Four-card row */}
+          <section className="mb-12 grid gap-4 lg:grid-cols-4">
             <StatCard
               label="Revenue YTD"
               value={formatCurrency(overview.totalRevenue, 'NOK')}
@@ -134,6 +139,16 @@ export default function Dashboard() {
               value={formatCurrency(pipeline?.totalPipelineGrossValue ?? 0, 'NOK')}
               hint={pipelineHint}
             />
+            <Link to="/vat" className="block">
+              <StatCard
+                label="VAT collected YTD"
+                value={formatCurrency(vat?.totalVatNok ?? 0, 'NOK')}
+                hint={
+                  `${formatCurrency(vat?.paidVatNok ?? 0, 'NOK')} paid`
+                  + (openTerm ? ` · termin ${openTerm} open` : '')
+                }
+              />
+            </Link>
           </section>
 
           {/* C. Chart card */}

@@ -30,6 +30,7 @@ import type {
   ProjectSummary,
   Tip,
   TipInput,
+  VatSummary,
   YearOverview,
 } from './types'
 
@@ -119,6 +120,8 @@ export const getDashboardYear = (year: number) =>
 export const getYearOverview = getDashboardYear
 
 export const getPipeline = () => request<Pipeline>('/dashboard/pipeline')
+
+export const getVatSummary = (year: number) => request<VatSummary>(`/dashboard/vat${query({ year })}`)
 
 export const getProjects = () => request<Project[]>('/projects')
 export const getProject = (id: number) => request<Project>(`/projects/${id}`)
@@ -348,6 +351,7 @@ export const api = {
   getDashboardYear,
   getYearOverview,
   getPipeline,
+  getVatSummary,
   getProjects,
   getProject,
   getProjectSummary,
