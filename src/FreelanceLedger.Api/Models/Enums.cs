@@ -64,7 +64,7 @@ public enum InvestmentCategory
 }
 
 /// Which language the invoice document is rendered in. Null on the project means
-/// automatic: Norwegian when the project's VatRate is set, English otherwise.
+/// automatic: Norwegian when the invoice's (frozen) VatRate is set, English otherwise.
 public enum InvoiceLanguage
 {
     English = 0,
