@@ -61,6 +61,10 @@ public class Project
     /// explicitly zero-rated. The distinction matters on the printed document.
     public decimal? VatRate { get; set; }
 
+    /// Language the invoice document is rendered in. Null = automatic: Norwegian when
+    /// VatRate is set, English otherwise.
+    public InvoiceLanguage? InvoiceLanguage { get; set; }
+
     /// When true, the background service raises last month's retainer invoice on its
     /// own. Retainer projects only.
     public bool AutoRaiseInvoice { get; set; }

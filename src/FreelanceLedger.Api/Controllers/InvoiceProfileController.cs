@@ -34,6 +34,7 @@ public class InvoiceProfileController(LedgerDbContext db) : ControllerBase
         profile.IssuerAddressLine2 = updated.IssuerAddressLine2;
         profile.IssuerCountry = updated.IssuerCountry;
         profile.IssuerEmail = updated.IssuerEmail;
+        profile.OrgNumber = updated.OrgNumber;
         profile.AccountHolder = updated.AccountHolder;
         profile.BankName = updated.BankName;
         profile.Iban = updated.Iban;

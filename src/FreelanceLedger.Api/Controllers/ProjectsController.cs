@@ -128,6 +128,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         project.PaymentDueDayOfMonth = updated.PaymentDueDayOfMonth;
         project.InvoiceTermsNote = updated.InvoiceTermsNote;
         project.VatRate = updated.VatRate;
+        project.InvoiceLanguage = updated.InvoiceLanguage;
         project.AutoRaiseInvoice = updated.AutoRaiseInvoice;
 
         await db.SaveChangesAsync();
