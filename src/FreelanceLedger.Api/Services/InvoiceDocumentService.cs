@@ -95,6 +95,9 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         string MonthYearDate(DateOnly d) => isNo ? d.ToString("MMMM yyyy", NbNo) : d.ToString("MMMM yyyy", Inv);
         string ShortDate(DateOnly d) => isNo ? d.ToString("d. MMM", NbNo) : d.ToString("d MMM", Inv);
         string ShortDateYear(DateOnly d) => isNo ? d.ToString("d. MMM yyyy", NbNo) : d.ToString("d MMM yyyy", Inv);
+        // Hours and the VAT rate label use the same language as the rest of the document,
+        // so a Norwegian page never mixes an invariant "19.5" next to "kr 12 000,00".
+        string Num(decimal v) => FormatNum(v, isNo ? NbNo : Inv);
 
         var cur = invoice.Currency.ToString();
         string Cur(decimal v)
@@ -429,6 +432,6 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
     private static string Money(decimal v) => v.ToString("N2", Inv);
 
     /// Hours print without trailing zeros: 19.5 not 19.50, 20 not 20.00.
-    private static string Num(decimal v) =>
-        v == decimal.Truncate(v) ? v.ToString("0", Inv) : v.ToString("0.##", Inv);
+    private static string FormatNum(decimal v, CultureInfo culture) =>
+        v == decimal.Truncate(v) ? v.ToString("0", culture) : v.ToString("0.##", culture);
 }
