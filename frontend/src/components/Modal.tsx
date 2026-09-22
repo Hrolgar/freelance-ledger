@@ -6,9 +6,12 @@ interface ModalProps {
   children: ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   nested?: boolean
+  /// Lets the body use most of the screen height, for sheet-like content that is
+  /// scrolled through rather than a form that is read top to bottom.
+  tall?: boolean
 }
 
-export function Modal({ title, onClose, children, size = 'md', nested }: ModalProps) {
+export function Modal({ title, onClose, children, size = 'md', nested, tall }: ModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -17,7 +20,7 @@ export function Modal({ title, onClose, children, size = 'md', nested }: ModalPr
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  const widths = { sm: 'lg:max-w-sm', md: 'lg:max-w-lg', lg: 'lg:max-w-2xl', xl: 'lg:max-w-3xl', '2xl': 'lg:max-w-5xl' }
+  const widths = { sm: 'lg:max-w-sm', md: 'lg:max-w-lg', lg: 'lg:max-w-2xl', xl: 'lg:max-w-3xl', '2xl': 'lg:max-w-6xl' }
 
   return (
     <div className={`fixed inset-0 flex items-stretch justify-center p-0 lg:items-center lg:p-4 ${nested ? 'z-[60]' : 'z-50'}`}>
@@ -42,7 +45,7 @@ export function Modal({ title, onClose, children, size = 'md', nested }: ModalPr
             ×
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto px-6 py-5 lg:flex-none lg:max-h-[70vh]">
+        <div className={`flex-1 overflow-y-auto px-6 py-5 lg:flex-none ${tall ? 'lg:max-h-[86vh]' : 'lg:max-h-[70vh]'}`}>
           {children}
         </div>
       </div>

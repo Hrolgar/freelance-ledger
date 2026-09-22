@@ -935,7 +935,7 @@ export function HourlyPanel({
 
       {/* --- Month sheet --- */}
       {openMonth && (
-      <Modal title="Logged hours" onClose={() => setOpenMonthKey(null)} size="2xl">
+      <Modal title="Logged hours" onClose={() => setOpenMonthKey(null)} size="2xl" tall>
         <MonthSheet
           project={project}
           monthKey={openMonth.key}

@@ -46,6 +46,12 @@ type RowDraft = {
   saving?: boolean
 }
 
+/// "1,5" and "1.5" are both an hour and a half; anything else is not a number.
+function parseHours(raw: string): number {
+  const n = Number(raw.trim().replace(',', '.'))
+  return Number.isFinite(n) ? n : NaN
+}
+
 function draftOf(entry: TimeEntry): RowDraft {
   return {
     periodStart: entry.periodStart,
@@ -60,7 +66,7 @@ function isDirty(entry: TimeEntry, draft: RowDraft): boolean {
   return (
     draft.periodStart !== entry.periodStart ||
     draft.periodEnd !== entry.periodEnd ||
-    Number(draft.hours) !== entry.hours ||
+    parseHours(draft.hours) !== entry.hours ||
     draft.notes !== (entry.notes ?? '') ||
     draft.category !== (entry.category ?? '')
   )
@@ -69,10 +75,10 @@ function isDirty(entry: TimeEntry, draft: RowDraft): boolean {
 // --- Cells. The inputs sit flush in the grid with no border until hovered or focused,
 // so the sheet reads as a table you can type into rather than a stack of forms. ---
 const CELL =
-  'h-9 w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 text-sm text-[var(--text-primary)] transition-colors hover:border-[var(--border-faint)] focus:border-[var(--accent)] focus:bg-[var(--bg-base)] focus:outline-none disabled:opacity-60'
+  'h-10 w-full min-w-0 rounded-md border border-transparent bg-transparent px-2.5 text-sm text-[var(--text-primary)] transition-colors hover:border-[var(--border-faint)] focus:border-[var(--accent)] focus:bg-[var(--bg-base)] focus:outline-none disabled:opacity-60'
 const CELL_NUM = `${CELL} text-right font-mono tabular-nums`
 const HEAD = 'px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]'
-const TEXT = 'flex h-9 items-center px-2 text-sm'
+const TEXT = 'flex h-10 items-center px-2.5 text-sm'
 
 export function MonthSheet({
   project,
@@ -162,7 +168,7 @@ export function MonthSheet({
       revert(entry.id)
       return
     }
-    const hours = Number(draft.hours)
+    const hours = parseHours(draft.hours)
     if (!(hours > 0)) {
       setDraft(entry.id, { error: 'Hours must be more than zero.' }, entry)
       return
@@ -183,7 +189,7 @@ export function MonthSheet({
   }
 
   const add = async () => {
-    const hours = Number(adding.hours)
+    const hours = parseHours(adding.hours)
     if (!adding.date || !(hours > 0) || addingBusy) return
     setAddingBusy(true)
     setAdding((a) => ({ ...a, error: '' }))
@@ -232,11 +238,11 @@ export function MonthSheet({
   }
 
   const gridCols = hasTypes
-    ? 'lg:grid-cols-[9.5rem_11rem_5.5rem_minmax(0,1fr)_7.5rem_4.5rem]'
-    : 'lg:grid-cols-[9.5rem_5.5rem_minmax(0,1fr)_7.5rem_4.5rem]'
+    ? 'lg:grid-cols-[10.5rem_11rem_5.5rem_minmax(0,1fr)_8rem_4.5rem]'
+    : 'lg:grid-cols-[10.5rem_5.5rem_minmax(0,1fr)_8rem_4.5rem]'
   // Phone: line one is date | hours | amount | actions, line two is type | notes,
   // placed with `order` so the DOM (and tab order) stays date, type, hours, notes.
-  const ROW = `grid grid-cols-[minmax(0,1fr)_4.5rem_6rem_3rem] items-center gap-x-1 gap-y-1 px-2 py-1.5 lg:gap-y-0 lg:py-1 ${gridCols}`
+  const ROW = `grid grid-cols-[minmax(0,1fr)_4.5rem_6rem_3rem] items-center gap-x-2 gap-y-1 px-3 py-2 lg:gap-y-0 lg:py-1.5 ${gridCols}`
   const O_DATE = 'order-1 lg:order-none'
   const O_TYPE = 'order-5 lg:order-none'
   const O_HOURS = 'order-2 lg:order-none'
@@ -326,7 +332,7 @@ export function MonthSheet({
           const view = draft ?? draftOf(entry)
           const previewRate = dirty ? rateFor(rates, view.category, view.periodStart) : undefined
           const previewAmount = dirty
-            ? previewRate ? Number(view.hours) * previewRate.rate : null
+            ? previewRate ? parseHours(view.hours) * previewRate.rate : null
             : entry.hours * entry.rateApplied
           const isRange = entry.periodStart !== entry.periodEnd
 
@@ -370,7 +376,7 @@ export function MonthSheet({
                   {typeSelect({ value: view.category, onChange: (v) => setDraft(entry.id, { category: v }, entry), onKeyDown: rowKeys(entry) })}
                 </div>
               )}
-              <input type="number" step="0.25" min="0" aria-label="Hours" className={cx(CELL_NUM, O_HOURS)} value={view.hours}
+              <input type="text" inputMode="decimal" aria-label="Hours" className={cx(CELL_NUM, O_HOURS)} value={view.hours}
                 onChange={(e) => setDraft(entry.id, { hours: e.target.value }, entry)} onKeyDown={rowKeys(entry)} />
               <input aria-label="Notes" placeholder="Notes" className={cx(CELL, O_NOTES)} value={view.notes}
                 onChange={(e) => setDraft(entry.id, { notes: e.target.value }, entry)} onKeyDown={rowKeys(entry)} />
@@ -418,7 +424,7 @@ export function MonthSheet({
           )}
           <input
             ref={addHoursRef}
-            type="number" step="0.25" min="0" aria-label="Hours to add" placeholder="Hours" className={cx(CELL_NUM, O_HOURS)}
+            type="text" inputMode="decimal" aria-label="Hours to add" placeholder="Hours" className={cx(CELL_NUM, O_HOURS)}
             value={adding.hours} onChange={(e) => setAdding({ ...adding, hours: e.target.value })} onKeyDown={addKeys}
           />
           <input
@@ -428,13 +434,13 @@ export function MonthSheet({
           {amountCell(
             (() => {
               const r = rateFor(rates, adding.category, adding.date || `${monthKey}-01`)
-              const h = Number(adding.hours)
+              const h = parseHours(adding.hours)
               return r && h > 0 ? formatCurrency(h * r.rate, r.currency) : r ? `${formatCurrency(r.rate, r.currency)}/h` : 'no rate'
             })(),
             'muted',
           )}
           <div className={cx(O_ACTIONS, 'flex justify-end')}>
-            <Button className="min-h-8 px-2 text-xs" disabled={addingBusy || !adding.date || !(Number(adding.hours) > 0)} onClick={() => void add()}>
+            <Button className="min-h-8 px-2 text-xs" disabled={addingBusy || !adding.date || !(parseHours(adding.hours) > 0)} onClick={() => void add()}>
               {addingBusy ? '…' : 'Add'}
             </Button>
           </div>
