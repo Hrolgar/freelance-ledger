@@ -25,7 +25,14 @@ export function MoneyAmount({ amount, currency, className = '', date, month, yea
   const hasConversion = converted !== null
 
   if (!hasConversion) {
-    return <span className={`font-mono tabular-nums ${className}`}>{formatCurrency(amount, currency)}</span>
+    // Same footprint as the converted form, so the first paint (before the rate table
+    // has loaded) does not shift the row when the glyph appears.
+    return (
+      <span className={`inline-flex items-baseline gap-1 font-mono tabular-nums ${className}`}>
+        <span>{formatCurrency(amount, currency)}</span>
+        {currency !== mainCurrency && <span className="text-[9px] leading-none opacity-0" aria-hidden="true">▾</span>}
+      </span>
+    )
   }
 
   return (

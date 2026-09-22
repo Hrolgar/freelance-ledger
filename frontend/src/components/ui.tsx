@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- cx() lives with the primitives it styles */
 import {
+  Children,
   cloneElement,
   isValidElement,
   useId,
@@ -218,12 +219,15 @@ export function Field({
   children,
 }: PropsWithChildren<{ label: string; required?: boolean; hint?: string }>) {
   const generated = useId()
-  let control = children
-  let htmlFor: string | undefined
-  if (isValidElement<{ id?: string }>(children) && typeof children.type === 'function') {
-    htmlFor = children.props.id ?? generated
-    control = cloneElement(children, { id: htmlFor })
-  }
+  // The first form control among the children gets the id, so a field that also
+  // carries a datalist or a note is still labelled.
+  const items = Children.toArray(children)
+  const controlIndex = items.findIndex((child) => isValidElement(child) && typeof child.type === 'function')
+  const target = controlIndex >= 0 ? (items[controlIndex] as React.ReactElement<{ id?: string }>) : null
+  const htmlFor = target ? target.props.id ?? generated : undefined
+  const control = target
+    ? items.map((child, i) => (i === controlIndex ? cloneElement(target, { id: htmlFor, key: target.key ?? i }) : child))
+    : children
   return (
     <div className="space-y-1.5">
       <label htmlFor={htmlFor} className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>

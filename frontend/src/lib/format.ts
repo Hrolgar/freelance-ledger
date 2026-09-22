@@ -156,8 +156,39 @@ export function convertAmount(
   const now = new Date()
   const m = month ?? now.getMonth() + 1
   const y = year ?? now.getFullYear()
-  const fromRate = getRateForMonth(rates, from, m, y, options)
-  const toRate = getRateForMonth(rates, to, m, y, options)
+  // Both sides are read at ONE month. With a non-NOK display currency and a month
+  // that has only one of the two rates, looking each side up independently paired an
+  // exact rate with a neighbouring month's, which is a cross rate from nowhere.
+  const at = resolveMonth(rates, from, to, m, y, options)
+  if (at === null) return null
+  const fromRate = getRateForMonth(rates, from, at.month, at.year, { exact: true })
+  const toRate = getRateForMonth(rates, to, at.month, at.year, { exact: true })
   if (fromRate === null || toRate === null) return null
   return (amount * fromRate) / toRate
+}
+
+/// The month to convert at: the requested one when it has both currencies, else the
+/// nearest month that does (latest before, then earliest after), else null.
+function resolveMonth(
+  rates: ExchangeRate[],
+  from: Currency,
+  to: Currency,
+  month: number,
+  year: number,
+  options?: { exact?: boolean },
+): { month: number; year: number } | null {
+  const has = (c: Currency, mm: number, yy: number) =>
+    c === 'NOK' || rates.some((r) => r.currency === c && r.month === mm && r.year === yy)
+  if (has(from, month, year) && has(to, month, year)) return { month, year }
+  if (options?.exact) return null
+  const keys = new Set<number>()
+  for (const r of rates) keys.add(r.year * 12 + r.month)
+  const wanted = year * 12 + month
+  const candidates = [...keys]
+    .map((k) => ({ month: ((k - 1) % 12) + 1, year: Math.floor((k - 1) / 12), key: k }))
+    .filter((c) => has(from, c.month, c.year) && has(to, c.month, c.year))
+  const before = candidates.filter((c) => c.key <= wanted).sort((a, b) => b.key - a.key)
+  if (before.length > 0) return before[0]
+  const after = candidates.sort((a, b) => a.key - b.key)
+  return after.length > 0 ? after[0] : null
 }
