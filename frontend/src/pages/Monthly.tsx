@@ -250,7 +250,7 @@ export default function Monthly() {
           className="rounded-md px-4 py-3 text-sm"
           style={{ border: '1px solid rgba(245, 158, 11, 0.4)', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--text-primary)' }}
         >
-          No {mainCurrency} rate on file for {missing.join(', ')} in {MONTH_FULL_NAMES[month - 1]} {year}. Those amounts are shown in their own currency and left out of the totals. Fetch the month in Settings.
+          No {mainCurrency} rate on file for {missing.map((c) => (c === mainCurrency ? 'the NOK costs' : c)).join(', ')} in {MONTH_FULL_NAMES[month - 1]} {year}. Those amounts are shown in their own currency and left out of the totals, so the profit figure is incomplete. Fetch the month in Settings.
         </div>
       )}
 

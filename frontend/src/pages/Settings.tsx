@@ -56,6 +56,7 @@ export default function Settings() {
   const handleSavePlatform = async (e: React.FormEvent) => {
     e.preventDefault()
     setSavingPlatform(true)
+    setError(null)
     try {
       if (editingPlatform) {
         const updated = await updatePlatform(editingPlatform.id, platformDraft)
@@ -74,6 +75,7 @@ export default function Settings() {
 
   const handleDeletePlatform = async (p: Platform) => {
     if (!window.confirm(`Delete platform '${p.name}'?`)) return
+    setError(null)
     try {
       await deletePlatform(p.id)
       setPlatforms(prev => prev.filter(pl => pl.id !== p.id))
@@ -108,6 +110,7 @@ export default function Settings() {
   const handleFetch = async (month: number, year: number) => {
     const key = `${year}-${month}`
     setFetching(key)
+    setError(null)
     try {
       await autoFetchRates(month, year)
       invalidateRates()

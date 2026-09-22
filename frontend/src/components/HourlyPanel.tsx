@@ -638,10 +638,10 @@ export function HourlyPanel({
               placeholder={STANDARD_PLACEHOLDER}
               onChange={(e) => setRateDraft({ ...rateDraft, category: e.target.value })}
             />
-            <datalist id="rate-categories">
-              {categories.map((c) => <option key={c} value={c} />)}
-            </datalist>
           </Field>
+          <datalist id="rate-categories">
+            {categories.map((c) => <option key={c} value={c} />)}
+          </datalist>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Rate per hour">
               <Input

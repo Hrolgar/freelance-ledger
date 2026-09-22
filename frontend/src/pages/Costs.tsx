@@ -262,6 +262,7 @@ export default function Costs() {
 
   const handleCostSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setError(null)
     try {
       if (editingCostId) {
         await updateCost(editingCostId, costDraft)
@@ -279,6 +280,7 @@ export default function Costs() {
 
   const handleInvestmentSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setError(null)
     try {
       if (editingInvestmentId) {
         await updateInvestment(editingInvestmentId, investmentDraft)
@@ -327,6 +329,7 @@ export default function Costs() {
   const handleEndNow = async (cost: Cost) => {
     const today = new Date()
     if (!window.confirm(`End '${cost.description}' as of ${MONTH_NAMES[today.getMonth()]} ${today.getFullYear()}?`)) return
+    setError(null)
     try {
       await updateCost(cost.id, {
         description: cost.description,

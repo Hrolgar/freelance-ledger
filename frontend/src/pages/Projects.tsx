@@ -127,6 +127,7 @@ export default function Projects() {
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSaving(true)
+    setError(null)
     try {
       const project = await createProject(draft)
       setProjects((current) => [project, ...current])
@@ -141,6 +142,7 @@ export default function Projects() {
 
   const handleDelete = async (project: Project) => {
     if (!window.confirm(`Delete '${project.projectName}'? This removes its unpaid milestones, tips, logged hours and files. Cannot be undone.`)) return
+    setError(null)
     try {
       await deleteProject(project.id)
       setProjects((current) => current.filter((p) => p.id !== project.id))

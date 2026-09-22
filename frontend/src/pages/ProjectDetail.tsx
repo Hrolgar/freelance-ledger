@@ -218,6 +218,7 @@ export default function ProjectDetail() {
   const handleProjectSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavingProject(true)
+    setError(null)
     try {
       await updateProject(projectId, projectDraft)
       draftLoadedFor.current = null
@@ -232,6 +233,7 @@ export default function ProjectDetail() {
   const handleMilestoneSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavingMilestone(true)
+    setError(null)
     try {
       if (editingMilestoneId) {
         await updateMilestone(projectId, editingMilestoneId, milestoneDraft)
@@ -251,6 +253,7 @@ export default function ProjectDetail() {
   const handleTipSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSavingTip(true)
+    setError(null)
     try {
       if (editingTipId != null) {
         await updateTip(projectId, editingTipId, tipDraft)
@@ -302,6 +305,7 @@ export default function ProjectDetail() {
 
   const handleMilestoneDelete = async (milestoneId: number) => {
     if (!window.confirm('Delete this milestone?')) return
+    setError(null)
     try {
       await deleteMilestone(projectId, milestoneId)
       await load()
@@ -312,6 +316,7 @@ export default function ProjectDetail() {
 
   const handleTipDelete = async (tipId: number) => {
     if (!window.confirm('Delete this tip?')) return
+    setError(null)
     try {
       await deleteTip(projectId, tipId)
       await load()
@@ -321,6 +326,7 @@ export default function ProjectDetail() {
   }
 
   const handleFileUpload = async (file: File) => {
+    setError(null)
     try {
       await uploadProjectFile(projectId, file)
       await load()
@@ -331,6 +337,7 @@ export default function ProjectDetail() {
 
   const handleFileDelete = async (fileId: number) => {
     if (!window.confirm('Delete this file?')) return
+    setError(null)
     try {
       await deleteProjectFile(projectId, fileId)
       await load()
@@ -383,6 +390,7 @@ export default function ProjectDetail() {
       datePaid: milestone.datePaid ?? today,
       dateDue: milestone.dateDue ?? today,
     }
+    setError(null)
     try {
       await patchMilestone(milestone.id, patch)
       await load()
@@ -394,6 +402,7 @@ export default function ProjectDetail() {
   const handleMarkProjectPaid = async () => {
     if (!project) return
     setSavingProject(true)
+    setError(null)
     try {
       await updateProject(projectId, {
         ...draftFrom(project),

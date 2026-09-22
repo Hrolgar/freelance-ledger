@@ -105,12 +105,6 @@ public class MilestonesController(LedgerDbContext db, ProjectFileStore files) : 
             // An invoice is frozen: its amount, currency and VAT were snapshotted when it
             // was raised and a PDF with them is already with the client. Names, dates and
             // status may still move; the money may not.
-            if (milestone.Status == MilestoneStatus.Paid && updated.Status == MilestoneStatus.Paid
-                && (updated.Amount != milestone.Amount || updated.Currency != milestone.Currency))
-                return Problem(
-                    title: "Invoice Paid",
-                    detail: $"Invoice {milestone.InvoiceNumber} is paid and cannot be changed.",
-                    statusCode: 409);
             if (updated.Amount != milestone.Amount || updated.Currency != milestone.Currency)
                 return Problem(
                     title: "Invoice Frozen",
