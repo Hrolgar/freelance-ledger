@@ -384,7 +384,12 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
 
     /// Free text on its way into the markdown body: HTML-encoded so it is text and only
     /// text on the page. Null stays null so the "is there anything to print" checks work.
-    private static string? Text(string? value) => value is null ? null : System.Net.WebUtility.HtmlEncode(value);
+    private static string? Text(string? value) => value is null
+        ? null
+        // Only the three characters that can start markup. WebUtility.HtmlEncode also
+        // turned every non-ASCII letter and apostrophe into an entity, which left the
+        // markdown copy of a Norwegian invoice reading "&#197;lesund".
+        : value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 
     /// A table cell: escaped like Text, and a pipe becomes a slash so a category or
     /// label with "|" in it cannot split the row.
