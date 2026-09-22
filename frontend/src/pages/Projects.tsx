@@ -139,7 +139,7 @@ export default function Projects() {
   }
 
   const handleDelete = async (project: Project) => {
-    if (!window.confirm(`Delete '${project.projectName}'? This removes ALL milestones and tips for this project. Cannot be undone.`)) return
+    if (!window.confirm(`Delete '${project.projectName}'? This removes its unpaid milestones, tips, logged hours and files. Cannot be undone.`)) return
     try {
       await deleteProject(project.id)
       setProjects((current) => current.filter((p) => p.id !== project.id))
@@ -159,7 +159,7 @@ export default function Projects() {
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
       {showNewClient && (
-        <Modal title="New Client" onClose={() => setShowNewClient(false)} size="md" nested>
+        <Modal title="New Client" onClose={() => setShowNewClient(false)} size="md" nested error={error}>
           <form className="grid gap-3" onSubmit={handleCreateClient}>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Name" required>
@@ -194,7 +194,7 @@ export default function Projects() {
       )}
 
       <AppCard>
-        <SectionHeading title="All Projects" description="Amounts shown before platform fee." />
+        <SectionHeading title="All Projects" description="Amounts before platform fee. Total is every milestone and tip, paid or not." />
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-[var(--border-faint)]">
           <Input
             type="search"
@@ -288,7 +288,7 @@ export default function Projects() {
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <dt className="text-[var(--text-tertiary)]">Pipeline</dt>
+                  <dt className="text-[var(--text-tertiary)]">Total</dt>
                   <dd className="font-mono tabular-nums text-[var(--text-primary)]">
                     <MoneyAmount amount={calculateProjectGrossPipeline(project)} currency={project.currency} />
                   </dd>
@@ -312,7 +312,7 @@ export default function Projects() {
                 <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Status</th>
                 <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Awarded</th>
                 <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Paid</th>
-                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Pipeline</th>
+                <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Total</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -370,7 +370,7 @@ export default function Projects() {
       </AppCard>
 
       {showAddProject && (
-        <Modal title="Add Project" onClose={() => setShowAddProject(false)} size="lg">
+        <Modal title="Add Project" onClose={() => setShowAddProject(false)} size="lg" error={error}>
           <form className="grid gap-3" onSubmit={handleCreate}>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Client" required>

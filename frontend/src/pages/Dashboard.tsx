@@ -5,7 +5,6 @@ import { ProjectStatusBadge } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, LoadingState, SectionHeading, StatCard } from '../components/ui'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { calculateProjectRevenue, formatCurrency, formatMonth } from '../lib/format'
-import { useMainCurrency } from '../lib/useMainCurrency'
 import type { Pipeline, Project, VatSummary, YearOverview } from '../types'
 
 export default function Dashboard() {
@@ -17,7 +16,6 @@ export default function Dashboard() {
   const [vat, setVat] = useState<VatSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [mainCurrency] = useMainCurrency()
 
   const load = async () => {
     setLoading(true)
@@ -49,10 +47,15 @@ export default function Dashboard() {
     [projects],
   )
 
-  const activeProjectCount = useMemo(
+  const openProjectCount = useMemo(
     () => projects.filter(p => p.status === 'InProgress' || p.status === 'Awarded').length,
     [projects],
   )
+
+  const missingRates = useMemo(() => {
+    const all = new Set<string>([...(overview?.missingRates ?? []), ...(pipeline?.missingRates ?? [])])
+    return [...all].sort()
+  }, [overview, pipeline])
 
   const highestMonth = Math.max(...(overview?.months.map((m) => m.revenue) ?? [1]), 1)
 
@@ -97,6 +100,15 @@ export default function Dashboard() {
 
       {loading && <LoadingState label="Loading dashboard" />}
       {error && <ErrorState message={error} onRetry={() => void load()} />}
+      {!loading && !error && missingRates.length > 0 && (
+        <div
+          className="mb-8 rounded-md px-4 py-3 text-sm"
+          style={{ border: '1px solid rgba(245, 158, 11, 0.4)', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--text-primary)' }}
+        >
+          No exchange rate on file for {missingRates.join(', ')}. Money in those months is left out of the NOK totals below.{' '}
+          <Link to="/settings" className="underline" style={{ color: 'var(--accent)' }}>Fetch the rates in Settings.</Link>
+        </div>
+      )}
 
       {!loading && !error && overview && (
         <>
@@ -115,10 +127,10 @@ export default function Dashboard() {
               {formatCurrency(overview.totalProfit, 'NOK')}
             </p>
             <p className="mt-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Across {activeProjectCount} active project{activeProjectCount === 1 ? '' : 's'}.
-              {pipeline && pipeline.totalPipelineGrossValue > 0 && (
-                <> {formatCurrency(pipeline.totalPipelineGrossValue, 'NOK')} in unpaid pipeline.</>
-              )}
+              {openProjectCount} open project{openProjectCount === 1 ? '' : 's'}
+              {pipeline && pipeline.totalPipelineGrossValue > 0
+                ? <>, {pipeline.projects.length} with money outstanding: {formatCurrency(pipeline.totalPipelineGrossValue, 'NOK')} unpaid.</>
+                : '.'}
             </p>
           </section>
 
@@ -132,7 +144,7 @@ export default function Dashboard() {
             <StatCard
               label="Costs YTD"
               value={formatCurrency(overview.totalCosts, 'NOK')}
-              hint="recurring + one-time"
+              hint="recurring + one-time, excl. investments"
             />
             <StatCard
               label="Pipeline"

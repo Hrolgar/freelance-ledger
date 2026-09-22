@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { getVatSummary } from '../api'
 import { MilestoneStatusBadge } from '../components/StatusBadge'
 import { AppCard, EmptyState, ErrorState, LoadingState, PageIntro, SectionHeading, StatCard } from '../components/ui'
-import { formatCurrency, formatDate } from '../lib/format'
+import { formatCurrency, formatDate, todayIso } from '../lib/format'
 import { MONTH_NAMES } from '../types'
 import type { VatSummary, VatTerm } from '../types'
 
@@ -11,10 +11,11 @@ function terminLabel(term: VatTerm) {
   return `${term.term} · ${MONTH_NAMES[term.fromMonth - 1]}–${MONTH_NAMES[term.toMonth - 1]}`
 }
 
-function isTerminDue(term: VatTerm, year: number, today: Date): boolean {
-  const termEnd = new Date(year, term.toMonth, 0)
-  const deadline = new Date(term.reportingDeadline)
-  return today > termEnd && today <= deadline
+/// Compared as YYYY-MM-DD strings: parsing the date-only deadline with new Date()
+/// made it UTC midnight, so the badge vanished from 02:00 Oslo on the deadline day.
+function isTerminDue(term: VatTerm, year: number, today: string): boolean {
+  const termEnd = `${year}-${String(term.toMonth).padStart(2, '0')}-31`
+  return today > termEnd && today <= term.reportingDeadline
 }
 
 export default function Vat() {
@@ -89,7 +90,25 @@ export default function Vat() {
 
             <AppCard className="mb-8">
               <SectionHeading title="Per termin" description="Six two-month VAT reporting periods" />
-              <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+              <ul className="flex flex-col gap-2 p-4 lg:hidden">
+                {summary.terms.map((term) => (
+                  <li key={term.term} className="rounded-lg p-4 text-sm" style={{ border: '1px solid var(--border-faint)', background: term.term === currentTerm ? 'var(--accent-soft)' : 'var(--bg-elevated)' }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{terminLabel(term)}</span>
+                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                        {formatDate(term.reportingDeadline)}
+                        {isTerminDue(term, summary.year, todayIso()) && <span className="ml-1.5 rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">Due</span>}
+                      </span>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                      <div><dt style={{ color: 'var(--text-tertiary)' }}>Net</dt><dd className="mt-0.5 font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(term.netNok, 'NOK')}</dd></div>
+                      <div><dt style={{ color: 'var(--text-tertiary)' }}>VAT invoiced</dt><dd className="mt-0.5 font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(term.vatNok, 'NOK')}</dd></div>
+                      <div><dt style={{ color: 'var(--text-tertiary)' }}>Collected</dt><dd className="mt-0.5 font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{formatCurrency(term.paidVatNok, 'NOK')}</dd></div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden lg:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border-faint)] text-left">
@@ -116,7 +135,7 @@ export default function Vat() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             {formatDate(term.reportingDeadline)}
-                            {isTerminDue(term, summary.year, now) && (
+                            {isTerminDue(term, summary.year, todayIso()) && (
                               <span className="inline-flex items-center rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
                                 Due
                               </span>
@@ -132,7 +151,24 @@ export default function Vat() {
 
             <AppCard>
               <SectionHeading title="Invoices" description={`VAT invoices raised in ${year}`} />
-              <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+              <ul className="flex flex-col gap-2 p-4 lg:hidden">
+                {summary.invoices.map((invoice) => (
+                  <li key={invoice.invoiceId} className="rounded-lg p-4 text-sm" style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}>
+                    <Link to={`/projects/${invoice.projectId}`} className="flex items-start justify-between gap-3">
+                      <span>
+                        <span className="font-mono" style={{ color: 'var(--text-primary)' }}>{invoice.invoiceNumber}</span>
+                        <span className="mt-0.5 block text-xs" style={{ color: 'var(--text-tertiary)' }}>{invoice.clientName} · {formatDate(invoice.invoiceDate)}</span>
+                      </span>
+                      <MilestoneStatusBadge status={invoice.status} />
+                    </Link>
+                    <div className="mt-3 flex items-baseline justify-between text-xs">
+                      <span style={{ color: 'var(--text-secondary)' }}>{formatCurrency(invoice.amount, invoice.currency)} · {invoice.vatRate}%</span>
+                      <span className="font-mono tabular-nums font-medium" style={{ color: 'var(--text-primary)' }}>{formatCurrency(invoice.vatNok, 'NOK')}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden lg:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border-faint)] text-left">

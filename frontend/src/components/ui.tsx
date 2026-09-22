@@ -1,10 +1,14 @@
-import type {
-  ButtonHTMLAttributes,
-  InputHTMLAttributes,
-  PropsWithChildren,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
+/* eslint-disable react-refresh/only-export-components -- cx() lives with the primitives it styles */
+import {
+  cloneElement,
+  isValidElement,
+  useId,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type PropsWithChildren,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from 'react'
 
 export function cx(...parts: Array<string | false | null | undefined>) {
@@ -103,7 +107,7 @@ export function StatCard({
         {label}
       </p>
       <p
-        className="mt-2 text-[24px] font-semibold tracking-tight tnum lg:text-[28px]"
+        className="mt-2 min-w-0 break-words text-[22px] font-semibold tracking-tight tnum lg:text-[26px]"
         style={{ fontFamily: 'var(--font-display)', color: 'var(--text-primary)' }}
       >
         {value}
@@ -203,19 +207,30 @@ export function Checkbox(props: InputHTMLAttributes<HTMLInputElement>) {
   )
 }
 
+/// A labelled form field. The label is wired to the control with htmlFor, so
+/// clicking it focuses the input and a screen reader reads the field's name; without
+/// that every input in the app was anonymous. A single child control gets the id;
+/// anything more complex keeps the label as a plain caption.
 export function Field({
   label,
   required,
   hint,
   children,
 }: PropsWithChildren<{ label: string; required?: boolean; hint?: string }>) {
+  const generated = useId()
+  let control = children
+  let htmlFor: string | undefined
+  if (isValidElement<{ id?: string }>(children) && typeof children.type === 'function') {
+    htmlFor = children.props.id ?? generated
+    control = cloneElement(children, { id: htmlFor })
+  }
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+      <label htmlFor={htmlFor} className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
         {label}
         {required && <span className="ml-1" style={{ color: 'var(--overdue)' }}>*</span>}
       </label>
-      {children}
+      {control}
       {hint && (
         <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{hint}</p>
       )}

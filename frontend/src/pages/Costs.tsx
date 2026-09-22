@@ -5,11 +5,11 @@ import {
   deleteCost,
   deleteInvestment,
   getCosts,
-  getEffectiveCosts,
   getExchangeRates,
   getInvestments,
   updateCost,
   updateInvestment,
+  getYearOverview,
 } from '../api'
 import { Modal } from '../components/Modal'
 import {
@@ -32,7 +32,6 @@ import type {
   Cost,
   CostInput,
   Currency,
-  EffectiveCost,
   ExchangeRate,
   Investment,
   InvestmentCategory,
@@ -177,32 +176,25 @@ export default function Costs() {
   const load = async () => {
     setError(null)
     try {
-      const [costData, investmentData, ratesData] = await Promise.all([
+      // The year overview is the dashboard's own "Costs YTD" figure, so the two pages
+      // agree; it used to be nine separate month calls that never re-ran after an edit.
+      const [costData, investmentData, ratesData, overview] = await Promise.all([
         getCosts(),
         getInvestments(),
         getExchangeRates(),
+        getYearOverview(currentYear),
       ])
       setCosts(costData)
       setInvestments(investmentData)
       setRates(ratesData)
+      setYtdCostsOnlyNok(overview.totalCosts)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load costs.')
     }
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() clears the error before it fetches; that is the intent
   useEffect(() => { void load() }, [])
-
-  // YTD costs via effective costs API (handles recurring expansion and NOK conversion server-side)
-  useEffect(() => {
-    const months = Array.from({ length: currentMonth }, (_, i) => i + 1)
-    void Promise.allSettled(months.map((m) => getEffectiveCosts(m, currentYear))).then((results) => {
-      const total = results
-        .filter((r): r is PromiseFulfilledResult<EffectiveCost[]> => r.status === 'fulfilled')
-        .flatMap((r) => r.value)
-        .reduce((s, c) => s + c.amountNok, 0)
-      setYtdCostsOnlyNok(total)
-    })
-  }, [])
 
   const activeRecurring = useMemo(() => costs.filter(isCurrentlyActive), [costs])
 
@@ -443,7 +435,7 @@ export default function Costs() {
         <StatCard
           label="YTD spend"
           value={formatCurrency(ytdTotalNok, 'NOK')}
-          hint="year to date"
+          hint="year to date, incl. investments"
         />
         <StatCard
           label="Active subscriptions"
@@ -907,7 +899,7 @@ export default function Costs() {
       )}
 
       {showCostModal && (
-        <Modal
+        <Modal error={error}
           title={editingCostId ? 'Edit Cost' : 'Add Cost'}
           onClose={() => { setShowCostModal(false); setEditingCostId(null); setCostDraft(emptyCost) }}
         >
@@ -969,7 +961,7 @@ export default function Costs() {
       )}
 
       {showInvestmentModal && (
-        <Modal
+        <Modal error={error}
           title={editingInvestmentId ? 'Edit Investment' : 'Add Investment'}
           onClose={() => { setShowInvestmentModal(false); setEditingInvestmentId(null); setInvestmentDraft(emptyInvestment) }}
           size="md"

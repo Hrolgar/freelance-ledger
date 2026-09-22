@@ -1,4 +1,4 @@
-import type { Currency, ExchangeRate, Milestone, MilestoneStatus, Project, ProjectStatus } from '../types'
+import type { Currency, ExchangeRate, Milestone, Project } from '../types'
 
 const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' })
 
@@ -86,38 +86,7 @@ export function getNextMilestoneOrder(milestones: Milestone[]) {
   return milestones.reduce((max, milestone) => Math.max(max, milestone.sortOrder), 0) + 1
 }
 
-// These are only used as fallback inline in pages that haven't been updated to use StatusBadge components
-export function projectStatusTone(status: ProjectStatus) {
-  switch (status) {
-    case 'Paid':
-      return 'bg-green-500/15 text-green-400 border border-green-500/30'
-    case 'Completed':
-      return 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
-    case 'InProgress':
-      return 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-    case 'Awarded':
-      return 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
-    case 'OnHold':
-      return 'bg-zinc-600/15 text-zinc-300 border border-zinc-500/30'
-    default:
-      return 'bg-slate-700/60 text-slate-400 border border-slate-600/50'
-  }
-}
 
-export function milestoneStatusTone(status: MilestoneStatus) {
-  switch (status) {
-    case 'Paid':
-      return 'bg-green-500/15 text-green-400 border border-green-500/30'
-    case 'Released':
-      return 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
-    case 'Funded':
-      return 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
-    case 'Disputed':
-      return 'bg-red-500/15 text-red-400 border border-red-500/30'
-    default:
-      return 'bg-slate-700/60 text-slate-400 border border-slate-600/50'
-  }
-}
 
 /** True if a milestone has a due date in the past and is not yet Paid. */
 export function isMilestoneOverdue(milestone: Milestone, today = new Date()): boolean {
@@ -143,20 +112,52 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
- * Look up a rate for a specific month/year. Falls back to the most recent
- * available rate for that currency if the specific month isn't in the dataset.
+ * Look up a rate for a specific month/year. Unless `exact` is set it falls back to
+ * the nearest month on file (the latest one at or before the requested month, else
+ * the earliest after it), which is what a hover tooltip wants; a total that goes on
+ * a report should ask for `exact` and say when a month has no rate.
  */
 export function getRateForMonth(
   rates: ExchangeRate[],
   currency: Currency,
   month: number,
   year: number,
+  options?: { exact?: boolean },
 ): number | null {
   if (currency === 'NOK') return 1
   const exact = rates.find(r => r.currency === currency && r.month === month && r.year === year)
   if (exact) return exact.rate
+  if (options?.exact) return null
+  const wanted = year * 12 + month
   const matches = rates.filter(r => r.currency === currency)
   if (matches.length === 0) return null
-  matches.sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month))
-  return matches[0].rate
+  const before = matches.filter(r => r.year * 12 + r.month <= wanted).sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month))
+  if (before.length > 0) return before[0].rate
+  const after = matches.sort((a, b) => (a.year * 12 + a.month) - (b.year * 12 + b.month))
+  return after[0].rate
+}
+
+/**
+ * THE conversion rule for the frontend. Every page used to carry its own copy with
+ * its own month handling, so one payment showed three NOK values. Month and year
+ * default to the current month, which is right for money that is still outstanding;
+ * paid money passes the month it was paid in.
+ */
+export function convertAmount(
+  amount: number,
+  from: Currency,
+  to: Currency,
+  rates: ExchangeRate[],
+  month?: number,
+  year?: number,
+  options?: { exact?: boolean },
+): number | null {
+  if (from === to) return amount
+  const now = new Date()
+  const m = month ?? now.getMonth() + 1
+  const y = year ?? now.getFullYear()
+  const fromRate = getRateForMonth(rates, from, m, y, options)
+  const toRate = getRateForMonth(rates, to, m, y, options)
+  if (fromRate === null || toRate === null) return null
+  return (amount * fromRate) / toRate
 }

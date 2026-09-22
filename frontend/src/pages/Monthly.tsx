@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getEffectiveCosts, getExchangeRates, getProjects } from '../api'
 import { AppCard, Button, EmptyState, ErrorState, PageIntro, SectionHeading, StatCard } from '../components/ui'
-import { formatCurrency } from '../lib/format'
+import { convertAmount, formatCurrency } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
-import type { EffectiveCost, ExchangeRate, Project } from '../types'
+import type { Currency, EffectiveCost, ExchangeRate, Project } from '../types'
 import { MONTH_FULL_NAMES } from '../types'
 
 function projectRevenueForMonth(project: Project, year: number, month: number) {
@@ -26,22 +26,19 @@ function projectRevenueForMonth(project: Project, year: number, month: number) {
   }
 }
 
-function convert(amount: number, fromCurrency: string, mainCurrency: string, rates: ExchangeRate[]): number | null {
-  if (fromCurrency === mainCurrency) return amount
-  const fromRate = fromCurrency === 'NOK' ? 1 : rates.find((r) => r.currency === fromCurrency)?.rate
-  const toRate = mainCurrency === 'NOK' ? 1 : rates.find((r) => r.currency === mainCurrency)?.rate
-  if (!fromRate || !toRate) return null
-  return (amount * fromRate) / toRate
-}
-
-function MoneyCell({ amount, currency, mainCurrency, rates, className = '' }: {
+function MoneyCell({ amount, currency, mainCurrency, rates, month, year, className = '' }: {
   amount: number
-  currency: string
-  mainCurrency: string
+  currency: Currency
+  mainCurrency: Currency
   rates: ExchangeRate[]
+  month: number
+  year: number
   className?: string
 }) {
-  const converted = convert(amount, currency, mainCurrency, rates)
+  // Exact month only: this page IS the month, so a neighbouring month's rate would be
+  // a quiet lie. A missing rate shows the amount with no conversion, and the totals
+  // above say which currency is missing.
+  const converted = convertAmount(amount, currency, mainCurrency, rates, month, year, { exact: true })
   const hasConversion = converted !== null && currency !== mainCurrency
   return (
     <td className={`px-4 py-3 text-right font-mono tabular-nums ${className}`}>
@@ -59,11 +56,34 @@ function MoneyCell({ amount, currency, mainCurrency, rates, className = '' }: {
   )
 }
 
+function MoneyLine({ label, amount, currency, mainCurrency, rates, month, year }: {
+  label: string
+  amount: number
+  currency: Currency
+  mainCurrency: Currency
+  rates: ExchangeRate[]
+  month: number
+  year: number
+}) {
+  const converted = convertAmount(amount, currency, mainCurrency, rates, month, year, { exact: true })
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <span style={{ color: 'var(--text-tertiary)' }}>{label}</span>
+      <span className="text-right font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>
+        {formatCurrency(amount, currency)}
+        {converted !== null && currency !== mainCurrency && (
+          <span className="ml-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatCurrency(converted, mainCurrency)}</span>
+        )}
+      </span>
+    </div>
+  )
+}
+
 function DonutChart({ revenue, costs, profit, currency }: {
   revenue: number
   costs: number
   profit: number
-  currency: string
+  currency: Currency
 }) {
   const total = revenue + costs
   if (total === 0) return null
@@ -174,18 +194,30 @@ export default function Monthly() {
     [month, projects, year],
   )
 
+  // A row whose currency has no rate this month is LEFT OUT of the total and named
+  // in the warning. It used to be added in unconverted, so a USD figure sat inside a
+  // number labelled NOK.
+  const unconvertible = new Set<string>()
   const totalRevenueMain = revenueRows.reduce((sum, r) => {
-    const c = convert(r.net, r.currency, mainCurrency, rates)
-    return sum + (c ?? r.net)
+    const c = convertAmount(r.net, r.currency, mainCurrency, rates, month, year, { exact: true })
+    if (c === null) {
+      unconvertible.add(r.currency)
+      return sum
+    }
+    return sum + c
   }, 0)
   const totalCostsNok = costs.reduce((sum, c) => sum + c.amountNok, 0)
-  const totalCostsMain = mainCurrency === 'NOK'
-    ? totalCostsNok
-    : (() => {
-        const nokRate = rates.find((r) => r.currency === mainCurrency)?.rate
-        return nokRate ? totalCostsNok / nokRate : totalCostsNok
-      })()
+  const totalCostsMain = (() => {
+    if (mainCurrency === 'NOK') return totalCostsNok
+    const c = convertAmount(totalCostsNok, 'NOK', mainCurrency, rates, month, year, { exact: true })
+    if (c === null) {
+      unconvertible.add(mainCurrency)
+      return 0
+    }
+    return c
+  })()
   const profit = totalRevenueMain - totalCostsMain
+  const missing = [...unconvertible].sort()
 
   return (
     <div className="space-y-6">
@@ -213,6 +245,14 @@ export default function Monthly() {
       />
 
       {error && <ErrorState message={error} onRetry={() => void load()} />}
+      {!loading && missing.length > 0 && (
+        <div
+          className="rounded-md px-4 py-3 text-sm"
+          style={{ border: '1px solid rgba(245, 158, 11, 0.4)', background: 'rgba(245, 158, 11, 0.12)', color: 'var(--text-primary)' }}
+        >
+          No {mainCurrency} rate on file for {missing.join(', ')} in {MONTH_FULL_NAMES[month - 1]} {year}. Those amounts are shown in their own currency and left out of the totals. Fetch the month in Settings.
+        </div>
+      )}
 
       {/* Summary row: donut + stat cards */}
       {!loading && (
@@ -238,7 +278,21 @@ export default function Monthly() {
             title="Revenue Breakdown"
             description={`${MONTH_FULL_NAMES[month - 1]} ${year}`}
           />
-          <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+          <ul className="flex flex-col gap-2 p-4 lg:hidden">
+            {revenueRows.length === 0 && (
+              <EmptyState title="No paid revenue this month" description="Paid milestones and tips appear here." />
+            )}
+            {revenueRows.map((row) => (
+              <li key={row.projectId} className="rounded-lg p-4" style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}>
+                <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{row.projectName}</p>
+                <p className="mb-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>{row.clientName}</p>
+                <MoneyLine label="Gross" amount={row.gross} currency={row.currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} />
+                <MoneyLine label="Fee" amount={row.fee} currency={row.currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} />
+                <MoneyLine label="Net" amount={row.net} currency={row.currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} />
+              </li>
+            ))}
+          </ul>
+          <div className="hidden lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
@@ -261,24 +315,24 @@ export default function Monthly() {
                     <tr key={row.projectId} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
                       <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{row.projectName}</td>
                       <td className="px-4 py-3 text-[var(--text-secondary)]">{row.clientName}</td>
-                      <MoneyCell amount={row.gross} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="text-[var(--text-secondary)]" />
-                      <MoneyCell amount={row.fee} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="text-[var(--text-tertiary)]" />
-                      <MoneyCell amount={row.net} currency={row.currency} mainCurrency={mainCurrency} rates={rates} className="font-medium text-[var(--text-primary)]" />
+                      <MoneyCell amount={row.gross} currency={row.currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} className="text-[var(--text-secondary)]" />
+                      <MoneyCell amount={row.fee} currency={row.currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} className="text-[var(--text-tertiary)]" />
+                      <MoneyCell amount={row.net} currency={row.currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} className="font-medium text-[var(--text-primary)]" />
                     </tr>
                   ))
                 )}
                 {revenueRows.length > 0 && (() => {
-                  const totalsByCurrency = revenueRows.reduce<Record<string, {gross: number; fee: number; net: number}>>((acc, r) => {
+                  const totalsByCurrency = revenueRows.reduce<Partial<Record<Currency, {gross: number; fee: number; net: number}>>>((acc, r) => {
                     const e = acc[r.currency] ??= {gross: 0, fee: 0, net: 0}
                     e.gross += r.gross; e.fee += r.fee; e.net += r.net
                     return acc
                   }, {})
-                  return Object.entries(totalsByCurrency).map(([currency, t]) => (
+                  return (Object.entries(totalsByCurrency) as Array<[Currency, {gross: number; fee: number; net: number}]>).map(([currency, t]) => (
                     <tr key={currency} className="border-t-2 border-[var(--border-default)] bg-[var(--bg-surface)]">
                       <td className="px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]" colSpan={2}>Total ({currency})</td>
-                      <MoneyCell amount={t.gross} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-[var(--text-primary)]" />
-                      <MoneyCell amount={t.fee} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-[var(--text-secondary)]" />
-                      <MoneyCell amount={t.net} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-[var(--text-primary)]" />
+                      <MoneyCell amount={t.gross} currency={currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} className="font-semibold text-[var(--text-primary)]" />
+                      <MoneyCell amount={t.fee} currency={currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} className="font-semibold text-[var(--text-secondary)]" />
+                      <MoneyCell amount={t.net} currency={currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} className="font-semibold text-[var(--text-primary)]" />
                     </tr>
                   ))
                 })()}
@@ -289,7 +343,19 @@ export default function Monthly() {
 
         <AppCard>
           <SectionHeading title="Costs" />
-          <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+          <ul className="flex flex-col gap-2 p-4 lg:hidden">
+            {costs.length === 0 && <EmptyState title="No costs this month" description="Add costs in the Costs page." />}
+            {costs.map((cost) => (
+              <li key={cost.id} className="flex items-baseline justify-between gap-3 rounded-lg p-4 text-sm" style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}>
+                <span>
+                  <span style={{ color: 'var(--text-primary)' }}>{cost.description}</span>
+                  <span className="ml-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>{cost.category}</span>
+                </span>
+                <span className="font-mono tabular-nums" style={{ color: 'var(--text-primary)' }}>{formatCurrency(cost.amount, cost.currency)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
@@ -310,19 +376,19 @@ export default function Monthly() {
                     <tr key={cost.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
                       <td className="px-4 py-3 text-[var(--text-primary)]">{cost.description}</td>
                       <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{cost.category}</td>
-                      <MoneyCell amount={cost.amount} currency={cost.currency} mainCurrency={mainCurrency} rates={rates} className="text-[var(--text-secondary)]" />
+                      <MoneyCell amount={cost.amount} currency={cost.currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} className="text-[var(--text-secondary)]" />
                     </tr>
                   ))
                 )}
                 {costs.length > 0 && (() => {
-                  const costsByCurrency = costs.reduce<Record<string, number>>((acc, c) => {
+                  const costsByCurrency = costs.reduce<Partial<Record<Currency, number>>>((acc, c) => {
                     acc[c.currency] = (acc[c.currency] ?? 0) + c.amount
                     return acc
                   }, {})
-                  return Object.entries(costsByCurrency).map(([currency, total]) => (
+                  return (Object.entries(costsByCurrency) as Array<[Currency, number]>).map(([currency, total]) => (
                     <tr key={currency} className="border-t-2 border-[var(--border-default)] bg-[var(--bg-surface)]">
                       <td className="px-4 py-2.5 text-xs font-medium text-[var(--text-secondary)]" colSpan={2}>Total ({currency})</td>
-                      <MoneyCell amount={total} currency={currency} mainCurrency={mainCurrency} rates={rates} className="font-semibold text-[var(--text-primary)]" />
+                      <MoneyCell amount={total} currency={currency} mainCurrency={mainCurrency} rates={rates} month={month} year={year} className="font-semibold text-[var(--text-primary)]" />
                     </tr>
                   ))
                 })()}

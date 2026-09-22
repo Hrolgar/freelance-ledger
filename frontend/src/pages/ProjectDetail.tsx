@@ -44,6 +44,7 @@ import {
   getProjectSummary,
   patchMilestone,
   projectFileDownloadUrl,
+  downloadFile,
   updateMilestone,
   updateProject,
   updateTip,
@@ -57,7 +58,7 @@ import { Modal } from '../components/Modal'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { MilestoneStatusBadge, projectStatusLabel } from '../components/StatusBadge'
 import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, StatCard, Textarea } from '../components/ui'
-import { formatCurrency, formatDate, formatFileSize, getNextMilestoneOrder, isMilestoneOverdue, isoDate } from '../lib/format'
+import { formatCurrency, formatDate, formatFileSize, getNextMilestoneOrder, isMilestoneOverdue, isoDate, todayIso } from '../lib/format'
 import type { Client, Milestone, MilestoneInput, MilestonePatchRequest, Platform, Project, ProjectInput, ProjectSummary, Tip, TipInput } from '../types'
 import { CURRENCIES, MILESTONE_STATUSES, PROJECT_STATUSES, RETAINER_STATUSES } from '../types'
 
@@ -102,8 +103,37 @@ const emptyMilestoneDraft: MilestoneInput = {
 const emptyTipDraft: TipInput = {
   amount: 0,
   currency: 'USD',
-  date: new Date().toISOString().slice(0, 10),
+  date: '',
   notes: null,
+}
+
+function draftFrom(hydrated: Project): ProjectInput {
+  return {
+    clientId: hydrated.clientId,
+    clientName: hydrated.clientName,
+    projectName: hydrated.projectName,
+    platformId: hydrated.platformId,
+    currency: hydrated.currency,
+    feePercentage: hydrated.feePercentage,
+    initialFullPrice: hydrated.initialFullPrice,
+    status: hydrated.status,
+    dateAwarded: hydrated.dateAwarded,
+    dateCompleted: hydrated.dateCompleted,
+    notes: hydrated.notes,
+    billingType: hydrated.billingType ?? 'Fixed',
+    invoicePrefix: hydrated.invoicePrefix ?? null,
+    billTo: hydrated.billTo ?? null,
+    invoiceWorkDescription: hydrated.invoiceWorkDescription ?? null,
+    invoiceLineLabel: hydrated.invoiceLineLabel ?? null,
+    paymentDueDayOfMonth: hydrated.paymentDueDayOfMonth ?? null,
+    invoiceTermsNote: hydrated.invoiceTermsNote ?? null,
+    cadence: hydrated.cadence ?? 'None',
+    committedHours: hydrated.committedHours ?? null,
+    vatRate: hydrated.vatRate ?? null,
+    autoRaiseInvoice: hydrated.autoRaiseInvoice ?? false,
+    invoiceLanguage: hydrated.invoiceLanguage ?? null,
+    files: hydrated.files ?? [],
+  }
 }
 
 export default function ProjectDetail() {
@@ -118,6 +148,7 @@ export default function ProjectDetail() {
   const [projectDraft, setProjectDraft] = useState<ProjectInput>(emptyProjectDraft)
   const [milestoneDraft, setMilestoneDraft] = useState<MilestoneInput>(emptyMilestoneDraft)
   const [tipDraft, setTipDraft] = useState<TipInput>(emptyTipDraft)
+  const draftLoadedFor = useRef<number | null>(null)
   const [editingMilestoneId, setEditingMilestoneId] = useState<number | null>(null)
   const [editingTipId, setEditingTipId] = useState<number | null>(null)
   const [showMilestoneModal, setShowMilestoneModal] = useState(false)
@@ -154,38 +185,16 @@ export default function ProjectDetail() {
 
       setProject(hydrated)
       setSummary(summaryData)
-      setProjectDraft({
-        clientId: hydrated.clientId,
-        clientName: hydrated.clientName,
-        projectName: hydrated.projectName,
-        platformId: hydrated.platformId,
-        currency: hydrated.currency,
-        feePercentage: hydrated.feePercentage,
-        initialFullPrice: hydrated.initialFullPrice,
-        status: hydrated.status,
-        dateAwarded: hydrated.dateAwarded,
-        dateCompleted: hydrated.dateCompleted,
-        notes: hydrated.notes,
-        billingType: hydrated.billingType ?? 'Fixed',
-        invoicePrefix: hydrated.invoicePrefix ?? null,
-        billTo: hydrated.billTo ?? null,
-        invoiceWorkDescription: hydrated.invoiceWorkDescription ?? null,
-        invoiceLineLabel: hydrated.invoiceLineLabel ?? null,
-        paymentDueDayOfMonth: hydrated.paymentDueDayOfMonth ?? null,
-        invoiceTermsNote: hydrated.invoiceTermsNote ?? null,
-        cadence: hydrated.cadence ?? 'None',
-        committedHours: hydrated.committedHours ?? null,
-        vatRate: hydrated.vatRate ?? null,
-        autoRaiseInvoice: hydrated.autoRaiseInvoice ?? false,
-        invoiceLanguage: hydrated.invoiceLanguage ?? null,
-        files: hydrated.files ?? [],
-      })
+      if (draftLoadedFor.current !== hydrated.id) {
+        draftLoadedFor.current = hydrated.id
+        setProjectDraft(draftFrom(hydrated))
+      }
       setMilestoneDraft({
         ...emptyMilestoneDraft,
         currency: hydrated.currency,
         sortOrder: getNextMilestoneOrder(orderedMilestones),
       })
-      setTipDraft({ ...emptyTipDraft, currency: hydrated.currency })
+      setTipDraft({ ...emptyTipDraft, currency: hydrated.currency, date: todayIso() })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load project.')
     } finally {
@@ -287,7 +296,7 @@ export default function ProjectDetail() {
 
   const resetTipForm = () => {
     setEditingTipId(null)
-    setTipDraft({ ...emptyTipDraft, currency: project?.currency ?? 'USD' })
+    setTipDraft({ ...emptyTipDraft, currency: project?.currency ?? 'USD', date: todayIso() })
   }
 
   const handleMilestoneDelete = async (milestoneId: number) => {
@@ -367,7 +376,7 @@ export default function ProjectDetail() {
     : null
 
   const handleQuickMarkPaid = async (milestone: Milestone) => {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = todayIso()
     const patch: MilestonePatchRequest = {
       status: 'Paid',
       datePaid: milestone.datePaid ?? today,
@@ -386,9 +395,9 @@ export default function ProjectDetail() {
     setSavingProject(true)
     try {
       await updateProject(projectId, {
-        ...projectDraft,
+        ...draftFrom(project),
         status: 'Paid',
-        dateCompleted: projectDraft.dateCompleted ?? new Date().toISOString().slice(0, 10),
+        dateCompleted: project.dateCompleted ?? todayIso(),
       })
       await load()
     } catch (caught) {
@@ -426,7 +435,7 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {project.milestones.length > 0 && (
+      {project.billingType === 'Fixed' && project.milestones.length > 0 && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs text-[var(--text-tertiary)]">
             <span>Milestone progress</span>
@@ -447,7 +456,7 @@ export default function ProjectDetail() {
         if (initial == null || initial <= 0) return null
         // "Allocated against the initial budget, upsell beyond it" is fixed-price
         // reasoning. An hourly project has no budget to allocate against.
-        if (project.billingType === 'Hourly') return null
+        if (project.billingType !== 'Fixed') return null
         const diff = pipelineTotal - initial
         const budgetState = Math.abs(diff) < 0.01
           ? { tone: 'matches' as const, amount: 0 }
@@ -649,7 +658,7 @@ export default function ProjectDetail() {
         </AppCard>
       </div>
 
-      {project.milestones.length > 0 &&
+      {project.billingType === 'Fixed' && project.milestones.length > 0 &&
         project.milestones.every(m => m.status === 'Paid') &&
         project.status !== 'Paid' && (
           <div
@@ -735,7 +744,7 @@ export default function ProjectDetail() {
                         )}
                       </td>
                       <td className="px-4 py-3 font-mono tabular-nums text-[var(--text-primary)]">
-                        <MoneyAmount amount={milestone.amount} currency={milestone.currency} />
+                        <MoneyAmount amount={milestone.amount} currency={milestone.currency} date={milestone.datePaid} />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
@@ -806,7 +815,7 @@ export default function ProjectDetail() {
                         )}
                       </div>
                       <div className="shrink-0 text-right font-mono text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                        <MoneyAmount amount={milestone.amount} currency={milestone.currency} />
+                        <MoneyAmount amount={milestone.amount} currency={milestone.currency} date={milestone.datePaid} />
                       </div>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -855,7 +864,7 @@ export default function ProjectDetail() {
       </AppCard>
 
       {showMilestoneModal && (
-        <Modal title={editingMilestoneId ? 'Edit Milestone' : 'Add Milestone'} onClose={() => { setShowMilestoneModal(false); resetMilestoneForm() }}>
+        <Modal error={error} title={editingMilestoneId ? 'Edit Milestone' : 'Add Milestone'} onClose={() => { setShowMilestoneModal(false); resetMilestoneForm() }}>
           <form className="grid gap-3" onSubmit={handleMilestoneSave}>
             <Field label="Name" required>
               <Input required value={milestoneDraft.name} onChange={(e) => setMilestoneDraft((c) => ({ ...c, name: e.target.value }))} />
@@ -880,7 +889,7 @@ export default function ProjectDetail() {
                   setMilestoneDraft((c) => {
                     const next = { ...c, status }
                     if (status === 'Paid') {
-                      const today = new Date().toISOString().slice(0, 10)
+                      const today = todayIso()
                       if (!next.datePaid) next.datePaid = today
                       if (!next.dateDue) next.dateDue = today
                     }
@@ -941,7 +950,7 @@ export default function ProjectDetail() {
                     {project.tips.map((tip) => (
                       <tr key={tip.id} className="border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]">
                         <td className="px-4 py-3 font-mono tabular-nums font-medium text-[var(--text-primary)]">
-                          <MoneyAmount amount={tip.amount} currency={tip.currency} />
+                          <MoneyAmount amount={tip.amount} currency={tip.currency} date={tip.date} />
                         </td>
                         <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">{formatDate(tip.date)}</td>
                         <td className="px-4 py-3 text-xs text-[var(--text-tertiary)]">{tip.notes ?? '—'}</td>
@@ -969,7 +978,7 @@ export default function ProjectDetail() {
                         <p className="mt-1 text-xs text-[var(--text-secondary)]">{formatDate(tip.date)}</p>
                       </div>
                       <div className="shrink-0 text-right font-mono text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-                        <MoneyAmount amount={tip.amount} currency={tip.currency} />
+                        <MoneyAmount amount={tip.amount} currency={tip.currency} date={tip.date} />
                       </div>
                     </div>
                     <dl className="mt-3 text-xs">
@@ -1027,7 +1036,25 @@ export default function ProjectDetail() {
         {project.files.length === 0 ? (
           <div className="px-4 pb-4"><EmptyState title="No files yet" description="Upload PDFs, docs, screenshots." /></div>
         ) : (
-          <table className="w-full text-sm">
+          <>
+          <ul className="flex flex-col gap-2 p-4 lg:hidden">
+            {project.files.map((file) => (
+              <li key={file.id} className="rounded-lg p-4" style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}>
+                <p className="break-words font-medium" style={{ color: 'var(--text-primary)' }}>{file.originalFilename}</p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatFileSize(file.sizeBytes)} · {formatDate(file.uploadedAt)}</p>
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  {(file.contentType === 'application/pdf' || file.contentType.startsWith('image/') || file.originalFilename.toLowerCase().endsWith('.pdf')) && (
+                    <Link to={`/projects/${projectId}/files/${file.id}/view`}>
+                      <Button variant="secondary" className="min-h-11 px-4 text-xs">View</Button>
+                    </Link>
+                  )}
+                  <Button variant="secondary" className="min-h-11 px-4 text-xs" onClick={() => void downloadFile(projectFileDownloadUrl(projectId, file.id), file.originalFilename).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Download failed.'))}>Download</Button>
+                  <Button variant="danger" className="min-h-11 px-4 text-xs" onClick={() => void handleFileDelete(file.id)}>Del</Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <table className="hidden w-full text-sm lg:table">
             <thead>
               <tr className="border-b border-[var(--border-faint)] text-left">
                 <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Name</th>
@@ -1049,9 +1076,7 @@ export default function ProjectDetail() {
                           <Button variant="ghost" className="px-2 text-xs text-[var(--accent)]">View</Button>
                         </Link>
                       )}
-                      <a href={projectFileDownloadUrl(projectId, file.id)} target="_blank" rel="noreferrer">
-                        <Button variant="ghost" className="px-2 text-xs">Download</Button>
-                      </a>
+                      <Button variant="ghost" className="px-2 text-xs" onClick={() => void downloadFile(projectFileDownloadUrl(projectId, file.id), file.originalFilename).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Download failed.'))}>Download</Button>
                       <Button variant="danger" className="px-2 text-xs" onClick={() => void handleFileDelete(file.id)}>Del</Button>
                     </div>
                   </td>
@@ -1059,11 +1084,12 @@ export default function ProjectDetail() {
               ))}
             </tbody>
           </table>
+          </>
         )}
       </AppCard>
 
       {showTipModal && (
-        <Modal title={editingTipId ? 'Edit Tip' : 'Add Tip'} onClose={() => { setShowTipModal(false); resetTipForm() }} size="sm">
+        <Modal error={error} title={editingTipId ? 'Edit Tip' : 'Add Tip'} onClose={() => { setShowTipModal(false); resetTipForm() }} size="sm">
           <form className="grid gap-3" onSubmit={handleTipSave}>
             <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
               <Field label="Amount">

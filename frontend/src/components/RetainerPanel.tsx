@@ -17,7 +17,7 @@ import { MilestoneStatusBadge } from './StatusBadge'
 import { AppCard, Button, EmptyState, Field, Input, ModalActions, RowCard, SectionHeading, Select, Textarea } from './ui'
 import { formatCurrency, formatDate, todayIso } from '../lib/format'
 import type { Currency, Milestone, Project, ProjectRate, RetainerPeriod } from '../types'
-import { CURRENCIES, MONTH_NAMES } from '../types'
+import { MONTH_NAMES } from '../types'
 
 const thisYear = new Date().getFullYear()
 
@@ -474,7 +474,7 @@ export function RetainerPanel({
 
       {/* --- Fee modal --- */}
       {showFeeModal && (
-      <Modal title={editingFeeId ? 'Edit fee' : 'Add fee'} onClose={() => setShowFeeModal(false)}>
+      <Modal error={error} title={editingFeeId ? 'Edit fee' : 'Add fee'} onClose={() => setShowFeeModal(false)}>
         <div className="grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Monthly fee">
@@ -483,12 +483,9 @@ export function RetainerPanel({
                 onChange={(e) => setFeeDraft({ ...feeDraft, rate: Number(e.target.value) })}
               />
             </Field>
-            <Field label="Currency">
-              <Select
-                value={feeDraft.currency}
-                onChange={(e) => setFeeDraft({ ...feeDraft, currency: e.target.value as Currency })}
-              >
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            <Field label="Currency" hint="Always the project's currency.">
+              <Select value={project.currency} disabled>
+                <option value={project.currency}>{project.currency}</option>
               </Select>
             </Field>
           </div>
@@ -531,7 +528,7 @@ export function RetainerPanel({
 
       {/* --- Raise invoice modal --- */}
       {showInvoiceModal && invoicePeriod && (
-      <Modal title={`Raise invoice — ${periodLabel(invoicePeriod)}`} onClose={() => setShowInvoiceModal(false)} size="lg">
+      <Modal error={error} title={`Raise invoice — ${periodLabel(invoicePeriod)}`} onClose={() => setShowInvoiceModal(false)} size="lg">
         <div className="grid gap-3">
           <div
             className="rounded-lg px-4 py-3"

@@ -8,7 +8,7 @@ import { MoneyAmount } from '../components/MoneyAmount'
 import { formatDate } from '../lib/format'
 import { COUNTRIES } from '../lib/countries'
 import { getTimezoneOffset, useMyTimezone } from '../lib/useMyTimezone'
-import type { Client, ClientInput } from '../types'
+import type { Client, ClientInput, Currency } from '../types'
 import { TIMEZONES } from '../types'
 
 function ClientClock({ timezone }: { timezone: string }) {
@@ -86,7 +86,7 @@ function ClientList() {
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
       {showForm && (
-        <Modal title="Add Client" onClose={() => setShowForm(false)} size="lg">
+        <Modal error={error} title="Add Client" onClose={() => setShowForm(false)} size="lg">
           <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={handleCreate}>
             <Field label="Name" required>
               <Input required value={draft.name} onChange={(e) => setDraft(d => ({ ...d, name: e.target.value }))} />
@@ -132,8 +132,14 @@ function ClientList() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {clients.map((client) => {
-            const projectCurrency = client.projects[0]?.currency ?? 'NOK'
-            const paid = client.projects.flatMap(p => p.milestones).filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0)
+            // Per currency, tips included: one figure across a USD and a NOK project was
+            // meaningless, and the detail page counts tips while this card did not.
+            const paidByCurrency = new Map<Currency, number>()
+            for (const p of client.projects) {
+              const paid = p.milestones.filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0)
+                + p.tips.reduce((s, t) => s + t.amount, 0)
+              if (paid > 0) paidByCurrency.set(p.currency, (paidByCurrency.get(p.currency) ?? 0) + paid)
+            }
             return (
               <Link key={client.id} to={`/clients/${client.id}`} className="group">
                 <AppCard className="h-full p-4 transition-colors hover:border-[var(--accent)]">
@@ -158,9 +164,12 @@ function ClientList() {
                     {client.freelancerId && ' · Freelancer'}
                     {client.upworkId && ' · Upwork'}
                   </p>
-                  <div className="mt-3 flex items-baseline gap-1.5 font-mono tabular-nums text-lg font-semibold text-[var(--text-primary)]">
-                    <MoneyAmount amount={paid} currency={projectCurrency} />
-                    <span className="text-xs font-normal text-[var(--text-tertiary)]">paid</span>
+                  <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono tabular-nums text-lg font-semibold text-[var(--text-primary)]">
+                    {paidByCurrency.size === 0 && <span className="text-sm font-normal text-[var(--text-tertiary)]">Nothing paid yet</span>}
+                    {[...paidByCurrency.entries()].map(([currency, paid]) => (
+                      <MoneyAmount key={currency} amount={paid} currency={currency} />
+                    ))}
+                    {paidByCurrency.size > 0 && <span className="text-xs font-normal text-[var(--text-tertiary)]">paid</span>}
                   </div>
                 </AppCard>
               </Link>
@@ -239,7 +248,7 @@ function ClientDetail() {
       />
 
       {editing && (
-        <Modal title="Edit Client" onClose={() => setEditing(false)} size="lg">
+        <Modal error={error} title="Edit Client" onClose={() => setEditing(false)} size="lg">
           <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={handleSave}>
             <Field label="Name" required>
               <Input required value={draft.name} onChange={(e) => setDraft(d => ({ ...d, name: e.target.value }))} />
@@ -362,7 +371,7 @@ function ClientDetail() {
               })}
             </tbody>
             {client.projects.length > 0 && (() => {
-              const byCurrency = new Map<string, { pipeline: number; outstanding: number; paid: number }>()
+              const byCurrency = new Map<Currency, { pipeline: number; outstanding: number; paid: number }>()
               for (const p of client.projects) {
                 const cur = p.currency
                 const pipelineGross = p.milestones.reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)
@@ -449,7 +458,7 @@ function ClientDetail() {
                 )
               })}
               {(() => {
-                const byCurrency = new Map<string, { pipeline: number; outstanding: number; paid: number }>()
+                const byCurrency = new Map<Currency, { pipeline: number; outstanding: number; paid: number }>()
                 for (const p of client.projects) {
                   const cur = p.currency
                   const pipelineGross = p.milestones.reduce((s, m) => s + m.amount, 0) + p.tips.reduce((s, t) => s + t.amount, 0)

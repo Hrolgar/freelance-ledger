@@ -284,6 +284,9 @@ export interface YearOverview {
   totalCosts: number
   totalProfit: number
   months: MonthlyOverview[]
+  /// "USD 2026-03" for every currency-month with money and no rate: that money is
+  /// NOT in the totals above.
+  missingRates: string[]
 }
 
 export interface PipelineProject {
@@ -305,6 +308,7 @@ export interface Pipeline {
   projects: PipelineProject[]
   byStatus: Partial<Record<ProjectStatus, number>>
   onHoldCount: number
+  missingRates: string[]
 }
 
 export interface VatTerm {
@@ -373,11 +377,6 @@ export type CostPayloadFixed = CostInput
 export type InvestmentInput = Omit<Investment, 'id'>
 export type ExchangeRateInput = Omit<ExchangeRate, 'id'>
 
-export type ProjectPayload = ProjectInput
-export type MilestonePayload = MilestoneInput
-export type TipPayload = TipInput
-export type CostPayload = CostInput
-export type InvestmentPayload = InvestmentInput
 export type ExchangeRatePayload = ExchangeRateInput
 
 export interface MilestonePatchRequest {

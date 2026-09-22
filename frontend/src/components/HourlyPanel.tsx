@@ -22,7 +22,6 @@ import { categoriesOf, categoryLabel, lastDayOfMonth, monthLabel, rateFor } from
 import { AppCard, Button, EmptyState, Field, Input, ModalActions, RowCard, SectionHeading, Select, Textarea } from './ui'
 import { firstOfMonth, formatCurrency, formatDate, hoursLabel, todayIso } from '../lib/format'
 import type { Currency, Milestone, Project, ProjectRate, TimeEntry } from '../types'
-import { CURRENCIES } from '../types'
 
 /// Monday of the week containing a date, matching the server's period rule.
 /// Takes and returns YYYY-MM-DD.
@@ -274,7 +273,7 @@ export function HourlyPanel({
     setRateEditId(rate?.id ?? null)
     setRateDraft({
       rate: rate?.rate ?? currentRate?.rate ?? 0,
-      currency: rate?.currency ?? currentRate?.currency ?? project.currency,
+      currency: project.currency,
       effectiveFrom: rate?.effectiveFrom ?? todayIso(),
       notes: rate?.notes ?? '',
       category: rate?.category ?? '',
@@ -627,7 +626,7 @@ export function HourlyPanel({
 
       {/* --- Rate modal --- */}
       {showRateModal && (
-      <Modal title={rateEditId === null ? 'Add rate' : 'Edit rate'} onClose={() => setShowRateModal(false)}>
+      <Modal error={error} title={rateEditId === null ? 'Add rate' : 'Edit rate'} onClose={() => setShowRateModal(false)}>
         <div className="grid gap-3">
           <Field
             label="Applies to"
@@ -650,12 +649,9 @@ export function HourlyPanel({
                 onChange={(e) => setRateDraft({ ...rateDraft, rate: Number(e.target.value) })}
               />
             </Field>
-            <Field label="Currency">
-              <Select
-                value={rateDraft.currency}
-                onChange={(e) => setRateDraft({ ...rateDraft, currency: e.target.value as Currency })}
-              >
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            <Field label="Currency" hint="Always the project's currency.">
+              <Select value={project.currency} disabled>
+                <option value={project.currency}>{project.currency}</option>
               </Select>
             </Field>
           </div>
@@ -680,7 +676,7 @@ export function HourlyPanel({
             onConfirm={async () => {
               const input = {
                 rate: rateDraft.rate,
-                currency: rateDraft.currency,
+                currency: project.currency,
                 effectiveFrom: rateDraft.effectiveFrom,
                 notes: rateDraft.notes || null,
                 category: rateDraft.category.trim() || null,
@@ -699,7 +695,7 @@ export function HourlyPanel({
 
       {/* --- Time entry modal --- */}
       {showEntryModal && (
-      <Modal
+      <Modal error={error}
         title="Log hours"
         onClose={() => setShowEntryModal(false)}
       >
@@ -770,7 +766,7 @@ export function HourlyPanel({
 
       {/* --- Generate modal --- */}
       {showGenerateModal && (
-      <Modal title="Generate periods" onClose={() => setShowGenerateModal(false)}>
+      <Modal error={error} title="Generate periods" onClose={() => setShowGenerateModal(false)}>
         <div className="grid gap-3">
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             Fills in every {project.cadence === 'Monthly' ? 'month' : 'week'} between these dates at the
@@ -822,7 +818,7 @@ export function HourlyPanel({
 
       {/* --- Invoice modal --- */}
       {showInvoiceModal && (
-      <Modal title="Create invoice" onClose={() => setShowInvoiceModal(false)} size="lg">
+      <Modal error={error} title="Create invoice" onClose={() => setShowInvoiceModal(false)} size="lg">
         <div className="grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
             {/* No hint under these two: the preview below spells out exactly what the
@@ -935,7 +931,7 @@ export function HourlyPanel({
 
       {/* --- Month sheet --- */}
       {openMonth && (
-      <Modal title="Logged hours" onClose={() => setOpenMonthKey(null)} size="2xl" tall>
+      <Modal error={error} title="Logged hours" onClose={() => setOpenMonthKey(null)} size="2xl" tall>
         <MonthSheet
           project={project}
           monthKey={openMonth.key}

@@ -1,45 +1,27 @@
-import { useEffect, useState } from 'react'
-import { getExchangeRates } from '../api'
-import { formatCurrency } from '../lib/format'
+import { convertAmount, formatCurrency } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
-import type { Currency, ExchangeRate } from '../types'
+import { useRates } from '../lib/rates'
+import type { Currency } from '../types'
 
-const rateCache: Record<string, ExchangeRate[]> = {}
-
-function useRates() {
-  const [rates, setRates] = useState<ExchangeRate[]>([])
-
-  useEffect(() => {
-    const key = 'all'
-    if (rateCache[key]) {
-      setRates(rateCache[key])
-      return
-    }
-    getExchangeRates().then((data) => {
-      rateCache[key] = data
-      setRates(data)
-    }).catch(() => {})
-  }, [])
-
-  return rates
-}
-
-function convert(amount: number, fromCurrency: string, toCurrency: string, rates: ExchangeRate[]): number | null {
-  if (fromCurrency === toCurrency) return null
-  const fromRate = fromCurrency === 'NOK' ? 1 : rates.find((r) => r.currency === fromCurrency)?.rate
-  const toRate = toCurrency === 'NOK' ? 1 : rates.find((r) => r.currency === toCurrency)?.rate
-  if (!fromRate || !toRate) return null
-  return (amount * fromRate) / toRate
-}
-
-export function MoneyAmount({ amount, currency, className = '' }: {
+/// An amount in its own currency, with the display-currency equivalent on hover.
+///
+/// Pass `date` (YYYY-MM-DD) or `month`/`year` for money that belongs to a month, e.g.
+/// a paid milestone, so it converts at THAT month's rate. Without one it converts at
+/// the current month, which is right for money that is still outstanding. It used to
+/// take whichever rate row came first in the list, i.e. the newest month, for every
+/// amount regardless of when it was paid.
+export function MoneyAmount({ amount, currency, className = '', date, month, year }: {
   amount: number
-  currency: string
+  currency: Currency
   className?: string
+  date?: string | null
+  month?: number
+  year?: number
 }) {
   const [mainCurrency] = useMainCurrency()
   const rates = useRates()
-  const converted = convert(amount, currency, mainCurrency, rates)
+  const when = date ? { month: Number(date.slice(5, 7)), year: Number(date.slice(0, 4)) } : { month, year }
+  const converted = currency === mainCurrency ? null : convertAmount(amount, currency, mainCurrency, rates, when.month, when.year)
   const hasConversion = converted !== null
 
   if (!hasConversion) {

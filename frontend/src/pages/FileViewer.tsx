@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { getProject, projectFileDownloadUrl } from '../api'
+import { downloadFile, getProject, projectFileDownloadUrl } from '../api'
 import type { Project, ProjectFile } from '../types'
 import { AppCard, Button, ErrorState, LoadingState, PageIntro } from '../components/ui'
 import { formatDate, formatFileSize } from '../lib/format'
@@ -64,9 +64,9 @@ export default function FileViewer() {
         description={`${formatFileSize(file.sizeBytes)} · uploaded ${formatDate(file.uploadedAt)} · ${project.projectName}`}
         action={(
           <div className="flex gap-2">
-            <a href={downloadUrl} target="_blank" rel="noreferrer">
-              <Button variant="secondary">Download</Button>
-            </a>
+            <Button variant="secondary" onClick={() => void downloadFile(downloadUrl, file.originalFilename).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Download failed.'))}>
+              Download
+            </Button>
             <Link to={`/projects/${projectId}`}>
               <Button variant="ghost">Back to project</Button>
             </Link>
@@ -91,7 +91,7 @@ export default function FileViewer() {
           <div className="p-8 text-center text-sm text-[var(--text-secondary)]">
             <p>This file type can't be previewed in the browser.</p>
             <p className="mt-2">
-              <a href={downloadUrl} target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline">Download {file.originalFilename}</a> to view it.
+              <button type="button" onClick={() => void downloadFile(downloadUrl, file.originalFilename).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Download failed.'))} className="text-[var(--accent)] hover:underline">Download {file.originalFilename}</button> to view it.
             </p>
           </div>
         )}

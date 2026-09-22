@@ -5,13 +5,11 @@ import type {
   CostInput,
   EffectiveCost,
   ExchangeRate,
-  ExchangeRateInput,
   Investment,
   InvestmentInput,
   CreateInvoiceRequest,
   GenerateEntriesRequest,
   GenerateEntriesResult,
-  InvoiceDetail,
   InvoiceProfile,
   Milestone,
   MilestoneInput,
@@ -99,7 +97,6 @@ function query(params: Record<string, string | number | boolean | undefined>) {
 
 // Platforms
 export const getPlatforms = () => request<Platform[]>('/platforms')
-export const getPlatform = (id: number) => request<Platform>(`/platforms/${id}`)
 export const createPlatform = (data: PlatformInput) =>
   request<Platform>('/platforms', { method: 'POST', body: JSON.stringify(data) })
 export const updatePlatform = (id: number, data: PlatformInput) =>
@@ -115,9 +112,7 @@ export const updateClient = (id: number, data: ClientInput) =>
   request<Client>(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 export const deleteClient = (id: number) => request<void>(`/clients/${id}`, { method: 'DELETE' })
 
-export const getDashboardYear = (year: number) =>
-  request<YearOverview>(`/dashboard/year-overview${query({ year })}`)
-export const getYearOverview = getDashboardYear
+export const getYearOverview = (year: number) => request<YearOverview>(`/dashboard/year-overview${query({ year })}`)
 
 export const getPipeline = () => request<Pipeline>('/dashboard/pipeline')
 
@@ -132,7 +127,6 @@ export const updateProject = (id: number, data: ProjectInput) =>
   request<Project>(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 export const deleteProject = (id: number) => request<void>(`/projects/${id}`, { method: 'DELETE' })
 
-export const getMilestones = (projectId: number) => request<Milestone[]>(`/projects/${projectId}/milestones`)
 export const createMilestone = (projectId: number, data: MilestoneInput) =>
   request<Milestone>(`/projects/${projectId}/milestones`, {
     method: 'POST',
@@ -151,7 +145,6 @@ export const patchMilestone = (id: number, data: MilestonePatchRequest) =>
 export const deleteMilestone = (projectId: number, id: number) =>
   request<void>(`/projects/${projectId}/milestones/${id}`, { method: 'DELETE' })
 
-export const getTips = (projectId: number) => request<Tip[]>(`/projects/${projectId}/tips`)
 export const createTip = (projectId: number, data: TipInput) =>
   request<Tip>(`/projects/${projectId}/tips`, {
     method: 'POST',
@@ -185,12 +178,6 @@ export const deleteInvestment = (id: number) =>
 
 export const getExchangeRates = (params?: { month?: number; year?: number }) =>
   request<ExchangeRate[]>(`/exchange-rates${query(params ?? {})}`)
-export const createExchangeRate = (data: ExchangeRateInput) =>
-  request<ExchangeRate>('/exchange-rates', { method: 'POST', body: JSON.stringify(data) })
-export const upsertExchangeRate = (data: ExchangeRateInput) =>
-  request<ExchangeRate>('/exchange-rates', { method: 'PUT', body: JSON.stringify(data) })
-export const deleteExchangeRate = (id: number) =>
-  request<void>(`/exchange-rates/${id}`, { method: 'DELETE' })
 export const autoFetchRates = (month: number, year: number) =>
   request<ExchangeRate[]>(`/exchange-rates/auto-fetch${query({ month, year })}`, { method: 'POST' })
 
@@ -210,10 +197,46 @@ export const uploadProjectFile = async (projectId: number, file: File): Promise<
     throw new Error('Your session expired — signing you back in…')
   }
   if (!response.ok) {
-    const txt = await response.text().catch(() => 'Upload failed')
-    throw new Error(txt || 'Upload failed')
+    let message = `Upload failed with status ${response.status}`
+    try {
+      const problem = (await response.json()) as { title?: string; detail?: string }
+      message = problem.detail ?? problem.title ?? message
+    } catch {
+      // Not a ProblemDetails body.
+    }
+    throw new Error(message)
   }
   return await response.json() as ProjectFile
+}
+
+/// Fetches a file through the same session handling as every other request and hands
+/// it to the browser as a download. A bare <a target=_blank> or window.open bypasses
+/// the reauth logic, so an expired session saved the login page as the file.
+export const downloadFile = async (url: string, filename: string): Promise<void> => {
+  const response = await fetch(url, { redirect: 'manual' })
+  if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 403) {
+    triggerReauth()
+    throw new Error('Your session expired — signing you back in…')
+  }
+  if (!response.ok) {
+    let message = `Download failed with status ${response.status}`
+    try {
+      const problem = (await response.json()) as { title?: string; detail?: string }
+      message = problem.detail ?? problem.title ?? message
+    } catch {
+      // Not a ProblemDetails body.
+    }
+    throw new Error(message)
+  }
+  const blob = await response.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 10000)
 }
 
 export const deleteProjectFile = (projectId: number, fileId: number) =>
@@ -278,8 +301,6 @@ export const generateTimeEntries = (projectId: number, input: GenerateEntriesReq
 export const getInvoices = (projectId: number) =>
   request<Milestone[]>(`/projects/${projectId}/invoices`)
 
-export const getInvoice = (projectId: number, id: number) =>
-  request<InvoiceDetail>(`/projects/${projectId}/invoices/${id}`)
 
 export const createInvoice = (projectId: number, input: CreateInvoiceRequest) =>
   request<{ invoice: Milestone; periods: number; totalHours: number | null }>(
@@ -340,60 +361,4 @@ export const downloadInvoice = async (
   anchor.click()
   anchor.remove()
   URL.revokeObjectURL(objectUrl)
-}
-
-export const api = {
-  getPlatforms,
-  getPlatform,
-  createPlatform,
-  updatePlatform,
-  deletePlatform,
-  getDashboardYear,
-  getYearOverview,
-  getPipeline,
-  getVatSummary,
-  getProjects,
-  getProject,
-  getProjectSummary,
-  createProject,
-  updateProject,
-  deleteProject,
-  getMilestones,
-  createMilestone,
-  updateMilestone,
-  patchMilestone,
-  deleteMilestone,
-  getTips,
-  createTip,
-  updateTip,
-  deleteTip,
-  getCosts,
-  createCost,
-  updateCost,
-  deleteCost,
-  getInvestments,
-  createInvestment,
-  updateInvestment,
-  deleteInvestment,
-  getExchangeRates,
-  createExchangeRate,
-  upsertExchangeRate,
-  deleteExchangeRate,
-  getProjectRates,
-  createProjectRate,
-  updateProjectRate,
-  deleteProjectRate,
-  getRetainerPeriods,
-  getTimeEntries,
-  createTimeEntry,
-  updateTimeEntry,
-  deleteTimeEntry,
-  generateTimeEntries,
-  getInvoices,
-  getInvoice,
-  createInvoice,
-  deleteInvoice,
-  downloadInvoice,
-  getInvoiceProfile,
-  saveInvoiceProfile,
 }

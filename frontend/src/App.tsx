@@ -103,6 +103,7 @@ function AppShell() {
   const location = useLocation()
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the drawer closes on navigation by design
     setDrawerOpen(false)
   }, [location.pathname])
 

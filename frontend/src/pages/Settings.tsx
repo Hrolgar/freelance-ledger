@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { autoFetchRates, createPlatform, deletePlatform, getExchangeRates, getPlatforms, updatePlatform } from '../api'
+import { autoFetchRates, createPlatform, deletePlatform, downloadFile, getExchangeRates, getPlatforms, updatePlatform } from '../api'
+import { invalidateRates } from '../lib/rates'
 import { AppCard, Button, ErrorState, Field, Input, PageIntro, SectionHeading, Select } from '../components/ui'
 import { InvoiceProfileCard } from '../components/InvoiceProfileCard'
 import { Modal } from '../components/Modal'
@@ -109,6 +110,7 @@ export default function Settings() {
     setFetching(key)
     try {
       await autoFetchRates(month, year)
+      invalidateRates()
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to fetch rates.')
@@ -157,7 +159,7 @@ export default function Settings() {
 
       {/* Platforms */}
       {showPlatformModal && (
-        <Modal title={editingPlatform ? 'Edit Platform' : 'Add Platform'} onClose={() => setShowPlatformModal(false)} size="md">
+        <Modal title={editingPlatform ? 'Edit Platform' : 'Add Platform'} onClose={() => setShowPlatformModal(false)} size="md" error={error}>
           <form className="grid gap-3" onSubmit={handleSavePlatform}>
             <Field label="Name" required>
               <Input required value={platformDraft.name} onChange={(e) => setPlatformDraft(d => ({ ...d, name: e.target.value }))} />
@@ -242,7 +244,11 @@ export default function Settings() {
           </Field>
           <Button
             variant="secondary"
-            onClick={() => window.open(`/api/export/year/${exportYear}/paid-milestones.csv`, '_blank')}
+            onClick={() => {
+              setError(null)
+              void downloadFile(`/api/export/year/${exportYear}/paid-milestones.csv`, `freelance-ledger-${exportYear}.csv`)
+                .catch((caught: unknown) => setError(caught instanceof Error ? caught.message : 'Download failed.'))
+            }}
           >
             Download CSV
           </Button>
@@ -273,7 +279,24 @@ export default function Settings() {
             ) : null
           }
         />
-        <div className="-mx-4 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+        <ul className="flex flex-col gap-2 p-4 lg:hidden">
+          {!loading && sortedKeys.length === 0 && <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No rates yet.</p>}
+          {sortedKeys.map((key) => {
+            const [y, m] = key.split('-').map(Number)
+            const rateMap = Object.fromEntries(grouped[key].map((r) => [r.currency, r.rate]))
+            return (
+              <li key={key} className="rounded-lg p-4" style={{ border: '1px solid var(--border-faint)', background: 'var(--bg-elevated)' }}>
+                <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{MONTH_NAMES[m - 1]} {y}</p>
+                <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  {['GBP', 'USD', 'EUR', 'CAD', 'INR'].map((c) => (
+                    <div key={c}><dt style={{ color: 'var(--text-tertiary)' }}>1 {c}</dt><dd className="font-mono tabular-nums" style={{ color: 'var(--text-secondary)' }}>{rateMap[c] !== undefined ? rateMap[c].toFixed(4) : '—'}</dd></div>
+                  ))}
+                </dl>
+              </li>
+            )
+          })}
+        </ul>
+        <div className="hidden lg:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border-faint)] text-left">

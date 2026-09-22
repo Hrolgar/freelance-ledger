@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- the label helper lives with the badge it labels */
 import type { BillingType, MilestoneStatus, ProjectStatus } from '../types'
 
 const PROJECT_STATUS_DOT: Record<ProjectStatus, string> = {
