@@ -48,6 +48,8 @@ public class ProjectRatesController(LedgerDbContext db) : ControllerBase
 
         if (rate.Rate <= 0)
             return Problem(title: "Invalid Rate", detail: "Rate must be greater than zero.", statusCode: 400);
+        if (rate.Currency != project.Currency)
+            return Problem(title: "Currency Mismatch", detail: $"This project is billed in {project.Currency}; every rate and logged period must be too.", statusCode: 400);
 
         var categoryFailure = await NormalizeCategoryAsync(projectId, rate);
         if (categoryFailure is not null)
@@ -81,6 +83,9 @@ public class ProjectRatesController(LedgerDbContext db) : ControllerBase
 
         if (updated.Rate <= 0)
             return Problem(title: "Invalid Rate", detail: "Rate must be greater than zero.", statusCode: 400);
+        var project = await db.Projects.AsNoTracking().FirstAsync(p => p.Id == projectId);
+        if (updated.Currency != project.Currency)
+            return Problem(title: "Currency Mismatch", detail: $"This project is billed in {project.Currency}; every rate and logged period must be too.", statusCode: 400);
 
         var categoryFailure = await NormalizeCategoryAsync(projectId, updated);
         if (categoryFailure is not null)

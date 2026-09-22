@@ -43,10 +43,15 @@ public class TipsController(LedgerDbContext db) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(int projectId, Tip tip)
     {
-        var projectExists = await db.Projects.AnyAsync(p => p.Id == projectId);
-        if (!projectExists)
+        var project = await db.Projects.AsNoTracking().FirstOrDefaultAsync(p => p.Id == projectId);
+        if (project is null)
             return Problem(title: "Not Found", detail: $"Project {projectId} not found.", statusCode: 404);
+        if (tip.Currency != project.Currency)
+            return Problem(title: "Currency Mismatch", detail: $"This project is billed in {project.Currency}.", statusCode: 400);
+        if (tip.Amount < 0)
+            return Problem(title: "Invalid Amount", detail: "Amount cannot be negative.", statusCode: 400);
 
+        tip.Id = 0;
         tip.ProjectId = projectId;
         db.Tips.Add(tip);
         await db.SaveChangesAsync();
@@ -60,6 +65,12 @@ public class TipsController(LedgerDbContext db) : ControllerBase
         var tip = await db.Tips.FirstOrDefaultAsync(t => t.Id == id && t.ProjectId == projectId);
         if (tip is null)
             return Problem(title: "Not Found", detail: $"Tip {id} not found.", statusCode: 404);
+
+        var project = await db.Projects.AsNoTracking().FirstAsync(p => p.Id == projectId);
+        if (updated.Currency != project.Currency)
+            return Problem(title: "Currency Mismatch", detail: $"This project is billed in {project.Currency}.", statusCode: 400);
+        if (updated.Amount < 0)
+            return Problem(title: "Invalid Amount", detail: "Amount cannot be negative.", statusCode: 400);
 
         tip.Amount = updated.Amount;
         tip.Currency = updated.Currency;

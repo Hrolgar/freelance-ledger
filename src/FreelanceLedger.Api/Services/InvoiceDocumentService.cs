@@ -128,7 +128,10 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         // The terms note survives as an optional free sentence, printed VERBATIM. It used
         // to be a clause interpolated onto the due date ("per the SOW"), which no longer
         // has anything to hang off. Blank, which is how it currently is, prints nothing.
-        var termsNote = FirstNonBlank(project.InvoiceTermsNote, profile.TermsNote);
+        // Everything typed by a person (or pasted from a client's mail) is escaped before
+        // it goes into the markdown: the renderer accepts raw HTML, so an unescaped
+        // Bill-to block could carry a <link> or <img> that WeasyPrint would act on.
+        var termsNote = Text(FirstNonBlank(project.InvoiceTermsNote, profile.TermsNote));
         var terms = termsNote is null
             ? ""
             : (termsNote.EndsWith('.') ? termsNote : termsNote + ".");
@@ -148,13 +151,13 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         foreach (var line in new[] { profile.IssuerName, profile.IssuerAddressLine1,
                                      profile.IssuerAddressLine2, profile.IssuerCountry })
             if (!string.IsNullOrWhiteSpace(line))
-                fromLines.Add(line!);
+                fromLines.Add(Text(line)!);
         if (!string.IsNullOrWhiteSpace(profile.IssuerEmail))
-            fromLines.Add(profile.IssuerEmail!);
+            fromLines.Add(Text(profile.IssuerEmail)!);
         if (!string.IsNullOrWhiteSpace(profile.OrgNumber))
             fromLines.Add(invoice.VatRate is not null
-                ? $"Org.nr. {profile.OrgNumber} MVA"
-                : $"Org.nr. {profile.OrgNumber}");
+                ? $"Org.nr. {Text(profile.OrgNumber)} MVA"
+                : $"Org.nr. {Text(profile.OrgNumber)}");
         for (var i = 0; i < fromLines.Count; i++)
             sb.AppendLine(i == fromLines.Count - 1 ? fromLines[i] : $"{fromLines[i]}<br>");
         sb.AppendLine();
@@ -167,14 +170,15 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             billTo = project.BillTo
                 .Replace("\r\n", "\n")
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(l => Text(l)!)
                 .ToList();
         }
         else
         {
             billTo = [];
-            if (!string.IsNullOrWhiteSpace(project.Client?.Name)) billTo.Add(project.Client!.Name);
-            else if (!string.IsNullOrWhiteSpace(project.ClientName)) billTo.Add(project.ClientName);
-            if (!string.IsNullOrWhiteSpace(project.Client?.Country)) billTo.Add(project.Client!.Country!);
+            if (!string.IsNullOrWhiteSpace(project.Client?.Name)) billTo.Add(Text(project.Client!.Name)!);
+            else if (!string.IsNullOrWhiteSpace(project.ClientName)) billTo.Add(Text(project.ClientName)!);
+            if (!string.IsNullOrWhiteSpace(project.Client?.Country)) billTo.Add(Text(project.Client!.Country)!);
         }
         for (var i = 0; i < billTo.Count; i++)
             sb.AppendLine(i == billTo.Count - 1 ? billTo[i] : $"{billTo[i]}<br>");
@@ -182,7 +186,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
 
         sb.AppendLine($"## {workHeading}");
         sb.AppendLine();
-        var work = FirstNonBlank(invoice.Description, project.InvoiceWorkDescription);
+        var work = Text(FirstNonBlank(invoice.Description, project.InvoiceWorkDescription));
         if (work is not null)
         {
             sb.AppendLine(work);
@@ -192,7 +196,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         // Hours and rate are meaningless on a retainer invoice, so its table collapses
         // to a plain description/amount line rather than the hourly four columns.
         var isRetainer = project.BillingType == BillingType.Retainer;
-        var lineLabel = FirstNonBlank(project.InvoiceLineLabel)
+        var lineLabel = Text(FirstNonBlank(project.InvoiceLineLabel))
             ?? (isRetainer ? defaultRetainerLabel : defaultHourlyLabel);
 
         // A totals row continues whichever table was just printed, so it needs the same
@@ -228,7 +232,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             foreach (var group in groups)
             {
                 var lines = group.ToList();
-                var description = mixedCategories && group.Key.Length > 0 ? group.Key : lineLabel;
+                var description = mixedCategories && group.Key.Length > 0 ? Text(group.Key)! : lineLabel;
                 var uniformRate = lines.Select(e => e.RateApplied).Distinct().Count() <= 1;
                 if (uniformRate)
                 {
@@ -244,7 +248,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
                     foreach (var e in lines)
                     {
                         var when = $"{ShortDate(e.PeriodStart)} {periodConnector} {ShortDateYear(e.PeriodEnd)}";
-                        var periodDescription = mixedCategories && group.Key.Length > 0 ? $"{group.Key}, {when}" : when;
+                        var periodDescription = mixedCategories && group.Key.Length > 0 ? $"{Text(group.Key)}, {when}" : when;
                         sb.AppendLine(
                             $"| {periodDescription} | {Num(e.Hours)} | "
                             + $"{Cur(e.RateApplied)} | {Cur(e.Hours * e.RateApplied)} |");
@@ -278,7 +282,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         var vatNote = isNo ? profile.VatNoteNorwegian : profile.VatNote;
         if (invoice.VatRate is null && !string.IsNullOrWhiteSpace(vatNote))
         {
-            sb.AppendLine(vatNote);
+            sb.AppendLine(Text(vatNote));
             sb.AppendLine();
         }
 
@@ -374,6 +378,10 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
     /// ampersand in a bank name has to survive rather than start an entity.
     private static string Escape(string value) => System.Net.WebUtility.HtmlEncode(value);
 
+    /// Free text on its way into the markdown body: HTML-encoded so it is text and only
+    /// text on the page. Null stays null so the "is there anything to print" checks work.
+    private static string? Text(string? value) => value is null ? null : System.Net.WebUtility.HtmlEncode(value);
+
     /// First value that is neither null nor whitespace, trimmed. Null when there is none.
     private static string? FirstNonBlank(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
@@ -421,8 +429,21 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             await proc.StandardInput.WriteAsync(payload);
             proc.StandardInput.Close();
 
-            var stderr = await proc.StandardError.ReadToEndAsync();
-            await proc.WaitForExitAsync();
+            // A renderer that hangs (a pathological document, a stuck font load) used to
+            // hold the request open forever and leave the python process behind.
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            var stderrTask = proc.StandardError.ReadToEndAsync(timeout.Token);
+            try
+            {
+                await proc.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { proc.Kill(entireProcessTree: true); } catch { /* already gone */ }
+                logger.LogError("Invoice renderer timed out after 45 s and was killed");
+                return null;
+            }
+            var stderr = await stderrTask;
 
             if (proc.ExitCode != 0 || !File.Exists(outPath))
             {

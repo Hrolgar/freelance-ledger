@@ -5,8 +5,11 @@ import html as html_lib
 
 import markdown as md_lib
 from pypdf import PdfReader
+import os
 from styles import build_css  # flat layout here, not a package (was: from .styles)
 from weasyprint import HTML, default_url_fetcher
+
+_RENDERER_DIR = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _offline_url_fetcher(url: str, timeout: int = 10, ssl_context=None):
@@ -17,8 +20,17 @@ def _offline_url_fetcher(url: str, timeout: int = 10, ssl_context=None):
     remote host would be fetched by the server the moment an invoice is rendered.
     The fonts are loaded as file:// URIs, so those still resolve.
     """
-    if url.startswith(("file:", "data:")):
+    if url.startswith("data:"):
         return default_url_fetcher(url, timeout=timeout, ssl_context=ssl_context)
+    if url.startswith("file:"):
+        # Only the renderer's own files (fonts, the stylesheet). A file: URL anywhere
+        # else, e.g. /data/ledger.db pasted into a Bill-to block, would otherwise be
+        # attached to or drawn into the PDF that goes to the client.
+        from urllib.parse import urlparse, unquote
+        target = os.path.realpath(unquote(urlparse(url).path))
+        if target.startswith(_RENDERER_DIR + os.sep):
+            return default_url_fetcher(url, timeout=timeout, ssl_context=ssl_context)
+        raise ValueError(f"refusing to read outside the renderer directory: {url}")
     raise ValueError(f"refusing to fetch remote resource while rendering: {url}")
 
 

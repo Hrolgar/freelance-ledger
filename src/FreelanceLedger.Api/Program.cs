@@ -19,7 +19,9 @@ builder.Services
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
-builder.Services.AddHttpClient<ExchangeRateService>();
+// Ten seconds is generous for one JSON document; the default of 100 held a Settings
+// request open for the whole outage.
+builder.Services.AddHttpClient<ExchangeRateService>(client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddScoped<ExchangeRateService>();
 builder.Services.AddScoped<RateResolutionService>();
 builder.Services.AddScoped<InvoiceDocumentService>();
@@ -54,8 +56,39 @@ using (var scope = app.Services.CreateScope())
     // present at startup is stale -- clear it before migrating so an unclean shutdown
     // (e.g. host reboot mid-startup) can't deadlock the next boot.
     db.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS \"__EFMigrationsLock\";");
+
+    // A schema change lands on the only copy of the books. Take a verified backup FIRST,
+    // and refuse to migrate if that backup cannot be written: a boot that stops here is
+    // recoverable, a half-applied migration on live data is not.
+    if (db.Database.GetPendingMigrations().Any())
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        BackupHostedService.BackupNow(app.Configuration, logger, "premigrate");
+    }
     db.Database.Migrate();
 }
+
+// Defence in depth behind the reverse proxy: Authentik's forward-auth adds
+// X-authentik-username to every request it has let through, so a request on the API
+// without it did not come through the gate (a published port on the LAN, a misrouted
+// Traefik rule). Off in Development, and switchable off with Ledger:RequireAuthHeader.
+var requireAuthHeader = app.Configuration.GetValue<bool?>("Ledger:RequireAuthHeader")
+                        ?? !app.Environment.IsDevelopment();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+
+    var path = context.Request.Path;
+    var gated = path.StartsWithSegments("/api") || path.StartsWithSegments("/scalar") || path.StartsWithSegments("/openapi");
+    if (requireAuthHeader && gated && string.IsNullOrEmpty(context.Request.Headers["X-authentik-username"]))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsync("Sign in through the ledger's address; direct access to the API is not allowed.");
+        return;
+    }
+
+    await next();
+});
 
 app.MapOpenApi();
 app.MapScalarApiReference();

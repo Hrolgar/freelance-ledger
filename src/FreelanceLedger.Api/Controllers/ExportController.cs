@@ -23,6 +23,7 @@ public class ExportController(LedgerDbContext db, ExchangeRateService rateServic
             .Include(p => p.Platform)
             .ToListAsync();
 
+        await rateService.EnsureYearAsync(year);
         await rateService.PreloadYear(year);
 
         var sb = new StringBuilder();
@@ -37,9 +38,9 @@ public class ExportController(LedgerDbContext db, ExchangeRateService rateServic
             {
                 var feeAmount = m.Amount * (project.FeePercentage / 100m);
                 var net = m.Amount - feeAmount;
-                var rate = await rateService.GetRate(project.Currency, m.DatePaid!.Value.Month, m.DatePaid.Value.Year);
+                var rate = await rateService.GetRate(m.Currency, m.DatePaid!.Value.Month, m.DatePaid.Value.Year);
                 var clientName = project.Client?.Name ?? project.ClientName;
-                rows.Add((m.DatePaid.Value, "Milestone", $"{project.ProjectName} - {m.Name}", clientName, project.Platform?.Name ?? "", project.Currency, m.Amount, project.FeePercentage, feeAmount, net, net * rate));
+                rows.Add((m.DatePaid.Value, "Milestone", $"{project.ProjectName} - {m.Name}", clientName, project.Platform?.Name ?? "", m.Currency, m.Amount, project.FeePercentage, feeAmount, net, net * rate));
             }
 
             // Tips
@@ -75,6 +76,10 @@ public class ExportController(LedgerDbContext db, ExchangeRateService rateServic
 
     private static string EscapeCsv(string value)
     {
+        // A name starting with = + - @ (or a tab/CR) is a formula once Excel opens the
+        // file. A leading apostrophe makes it text again and is invisible in the cell.
+        if (value.Length > 0 && "=+-@\t\r".Contains(value[0]))
+            value = "'" + value;
         if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
         {
             return "\"" + value.Replace("\"", "\"\"") + "\"";

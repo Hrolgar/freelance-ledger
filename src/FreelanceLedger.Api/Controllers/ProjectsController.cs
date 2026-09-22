@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -107,6 +108,22 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         // ClientId, not just ClientName. Without it, reassigning a project to another
         // client changed the name on screen but left the foreign key pointing at the old
         // one, so the Clients page kept crediting the revenue to the wrong client.
+        if (updated.Currency != project.Currency)
+        {
+            // Every milestone, tip and rate row carries the project's currency and every
+            // report converts row by row. Changing the project's currency under existing
+            // money would relabel nothing and mislead everything; it has to be a fresh
+            // project, or the rows are corrected first.
+            var hasMoney = await db.Milestones.AnyAsync(m => m.ProjectId == id)
+                           || await db.Tips.AnyAsync(t => t.ProjectId == id)
+                           || await db.ProjectRates.AnyAsync(r => r.ProjectId == id);
+            if (hasMoney)
+                return Problem(
+                    title: "Currency Locked",
+                    detail: "This project already has milestones, tips or rates in " + project.Currency + ". Delete those first, or create a new project in the other currency.",
+                    statusCode: 409);
+        }
+
         project.ClientId = updated.ClientId;
         project.ClientName = updated.ClientName;
         project.ProjectName = updated.ProjectName;
@@ -136,11 +153,30 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, [FromServices] ProjectFileStore files)
     {
-        var project = await db.Projects.FindAsync(id);
+        var project = await db.Projects
+            .Include(p => p.Milestones)
+            .Include(p => p.Files)
+            .FirstOrDefaultAsync(p => p.Id == id);
         if (project is null)
             return Problem(title: "Not Found", detail: $"Project {id} not found.", statusCode: 404);
+
+        // Paid money is history the year overview, the CSV and the VAT return are built
+        // on. The milestone and invoice routes refuse to delete it one row at a time; the
+        // project route used to take all of it in one confirm. Mark the project Paid or
+        // On hold instead.
+        var paid = project.Milestones.Count(m => m.Status == MilestoneStatus.Paid);
+        if (paid > 0)
+            return Problem(
+                title: "Project Has Paid History",
+                detail: $"{project.ProjectName} has {paid} paid milestone{(paid == 1 ? "" : "s")}. A project with paid money cannot be deleted; set its status to Paid or On hold instead.",
+                statusCode: 409);
+
+        // The rows cascade; the bytes on disk do not. Remove the blobs first so nothing
+        // is orphaned under /data/files if the delete then goes through.
+        foreach (var file in project.Files.ToList())
+            files.DeleteBlob(file);
 
         db.Projects.Remove(project);
         await db.SaveChangesAsync();

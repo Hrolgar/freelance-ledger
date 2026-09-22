@@ -31,7 +31,7 @@ public sealed class VatSummaryTests : IDisposable
     }
 
     private static DashboardController Controller(LedgerDbContext db) =>
-        new(db, new ExchangeRateService(db, new HttpClient()));
+        new(db, new ExchangeRateService(db, new HttpClient(), Microsoft.Extensions.Logging.Abstractions.NullLogger<ExchangeRateService>.Instance));
 
     [Fact]
     public async Task VatSummaryGroupsIntoTerminsByInvoiceDateAndIgnoresInvoicesWithoutVat()

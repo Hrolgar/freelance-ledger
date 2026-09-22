@@ -77,6 +77,15 @@ public class ClientsController(LedgerDbContext db) : ControllerBase
         if (client is null)
             return Problem(title: "Not Found", detail: $"Client {id} not found.", statusCode: 404);
 
+        // The client-to-project relation cascades in the database, so this delete used
+        // to take every project, invoice and logged hour under the client with it.
+        var projects = await db.Projects.CountAsync(p => p.ClientId == id);
+        if (projects > 0)
+            return Problem(
+                title: "Client Has Projects",
+                detail: $"{client.Name} still has {projects} project{(projects == 1 ? "" : "s")}. Delete or reassign those first.",
+                statusCode: 409);
+
         db.Clients.Remove(client);
         await db.SaveChangesAsync();
         return NoContent();

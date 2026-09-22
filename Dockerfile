@@ -26,6 +26,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 # install directly.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl \
+      tzdata \
       weasyprint \
       python3-markdown \
       python3-pypdf \
@@ -35,10 +36,17 @@ COPY --from=api-build /app/publish ./
 COPY --from=frontend-build /src/frontend/dist ./wwwroot/
 COPY invoice-renderer/ ./invoice-renderer/
 
+# The aspnet image ships an unprivileged user (uid 1654, "app"). The bind mount at /data
+# must be owned by that uid on the host: `chown -R 1654:1654 /opt/apps/freelance-ledger`.
+# No VOLUME directive: an anonymous volume created when compose forgets the mount is
+# exactly the kind of place a database goes to disappear on `compose down -v`.
+RUN mkdir -p /data && chown -R app:app /app /data
+USER app
+
 EXPOSE 8989
-VOLUME ["/data"]
 ENV ASPNETCORE_URLS=http://+:8989 \
     ASPNETCORE_ENVIRONMENT=Production \
+    TZ=Europe/Oslo \
     ConnectionStrings__DefaultConnection="Data Source=/data/ledger.db"
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

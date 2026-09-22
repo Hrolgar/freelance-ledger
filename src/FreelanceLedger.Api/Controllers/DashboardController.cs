@@ -21,8 +21,23 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
 
         var allCosts = await db.Costs.AsNoTracking().ToListAsync();
 
-        // Preload all rates for the year in one DB query
+        // Fetch any past month that has no rate yet, then preload the year in one query.
+        // A missing rate used to turn a month's revenue into 0 NOK with no warning.
+        await rateService.EnsureYearAsync(year);
         await rateService.PreloadYear(year);
+        var missing = new SortedSet<string>();
+
+        async Task<decimal> ToNok(Currency currency, decimal amount, int month)
+        {
+            if (amount == 0m) return 0m;
+            var rate = await rateService.GetRate(currency, month, year);
+            if (rate == 0m && currency != Currency.NOK)
+            {
+                missing.Add($"{currency} {year}-{month:00}");
+                return 0m;
+            }
+            return amount * rate;
+        }
 
         var monthResults = new List<MonthlyOverviewResponse>();
         foreach (var month in Enumerable.Range(1, 12))
@@ -30,23 +45,17 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             decimal revenue = 0;
             foreach (var project in projects)
             {
-                var paidMilestones = project.Milestones
-                    .Where(m => m.Status == MilestoneStatus.Paid &&
-                                m.DatePaid.HasValue &&
-                                m.DatePaid.Value.Year == year &&
-                                m.DatePaid.Value.Month == month)
-                    .Sum(m => m.Amount);
+                var fee = project.FeePercentage / 100m;
+                // Each row converts in ITS OWN currency. Converting by the project's
+                // currency was wrong the moment a milestone was stored in another one
+                // (two EUR milestones sit on a USD project on prod).
+                foreach (var m in project.Milestones.Where(m =>
+                             m.Status == MilestoneStatus.Paid && m.DatePaid.HasValue
+                             && m.DatePaid.Value.Year == year && m.DatePaid.Value.Month == month))
+                    revenue += await ToNok(m.Currency, m.Amount - m.Amount * fee, month);
 
-                var tips = project.Tips
-                    .Where(t => t.Date.Year == year && t.Date.Month == month)
-                    .Sum(t => t.Amount);
-
-                var gross = paidMilestones + tips;
-                var net = gross - (gross * (project.FeePercentage / 100m));
-
-                // Convert to NOK
-                var rate = await rateService.GetRate(project.Currency, month, year);
-                revenue += net * rate;
+                foreach (var t in project.Tips.Where(t => t.Date.Year == year && t.Date.Month == month))
+                    revenue += await ToNok(t.Currency, t.Amount - t.Amount * fee, month);
             }
 
             decimal monthCosts = 0;
@@ -64,8 +73,7 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
                     else applies = queryKey <= c.EndYear.Value * 12 + c.EndMonth.Value;
                 }
                 if (!applies) continue;
-                var costRate = await rateService.GetRate(c.Currency, month, year);
-                monthCosts += c.Amount * costRate;
+                monthCosts += await ToNok(c.Currency, c.Amount, month);
             }
             monthCosts = Math.Round(monthCosts, 2);
 
@@ -84,7 +92,8 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             totalRevenue,
             totalCosts,
             totalRevenue - totalCosts,
-            monthResults));
+            monthResults,
+            missing.ToList()));
     }
 
     [HttpGet("pipeline")]
@@ -133,14 +142,18 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             .OrderByDescending(project => project.UnpaidNet)
             .ToList();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Clock.Today;
+        await rateService.EnsureRatesExist(today.Month, today.Year);
         await rateService.PreloadYear(today.Year);
 
         decimal totalUnpaidNetNok = 0;
         decimal totalUnpaidGrossNok = 0;
+        var missing = new SortedSet<string>();
         foreach (var project in projects)
         {
             var rate = await rateService.GetRate(project.Currency, today.Month, today.Year);
+            if (rate == 0m && project.Currency != Currency.NOK)
+                missing.Add($"{project.Currency} {today.Year}-{today.Month:00}");
             totalUnpaidNetNok += project.UnpaidNet * rate;
             totalUnpaidGrossNok += project.UnpaidGross * rate;
         }
@@ -154,7 +167,8 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             Math.Round(totalUnpaidGrossNok, 2),
             projects,
             byStatus,
-            onHoldCount));
+            onHoldCount,
+            missing.ToList()));
     }
 
     // Norwegian output VAT (utgaende merverdiavgift) is reported to Skatteetaten per
@@ -172,13 +186,14 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
     [HttpGet("vat")]
     public async Task<IActionResult> GetVatSummary([FromQuery] int? year)
     {
-        var resolvedYear = year ?? DateOnly.FromDateTime(DateTime.UtcNow).Year;
+        var resolvedYear = year ?? Clock.Today.Year;
 
         var projects = await db.Projects
             .AsNoTracking()
             .Include(p => p.Milestones)
             .ToListAsync();
 
+        await rateService.EnsureYearAsync(resolvedYear);
         await rateService.PreloadYear(resolvedYear);
 
         var invoices = new List<VatInvoiceResponse>();
@@ -254,7 +269,10 @@ public record YearOverviewResponse(
     decimal TotalRevenue,
     decimal TotalCosts,
     decimal TotalProfit,
-    IReadOnlyList<MonthlyOverviewResponse> Months);
+    IReadOnlyList<MonthlyOverviewResponse> Months,
+    /// "USD 2026-03" for every currency-month that had money to convert and no rate,
+    /// so the page can say so instead of showing a quietly smaller total.
+    IReadOnlyList<string> MissingRates);
 
 public record PipelineProjectResponse(
     int ProjectId,
@@ -275,7 +293,8 @@ public record PipelineResponse(
     decimal TotalPipelineGrossValue,
     IReadOnlyList<PipelineProjectResponse> Projects,
     IReadOnlyDictionary<ProjectStatus, int> ByStatus,
-    int OnHoldCount);
+    int OnHoldCount,
+    IReadOnlyList<string> MissingRates);
 
 public record VatTermResponse(
     int Term,

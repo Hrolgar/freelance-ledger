@@ -10,7 +10,27 @@ namespace FreelanceLedger.Api.Controllers;
 [Route("api/projects/{projectId:int}/files")]
 public class FilesController(LedgerDbContext db, ProjectFileStore store) : ControllerBase
 {
-    private static readonly string[] AllowedExtensions = { ".pdf", ".docx", ".xlsx", ".pptx", ".md", ".txt", ".zip", ".png", ".jpg", ".jpeg", ".gif", ".csv", ".json" };
+    // The served Content-Type comes from THIS table, never from the upload's own header:
+    // a .txt declared as text/html would otherwise be rendered as a page on the ledger's
+    // origin, with the session cookie, when opened inline.
+    private static readonly Dictionary<string, string> ContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".pdf"] = "application/pdf",
+        [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        [".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        [".pptx"] = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        [".md"] = "text/plain; charset=utf-8",
+        [".txt"] = "text/plain; charset=utf-8",
+        [".zip"] = "application/zip",
+        [".png"] = "image/png",
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".gif"] = "image/gif",
+        [".csv"] = "text/csv; charset=utf-8",
+        [".json"] = "application/json",
+    };
+    private static readonly string[] AllowedExtensions = ContentTypes.Keys.ToArray();
+    private static readonly string[] InlineTypes = { "application/pdf", "image/png", "image/jpeg", "image/gif" };
     private const long MaxSizeBytes = 25 * 1024 * 1024; // 25 MB
 
     [HttpGet]
@@ -52,7 +72,7 @@ public class FilesController(LedgerDbContext db, ProjectFileStore store) : Contr
         {
             ProjectId = projectId,
             OriginalFilename = Path.GetFileName(file.FileName),
-            ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
+            ContentType = ContentTypes[ext],
             SizeBytes = file.Length,
             StorageKey = storageKey,
             UploadedAt = DateTime.UtcNow,
@@ -75,14 +95,18 @@ public class FilesController(LedgerDbContext db, ProjectFileStore store) : Contr
         if (!System.IO.File.Exists(path))
             return Problem(title: "Gone", detail: "File missing on disk.", statusCode: 410);
 
+        // Older rows stored whatever type the browser sent; re-derive from the extension.
+        var ext = Path.GetExtension(record.StorageKey).ToLowerInvariant();
+        var contentType = ContentTypes.TryGetValue(ext, out var known) ? known : "application/octet-stream";
+
         var stream = System.IO.File.OpenRead(path);
-        if (inline)
+        if (inline && InlineTypes.Contains(contentType))
         {
-            var safeName = record.OriginalFilename.Replace("\"", "_");
+            var safeName = record.OriginalFilename.Replace("\"", "_").Replace("\r", "").Replace("\n", "");
             Response.Headers.Append("Content-Disposition", $"inline; filename=\"{safeName}\"");
-            return File(stream, record.ContentType);
+            return File(stream, contentType);
         }
-        return File(stream, record.ContentType, record.OriginalFilename);
+        return File(stream, contentType, record.OriginalFilename);
     }
 
     [HttpDelete("{fileId:int}")]

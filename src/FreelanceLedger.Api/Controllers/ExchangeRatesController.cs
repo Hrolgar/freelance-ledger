@@ -43,8 +43,10 @@ public class ExchangeRatesController(LedgerDbContext db, ExchangeRateService rat
     [HttpPost]
     public async Task<IActionResult> Create(ExchangeRate exchangeRate)
     {
+        if (Invalid(exchangeRate) is { } bad) return bad;
         db.ExchangeRates.Add(exchangeRate);
         await db.SaveChangesAsync();
+        ExchangeRateService.Invalidate(exchangeRate.Currency, exchangeRate.Month, exchangeRate.Year);
 
         return CreatedAtAction(nameof(GetById), new { id = exchangeRate.Id }, exchangeRate);
     }
@@ -52,6 +54,7 @@ public class ExchangeRatesController(LedgerDbContext db, ExchangeRateService rat
     [HttpPut]
     public async Task<IActionResult> Upsert(ExchangeRate exchangeRate)
     {
+        if (Invalid(exchangeRate) is { } bad) return bad;
         var existing = await db.ExchangeRates.FirstOrDefaultAsync(r =>
             r.Currency == exchangeRate.Currency &&
             r.Month == exchangeRate.Month &&
@@ -61,11 +64,13 @@ public class ExchangeRatesController(LedgerDbContext db, ExchangeRateService rat
         {
             db.ExchangeRates.Add(exchangeRate);
             await db.SaveChangesAsync();
+            ExchangeRateService.Invalidate(exchangeRate.Currency, exchangeRate.Month, exchangeRate.Year);
             return CreatedAtAction(nameof(GetById), new { id = exchangeRate.Id }, exchangeRate);
         }
 
         existing.Rate = exchangeRate.Rate;
         await db.SaveChangesAsync();
+        ExchangeRateService.Invalidate(existing.Currency, existing.Month, existing.Year);
         return Ok(existing);
     }
 
@@ -96,6 +101,16 @@ public class ExchangeRatesController(LedgerDbContext db, ExchangeRateService rat
 
         db.ExchangeRates.Remove(rate);
         await db.SaveChangesAsync();
+        ExchangeRateService.Invalidate(rate.Currency, rate.Month, rate.Year);
         return NoContent();
+    }
+
+    private IActionResult? Invalid(ExchangeRate rate)
+    {
+        if (rate.Month is < 1 or > 12 || rate.Year is < 2000 or > 2100)
+            return Problem(title: "Invalid Month", detail: "Month must be 1 to 12 and the year plausible.", statusCode: 400);
+        if (rate.Rate <= 0m || rate.Rate >= 1000m)
+            return Problem(title: "Invalid Rate", detail: "The NOK rate must be above zero and below 1000.", statusCode: 400);
+        return null;
     }
 }

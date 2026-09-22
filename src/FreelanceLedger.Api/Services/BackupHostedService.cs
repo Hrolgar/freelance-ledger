@@ -2,11 +2,16 @@ using Microsoft.Data.Sqlite;
 
 namespace FreelanceLedger.Api.Services;
 
+/// Nightly SQLite backup through the online backup API (so it is WAL-consistent, unlike
+/// a file copy), plus the same routine run synchronously before a migration at boot.
 public class BackupHostedService(
     ILogger<BackupHostedService> logger,
     IConfiguration config) : BackgroundService
 {
     private const int RetentionDays = 14;
+    /// A crash loop or a burst of redeploys must not fill the disk: however young they
+    /// are, only this many backups are kept.
+    private const int MaxBackups = 30;
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -14,7 +19,7 @@ public class BackupHostedService(
 
         while (!ct.IsCancellationRequested)
         {
-            try { await PerformBackup(); }
+            try { BackupNow(config, logger, "nightly"); }
             catch (Exception ex) { logger.LogError(ex, "Backup failed"); }
 
             try { await Task.Delay(TimeSpan.FromHours(24), ct); }
@@ -22,7 +27,11 @@ public class BackupHostedService(
         }
     }
 
-    private async Task PerformBackup()
+    /// Takes a backup, verifies it with integrity_check, then prunes by age and count.
+    /// Returns the path written, or null when there was nothing to back up. Throws if
+    /// the copy could not be written or does not verify, so a caller that is about to
+    /// migrate can refuse to.
+    public static string? BackupNow(IConfiguration config, ILogger logger, string reason)
     {
         var connectionString = config.GetConnectionString("DefaultConnection")
             ?? "Data Source=ledger.db";
@@ -32,8 +41,8 @@ public class BackupHostedService(
 
         if (!File.Exists(sourcePath))
         {
-            logger.LogWarning("Backup: source DB at {Source} does not exist yet, skipping", sourcePath);
-            return;
+            logger.LogWarning("Backup ({Reason}): source DB at {Source} does not exist yet, skipping", reason, sourcePath);
+            return null;
         }
 
         var backupRoot = config.GetValue<string>("Storage:BackupsRoot")
@@ -41,27 +50,41 @@ public class BackupHostedService(
         Directory.CreateDirectory(backupRoot);
 
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-        var destPath = Path.Combine(backupRoot, $"ledger-{stamp}.db");
+        var destPath = Path.Combine(backupRoot, $"ledger-{stamp}-{reason}.db");
 
-        await using (var source = new SqliteConnection(connectionString))
-        await using (var dest = new SqliteConnection($"Data Source={destPath}"))
+        using (var source = new SqliteConnection(connectionString))
+        using (var dest = new SqliteConnection($"Data Source={destPath}"))
         {
-            await source.OpenAsync();
-            await dest.OpenAsync();
+            source.Open();
+            dest.Open();
             source.BackupDatabase(dest);
-        }
 
-        logger.LogInformation("Backup written: {Dest}", destPath);
-
-        var cutoff = DateTime.UtcNow.AddDays(-RetentionDays);
-        foreach (var file in Directory.EnumerateFiles(backupRoot, "ledger-*.db"))
-        {
-            var info = new FileInfo(file);
-            if (info.CreationTimeUtc < cutoff)
+            using var check = dest.CreateCommand();
+            check.CommandText = "PRAGMA integrity_check;";
+            var verdict = check.ExecuteScalar()?.ToString();
+            if (verdict != "ok")
             {
-                try { info.Delete(); }
-                catch (Exception ex) { logger.LogWarning(ex, "Could not prune backup {File}", file); }
+                dest.Close();
+                try { File.Delete(destPath); } catch { /* best effort */ }
+                throw new InvalidOperationException($"Backup at {destPath} failed integrity_check: {verdict}");
             }
         }
+
+        logger.LogInformation("Backup written ({Reason}): {Dest}", reason, destPath);
+
+        var cutoff = DateTime.UtcNow.AddDays(-RetentionDays);
+        var all = Directory.EnumerateFiles(backupRoot, "ledger-*.db")
+            .Select(f => new FileInfo(f))
+            .OrderByDescending(f => f.CreationTimeUtc)
+            .ToList();
+        foreach (var (info, index) in all.Select((f, i) => (f, i)))
+        {
+            if (info.FullName == destPath) continue;
+            if (info.CreationTimeUtc >= cutoff && index < MaxBackups) continue;
+            try { info.Delete(); }
+            catch (Exception ex) { logger.LogWarning(ex, "Could not prune backup {File}", info.FullName); }
+        }
+
+        return destPath;
     }
 }
