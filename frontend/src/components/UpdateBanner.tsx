@@ -5,7 +5,13 @@ import { Button } from './ui'
 /// showed the previous bundle until a hard reload. Now the new worker waits and this
 /// strip offers the reload.
 export function UpdateBanner() {
-  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW()
+  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW({
+    // The browser only checks for a new worker on navigation. An installed PWA can sit
+    // open on the phone for days, so ask once an hour as well.
+    onRegisteredSW(_url, registration) {
+      if (registration) setInterval(() => void registration.update(), 60 * 60 * 1000)
+    },
+  })
   if (!needRefresh) return null
   return (
     <div
