@@ -31,6 +31,13 @@ public class TimeEntry
     public decimal RateApplied { get; set; }
     public Currency Currency { get; set; }
 
+    /// The rate category this period was logged under (see ProjectRate.Category), which
+    /// is what picked RateApplied. Null on a project with a single rate. Periods in
+    /// different categories may share a day: the overlap rule is per category, because
+    /// an hour of in-house work and an hour of customer work on the same date are two
+    /// different things billed at two different prices.
+    public string? Category { get; set; }
+
     /// Null until the period is swept into an invoice. Once set, the period is billed
     /// and a later invoice run will not pick it up again.
     public int? InvoiceMilestoneId { get; set; }

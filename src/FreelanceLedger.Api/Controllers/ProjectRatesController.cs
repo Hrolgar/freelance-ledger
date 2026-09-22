@@ -1,5 +1,6 @@
 using FreelanceLedger.Api.Data;
 using FreelanceLedger.Api.Models;
+using FreelanceLedger.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -48,12 +49,18 @@ public class ProjectRatesController(LedgerDbContext db) : ControllerBase
         if (rate.Rate <= 0)
             return Problem(title: "Invalid Rate", detail: "Rate must be greater than zero.", statusCode: 400);
 
+        var categoryFailure = await NormalizeCategoryAsync(projectId, rate);
+        if (categoryFailure is not null)
+            return categoryFailure;
+
+        // One rate per category per effective date. Two categories may well start on the
+        // same day -- that is exactly how a second rate gets introduced.
         var clash = await db.ProjectRates
-            .AnyAsync(r => r.ProjectId == projectId && r.EffectiveFrom == rate.EffectiveFrom);
+            .AnyAsync(r => r.ProjectId == projectId && r.EffectiveFrom == rate.EffectiveFrom && r.Category == rate.Category);
         if (clash)
             return Problem(
                 title: "Duplicate Effective Date",
-                detail: $"This project already has a rate effective from {rate.EffectiveFrom:yyyy-MM-dd}. Edit that one instead.",
+                detail: $"This project already has a{CategoryClause(rate.Category)} rate effective from {rate.EffectiveFrom:yyyy-MM-dd}. Edit that one instead.",
                 statusCode: 409);
 
         rate.ProjectId = projectId;
@@ -75,18 +82,24 @@ public class ProjectRatesController(LedgerDbContext db) : ControllerBase
         if (updated.Rate <= 0)
             return Problem(title: "Invalid Rate", detail: "Rate must be greater than zero.", statusCode: 400);
 
+        var categoryFailure = await NormalizeCategoryAsync(projectId, updated);
+        if (categoryFailure is not null)
+            return categoryFailure;
+
         var clash = await db.ProjectRates
-            .AnyAsync(r => r.ProjectId == projectId && r.EffectiveFrom == updated.EffectiveFrom && r.Id != id);
+            .AnyAsync(r => r.ProjectId == projectId && r.EffectiveFrom == updated.EffectiveFrom
+                           && r.Category == updated.Category && r.Id != id);
         if (clash)
             return Problem(
                 title: "Duplicate Effective Date",
-                detail: $"This project already has a rate effective from {updated.EffectiveFrom:yyyy-MM-dd}.",
+                detail: $"This project already has a{CategoryClause(updated.Category)} rate effective from {updated.EffectiveFrom:yyyy-MM-dd}.",
                 statusCode: 409);
 
         rate.Rate = updated.Rate;
         rate.Currency = updated.Currency;
         rate.EffectiveFrom = updated.EffectiveFrom;
         rate.Notes = updated.Notes;
+        rate.Category = updated.Category;
 
         await db.SaveChangesAsync();
         return Ok(rate);
@@ -105,4 +118,30 @@ public class ProjectRatesController(LedgerDbContext db) : ControllerBase
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    /// Trims the category and snaps it onto the spelling already used on this project,
+    /// so "contracted out" typed on the second rate row joins the "Contracted out"
+    /// history instead of starting a third category that differs only in case.
+    private async Task<IActionResult?> NormalizeCategoryAsync(int projectId, ProjectRate rate)
+    {
+        rate.Category = RateResolutionService.NormalizeCategory(rate.Category);
+        if (rate.Category is null)
+            return null;
+
+        if (rate.Category.Length > 60)
+            return Problem(title: "Category Too Long", detail: "Keep the rate category under 60 characters; it prints on the invoice.", statusCode: 400);
+
+        var existing = await db.ProjectRates
+            .Where(r => r.ProjectId == projectId && r.Category != null)
+            .Select(r => r.Category!)
+            .Distinct()
+            .ToListAsync();
+        var match = existing.FirstOrDefault(c => RateResolutionService.SameCategory(c, rate.Category));
+        if (match is not null)
+            rate.Category = match;
+        return null;
+    }
+
+    private static string CategoryClause(string? category) =>
+        category is null ? "" : $" \"{category}\"";
 }

@@ -86,6 +86,7 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
         {
             e.HasKey(r => r.Id);
             e.Property(r => r.Rate).HasPrecision(18, 2);
+            e.Property(r => r.Category).HasMaxLength(60);
             e.HasIndex(r => new { r.ProjectId, r.EffectiveFrom });
         });
 
@@ -94,6 +95,7 @@ public class LedgerDbContext(DbContextOptions<LedgerDbContext> options) : DbCont
             e.HasKey(t => t.Id);
             e.Property(t => t.Hours).HasPrecision(9, 2);
             e.Property(t => t.RateApplied).HasPrecision(18, 2);
+            e.Property(t => t.Category).HasMaxLength(60);
             e.HasIndex(t => new { t.ProjectId, t.PeriodStart });
             // An invoice is a Milestone. Deleting that milestone must NOT delete the
             // logged weeks -- it releases them back to unbilled so they can be

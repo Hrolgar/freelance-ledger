@@ -215,22 +215,41 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             sb.AppendLine($"| {descLabel} | {hoursLabel} | {rateLabel} | {amountLabel} |");
             sb.AppendLine("|---|---:|---:|---:|");
 
-            var uniformRate = entries.Select(e => e.RateApplied).Distinct().Count() <= 1;
-            if (uniformRate && entries.Count > 0)
+            // One block per rate category, in the order the categories first appear.
+            // A single-category invoice prints exactly as it always has: one summary
+            // line. With two categories (OC: in-house at one rate, work charged on to
+            // their customer at another) each gets its own line, described by the
+            // category name so the client sees what was billed at which rate.
+            var groups = entries
+                .GroupBy(e => e.Category ?? "", StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var mixedCategories = groups.Count > 1;
+
+            foreach (var group in groups)
             {
-                // One summary line, matching the invoices already sent.
-                var rate = entries[0].RateApplied;
-                var hours = entries.Sum(e => e.Hours);
-                sb.AppendLine($"| {lineLabel} | {Num(hours)} | "
-                              + $"{Cur(rate)} | {Cur(hours * rate)} |");
-            }
-            else
-            {
-                // A rate change inside the period: show each period so the total is checkable.
-                foreach (var e in entries)
-                    sb.AppendLine(
-                        $"| {ShortDate(e.PeriodStart)} {periodConnector} {ShortDateYear(e.PeriodEnd)} | {Num(e.Hours)} | "
-                        + $"{Cur(e.RateApplied)} | {Cur(e.Hours * e.RateApplied)} |");
+                var lines = group.ToList();
+                var description = mixedCategories && group.Key.Length > 0 ? group.Key : lineLabel;
+                var uniformRate = lines.Select(e => e.RateApplied).Distinct().Count() <= 1;
+                if (uniformRate)
+                {
+                    // One summary line, matching the invoices already sent.
+                    var rate = lines[0].RateApplied;
+                    var hours = lines.Sum(e => e.Hours);
+                    sb.AppendLine($"| {description} | {Num(hours)} | "
+                                  + $"{Cur(rate)} | {Cur(hours * rate)} |");
+                }
+                else
+                {
+                    // A rate change inside the period: show each period so the total is checkable.
+                    foreach (var e in lines)
+                    {
+                        var when = $"{ShortDate(e.PeriodStart)} {periodConnector} {ShortDateYear(e.PeriodEnd)}";
+                        var periodDescription = mixedCategories && group.Key.Length > 0 ? $"{group.Key}, {when}" : when;
+                        sb.AppendLine(
+                            $"| {periodDescription} | {Num(e.Hours)} | "
+                            + $"{Cur(e.RateApplied)} | {Cur(e.Hours * e.RateApplied)} |");
+                    }
+                }
             }
         }
 

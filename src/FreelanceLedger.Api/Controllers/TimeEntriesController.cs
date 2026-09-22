@@ -15,7 +15,8 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
         int projectId,
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
-        [FromQuery] bool? unbilledOnly)
+        [FromQuery] bool? unbilledOnly,
+        [FromQuery] string? category)
     {
         var exists = await db.Projects.AnyAsync(p => p.Id == projectId);
         if (!exists)
@@ -30,6 +31,11 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
             query = query.Where(t => t.PeriodStart <= to.Value);
         if (unbilledOnly == true)
             query = query.Where(t => t.InvoiceMilestoneId == null);
+        if (category is not null)
+        {
+            var wanted = RateResolutionService.NormalizeCategory(category);
+            query = query.Where(t => t.Category == wanted);
+        }
 
         var entries = await query.OrderBy(t => t.PeriodStart).ToListAsync();
         return Ok(entries);
@@ -56,6 +62,7 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
             return Problem(title: "Not Found", detail: $"Project {projectId} not found.", statusCode: 404);
 
         FillInPeriod(project, entry);
+        await SnapCategoryAsync(projectId, entry);
 
         var failure = await ValidateAsync(project, entry, excludeId: null);
         if (failure is not null)
@@ -106,8 +113,10 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
                 detail: $"That range covers more than {maxPeriods} periods. Narrow it down.",
                 statusCode: 400);
 
+        var category = RateResolutionService.NormalizeCategory(request.Category);
+
         var existing = await db.TimeEntries
-            .Where(t => t.ProjectId == projectId)
+            .Where(t => t.ProjectId == projectId && t.Category == category)
             .Select(t => new { t.PeriodStart, t.PeriodEnd })
             .ToListAsync();
 
@@ -123,7 +132,7 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
                 continue;
             }
 
-            var rate = await rates.ResolveAsync(projectId, start);
+            var rate = await rates.ResolveAsync(projectId, start, category);
             if (rate is null)
             {
                 skipped.Add($"{start:yyyy-MM-dd} (no rate in force)");
@@ -138,6 +147,7 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
                 Hours = hours.Value,
                 RateApplied = rate.Rate,
                 Currency = rate.Currency,
+                Category = rate.Category,
                 Notes = request.Notes,
             };
             db.TimeEntries.Add(entry);
@@ -166,6 +176,7 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
 
         var project = await db.Projects.FirstAsync(p => p.Id == projectId);
         FillInPeriod(project, updated);
+        await SnapCategoryAsync(projectId, updated);
 
         var failure = await ValidateAsync(project, updated, excludeId: id);
         if (failure is not null)
@@ -177,6 +188,7 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
         entry.Notes = updated.Notes;
         entry.RateApplied = updated.RateApplied;
         entry.Currency = updated.Currency;
+        entry.Category = updated.Category;
 
         await db.SaveChangesAsync();
         return Ok(entry);
@@ -216,6 +228,25 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
         (entry.PeriodStart, entry.PeriodEnd) = snapped ?? (entry.PeriodStart, entry.PeriodStart);
     }
 
+    /// Trims the category and matches it, case-insensitively, to the spelling the
+    /// project's rates use, so the entry lands in the right rate history. An unknown
+    /// category is kept as typed and fails cleanly in ValidateAsync with no rate in force.
+    private async Task SnapCategoryAsync(int projectId, TimeEntry entry)
+    {
+        entry.Category = RateResolutionService.NormalizeCategory(entry.Category);
+        if (entry.Category is null)
+            return;
+
+        var known = await db.ProjectRates
+            .Where(r => r.ProjectId == projectId && r.Category != null)
+            .Select(r => r.Category!)
+            .Distinct()
+            .ToListAsync();
+        var match = known.FirstOrDefault(c => RateResolutionService.SameCategory(c, entry.Category));
+        if (match is not null)
+            entry.Category = match;
+    }
+
     /// Shared rules for create and update. Mutates `entry` to snapshot the rate.
     private async Task<IActionResult?> ValidateAsync(Project project, TimeEntry entry, int? excludeId)
     {
@@ -238,30 +269,35 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
 
         if (entry.RateApplied <= 0)
         {
-            var rate = await rates.ResolveAsync(project.Id, entry.PeriodStart);
+            var rate = await rates.ResolveAsync(project.Id, entry.PeriodStart, entry.Category);
             if (rate is null)
                 return Problem(
                     title: "No Rate In Force",
-                    detail: $"No hourly rate is effective on or before {entry.PeriodStart:yyyy-MM-dd} for this project. Add a rate first, or supply rateApplied explicitly.",
+                    detail: entry.Category is null
+                        ? $"No hourly rate is effective on or before {entry.PeriodStart:yyyy-MM-dd} for this project. Add a rate first, or supply rateApplied explicitly."
+                        : $"No \"{entry.Category}\" rate is effective on or before {entry.PeriodStart:yyyy-MM-dd} for this project. Add one under Hourly rate first.",
                     statusCode: 400);
 
             entry.RateApplied = rate.Rate;
             entry.Currency = rate.Currency;
         }
 
+        // Per category: an in-house hour and a customer hour on the same day are two
+        // different lines at two different prices, not a double booking.
         var overlap = await db.TimeEntries
             .Where(t => t.ProjectId == project.Id && (excludeId == null || t.Id != excludeId))
+            .Where(t => t.Category == entry.Category)
             .Where(t => t.PeriodStart <= entry.PeriodEnd && t.PeriodEnd >= entry.PeriodStart)
             .FirstOrDefaultAsync();
 
         if (overlap is not null)
             return Problem(
                 title: "Overlapping Period",
-                detail: $"This overlaps the period {overlap.PeriodStart:yyyy-MM-dd} to {overlap.PeriodEnd:yyyy-MM-dd}, which is already logged. Edit that one instead.",
+                detail: $"This overlaps the period {overlap.PeriodStart:yyyy-MM-dd} to {overlap.PeriodEnd:yyyy-MM-dd}, which is already logged{(entry.Category is null ? "" : $" as \"{entry.Category}\"")}. Edit that one instead.",
                 statusCode: 409);
 
         return null;
     }
 }
 
-public record GenerateRequest(DateOnly From, DateOnly To, decimal? Hours, string? Notes);
+public record GenerateRequest(DateOnly From, DateOnly To, decimal? Hours, string? Notes, string? Category = null);

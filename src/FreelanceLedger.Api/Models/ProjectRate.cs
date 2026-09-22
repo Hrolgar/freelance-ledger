@@ -18,4 +18,13 @@ public class ProjectRate
     public Currency Currency { get; set; }
     public DateOnly EffectiveFrom { get; set; }
     public string? Notes { get; set; }
+
+    /// Which kind of work this rate prices, when a project bills more than one kind at
+    /// different rates -- OC pays one rate for in-house work and another for work that
+    /// is charged on to their customer. Null is the project's single (or default) rate.
+    /// Each category has its own history: raising the "Contracted out" rate inserts a
+    /// row with that category and a later EffectiveFrom, and never touches the others.
+    /// The name is printed on the invoice as the line description when an invoice
+    /// mixes categories, so name it the way the client should read it.
+    public string? Category { get; set; }
 }

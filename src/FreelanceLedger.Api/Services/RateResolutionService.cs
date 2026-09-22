@@ -8,17 +8,38 @@ namespace FreelanceLedger.Api.Services;
 /// of a cadence period.
 public class RateResolutionService(LedgerDbContext db)
 {
-    /// The rate row with the greatest EffectiveFrom on or before the date. A rate
-    /// effective from 2026-09-01 does not apply to a period starting 2026-08-31.
-    public async Task<ProjectRate?> ResolveAsync(int projectId, DateOnly onDate)
+    /// The rate row with the greatest EffectiveFrom on or before the date, within one
+    /// rate category (null = the project's default rate). A rate effective from
+    /// 2026-09-01 does not apply to a period starting 2026-08-31, and a "Contracted out"
+    /// rate never prices an in-house period however recent it is.
+    public async Task<ProjectRate?> ResolveAsync(int projectId, DateOnly onDate, string? category = null)
     {
+        category = NormalizeCategory(category);
+        // Case-insensitive on the category: SQLite's default collation is not, and
+        // "contracted out" typed on a period must find the "Contracted out" history.
+        var wanted = category?.ToUpperInvariant();
         return await db.ProjectRates
             .AsNoTracking()
             .Where(r => r.ProjectId == projectId && r.EffectiveFrom <= onDate)
+            .Where(r => wanted == null ? r.Category == null : r.Category != null && r.Category.ToUpper() == wanted)
             .OrderByDescending(r => r.EffectiveFrom)
             .ThenByDescending(r => r.Id)
             .FirstOrDefaultAsync();
     }
+
+    /// Categories are free text typed by hand, so "In-house " and "in-house" must be the
+    /// same category or the second one silently gets no rate. Trimmed, blank becomes
+    /// null (the default rate); case is kept as typed because it prints on the invoice.
+    public static string? NormalizeCategory(string? category)
+    {
+        var trimmed = category?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    /// Case-insensitive category equality, for matching a typed category against the
+    /// ones already on the project.
+    public static bool SameCategory(string? a, string? b) =>
+        string.Equals(NormalizeCategory(a), NormalizeCategory(b), StringComparison.OrdinalIgnoreCase);
 
     /// Monday of the week containing the date.
     public static DateOnly MondayOf(DateOnly date)
