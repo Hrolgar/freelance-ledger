@@ -88,7 +88,7 @@ public sealed class OnHoldAndInvoiceLanguageTests : IDisposable
             });
         await _db.SaveChangesAsync();
 
-        var controller = new DashboardController(_db, new ExchangeRateService(_db, new HttpClient(), Microsoft.Extensions.Logging.Abstractions.NullLogger<ExchangeRateService>.Instance));
+        var controller = new DashboardController(_db, new ExchangeRateService(_db, OfflineHttp.Client(), Microsoft.Extensions.Logging.Abstractions.NullLogger<ExchangeRateService>.Instance));
         var response = await controller.GetPipeline();
 
         var ok = Assert.IsType<OkObjectResult>(response);

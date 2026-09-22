@@ -203,7 +203,7 @@ public class GuardTests : IDisposable
             new Milestone { ProjectId = project.Id, Name = "Open", Amount = 500, Currency = Currency.NOK, Status = MilestoneStatus.Pending });
         await Db.SaveChangesAsync();
 
-        var dashboard = new DashboardController(Db, new ExchangeRateService(Db, new HttpClient(), Microsoft.Extensions.Logging.Abstractions.NullLogger<ExchangeRateService>.Instance));
+        var dashboard = new DashboardController(Db, new ExchangeRateService(Db, OfflineHttp.Client(), Microsoft.Extensions.Logging.Abstractions.NullLogger<ExchangeRateService>.Instance));
         var pipeline = Assert.IsType<PipelineResponse>(Assert.IsType<OkObjectResult>(await dashboard.GetPipeline()).Value);
         Assert.DoesNotContain(pipeline.Projects, p => p.ProjectId == project.Id);
         Assert.Equal(0, pipeline.OnHoldCount);
