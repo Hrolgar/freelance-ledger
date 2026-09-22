@@ -43,7 +43,7 @@ public class RetainerInvoiceHostedService(
         // RaiseAsync makes repeating this every day within the same month a no-op once
         // that month is raised, so a restart or a second run the same day raises
         // nothing extra.
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Clock.Today;
         var thisMonthStart = new DateOnly(today.Year, today.Month, 1);
         var periodStart = thisMonthStart.AddMonths(-1);
         var periodEnd = thisMonthStart.AddDays(-1);

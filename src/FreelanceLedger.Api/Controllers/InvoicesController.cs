@@ -169,7 +169,7 @@ public class InvoicesController(
         var coveredFrom = entries.Min(e => e.PeriodStart);
         var coveredTo = entries.Max(e => e.PeriodEnd);
 
-        var issued = request.InvoiceDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var issued = request.InvoiceDate ?? Clock.Today;
         var vatRate = project.VatRate;
         var vatAmount = VatCalculator.Amount(amount, vatRate);
 

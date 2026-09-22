@@ -207,7 +207,20 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http, ILogger<Ex
                 stored++;
             }
 
-            await db.SaveChangesAsync();
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // The dashboard fires the overview and the pipeline in parallel, each in
+                // its own scope; on the first load of a new month both fetch and both try
+                // to insert, and the unique index stops the second. The rates are there,
+                // which is all this method promises.
+                foreach (var currency in TrackedCurrencies)
+                    Invalidate(currency, month, year);
+                return true;
+            }
             return stored > 0;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)

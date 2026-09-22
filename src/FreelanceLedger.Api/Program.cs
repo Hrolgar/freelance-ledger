@@ -21,8 +21,9 @@ builder.Services
     });
 // Ten seconds is generous for one JSON document; the default of 100 held a Settings
 // request open for the whole outage.
+// The typed client IS the registration: a second AddScoped<ExchangeRateService>() used
+// to win the DI lookup and hand the service the default client with the 100 s timeout.
 builder.Services.AddHttpClient<ExchangeRateService>(client => client.Timeout = TimeSpan.FromSeconds(10));
-builder.Services.AddScoped<ExchangeRateService>();
 builder.Services.AddScoped<RateResolutionService>();
 builder.Services.AddScoped<InvoiceDocumentService>();
 builder.Services.AddScoped<ProjectFileStore>();

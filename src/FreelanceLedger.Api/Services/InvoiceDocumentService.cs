@@ -118,7 +118,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
 
         // Stamped when the invoice was raised, never "today". Re-downloading an invoice
         // months later has to reproduce the document that was actually sent.
-        var issued = invoice.InvoiceDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var issued = invoice.InvoiceDate ?? Clock.Today;
 
         // NO PAYMENT DUE DATE ON THE DOCUMENT. Hrolgar's decision 2026-08-11: he does not
         // want a due date indicated to the client. `Milestone.DateDue` is still set and
@@ -170,18 +170,19 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             billTo = project.BillTo
                 .Replace("\r\n", "\n")
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(l => Text(l)!)
                 .ToList();
         }
         else
         {
             billTo = [];
-            if (!string.IsNullOrWhiteSpace(project.Client?.Name)) billTo.Add(Text(project.Client!.Name)!);
-            else if (!string.IsNullOrWhiteSpace(project.ClientName)) billTo.Add(Text(project.ClientName)!);
-            if (!string.IsNullOrWhiteSpace(project.Client?.Country)) billTo.Add(Text(project.Client!.Country)!);
+            if (!string.IsNullOrWhiteSpace(project.Client?.Name)) billTo.Add(project.Client!.Name);
+            else if (!string.IsNullOrWhiteSpace(project.ClientName)) billTo.Add(project.ClientName);
+            if (!string.IsNullOrWhiteSpace(project.Client?.Country)) billTo.Add(project.Client!.Country!);
         }
+        // billTo stays raw: its first line is also the cover's client label, which the
+        // renderer escapes itself. Only the markdown copy is escaped here.
         for (var i = 0; i < billTo.Count; i++)
-            sb.AppendLine(i == billTo.Count - 1 ? billTo[i] : $"{billTo[i]}<br>");
+            sb.AppendLine(i == billTo.Count - 1 ? Text(billTo[i]) : $"{Text(billTo[i])}<br>");
         sb.AppendLine();
 
         sb.AppendLine($"## {workHeading}");
@@ -196,8 +197,11 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         // Hours and rate are meaningless on a retainer invoice, so its table collapses
         // to a plain description/amount line rather than the hourly four columns.
         var isRetainer = project.BillingType == BillingType.Retainer;
-        var lineLabel = Text(FirstNonBlank(project.InvoiceLineLabel))
+        var lineLabelRaw = FirstNonBlank(project.InvoiceLineLabel)
             ?? (isRetainer ? defaultRetainerLabel : defaultHourlyLabel);
+        // Escaped for the markdown body only: the renderer escapes the cover metadata
+        // itself, so passing an escaped string there prints "&amp;" on the cover.
+        var lineLabel = Text(lineLabelRaw)!;
 
         // A totals row continues whichever table was just printed, so it needs the same
         // cell count -- the label and amount always take the last two columns, padded
@@ -359,7 +363,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         return new InvoiceDocument(
             Markdown: sb.ToString(),
             Title: $"{headingWord} {invoice.InvoiceNumber}",
-            Subtitle: $"{lineLabel}{coverPeriod}",
+            Subtitle: $"{lineLabelRaw}{coverPeriod}",
             ClientLabel: clientLabel,
             Rows: coverRows,
             DocType: isNo ? "faktura" : "invoice",

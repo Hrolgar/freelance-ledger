@@ -31,7 +31,7 @@ public class RetainerController(LedgerDbContext db, RateResolutionService rates)
         if (project is null)
             return Problem(title: "Not Found", detail: $"Project {projectId} not found.", statusCode: 404);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Clock.Today;
         var endOfThisMonth = new DateOnly(today.Year, today.Month, 1).AddMonths(1).AddDays(-1);
 
         // The retainer starts when its first fee starts. A month before the first fee

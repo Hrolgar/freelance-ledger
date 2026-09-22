@@ -50,7 +50,7 @@ public class RetainerInvoiceService(
 
         var vatRate = project.VatRate;
         var vatAmount = VatCalculator.Amount(rate.Rate, vatRate);
-        var issued = invoiceDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var issued = invoiceDate ?? Clock.Today;
 
         // A retainer has no TimeEntry rows, so InvoiceMilestoneId can't guard against
         // double-billing the way it does on the hourly path. The overlap check below is
