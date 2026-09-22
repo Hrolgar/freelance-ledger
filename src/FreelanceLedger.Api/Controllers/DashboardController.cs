@@ -27,13 +27,19 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
         await rateService.PreloadYear(year);
         var missing = new SortedSet<string>();
 
+        var today = Clock.Today;
         async Task<decimal> ToNok(Currency currency, decimal amount, int month)
         {
             if (amount == 0m) return 0m;
             var rate = await rateService.GetRate(currency, month, year);
             if (rate == 0m && currency != Currency.NOK)
             {
-                missing.Add($"{currency} {year}-{month:00}");
+                // A month that has not happened yet has no rate by definition (a
+                // recurring cost projects into it); only a past or current month with
+                // money and no rate is worth a warning.
+                var inFuture = year > today.Year || (year == today.Year && month > today.Month);
+                if (!inFuture)
+                    missing.Add($"{currency} {year}-{month:00}");
                 return 0m;
             }
             return amount * rate;
