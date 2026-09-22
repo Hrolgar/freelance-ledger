@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const useDevPolling = (globalThis as any).process?.env?.VITE_DEV_POLLING === '1'
+const useDevPolling = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.VITE_DEV_POLLING === '1'
 
 export default defineConfig({
   plugins: [
