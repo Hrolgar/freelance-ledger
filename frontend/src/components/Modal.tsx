@@ -28,6 +28,13 @@ export function Modal({ title, onClose, children, size = 'md', nested, tall, err
   const panelRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  // Only an error raised AFTER the modal opened belongs inside it. The page's error
+  // state is not cleared when a modal opens, so without this a failure from an earlier
+  // action would greet the next form.
+  const errorAtOpen = useRef(error)
+  const clearedSinceOpen = useRef(false)
+  if (!error) clearedSinceOpen.current = true
+  const freshError = error && (clearedSinceOpen.current || error !== errorAtOpen.current) ? error : null
 
   useEffect(() => {
     stack.push(id)
@@ -104,7 +111,7 @@ export function Modal({ title, onClose, children, size = 'md', nested, tall, err
           </button>
         </header>
         <div className={`flex-1 overflow-y-auto px-6 py-5 lg:flex-none ${tall ? 'lg:max-h-[86vh]' : 'lg:max-h-[70vh]'}`}>
-          {error && <div className="mb-4"><ErrorState message={error} /></div>}
+          {freshError && <div className="mb-4"><ErrorState message={freshError} /></div>}
           {children}
         </div>
       </div>
