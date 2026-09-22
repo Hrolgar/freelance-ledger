@@ -12,14 +12,17 @@ import {
   getProjectRates,
   getTimeEntries,
   patchMilestone,
+  updateProjectRate,
   updateTimeEntry,
 } from '../api'
 import { InvoiceList } from './InvoiceList'
 import { Modal } from './Modal'
+import { MonthSheet } from './MonthSheet'
+import { categoriesOf, categoryLabel, lastDayOfMonth, monthLabel, rateFor } from '../lib/hours'
 import { AppCard, Button, EmptyState, Field, Input, ModalActions, RowCard, SectionHeading, Select, Textarea } from './ui'
 import { firstOfMonth, formatCurrency, formatDate, hoursLabel, todayIso } from '../lib/format'
 import type { Currency, Milestone, Project, ProjectRate, TimeEntry } from '../types'
-import { CURRENCIES, MONTH_FULL_NAMES } from '../types'
+import { CURRENCIES } from '../types'
 
 /// Monday of the week containing a date, matching the server's period rule.
 /// Takes and returns YYYY-MM-DD.
@@ -37,43 +40,8 @@ function periodLabel(entry: TimeEntry): string {
   return `${formatDate(entry.periodStart)} to ${formatDate(entry.periodEnd)}`
 }
 
-/// A single day shows just its date; a multi-day entry (e.g. a retainer-style row)
-/// still shows its range, same as the flat list used to.
-function rowDateLabel(entry: TimeEntry): string {
-  return entry.periodStart === entry.periodEnd ? formatDate(entry.periodStart) : periodLabel(entry)
-}
-
 function monthKeyOf(dateStr: string): string {
   return dateStr.slice(0, 7)
-}
-
-function monthLabel(key: string): string {
-  const [year, month] = key.split('-').map(Number)
-  return `${MONTH_FULL_NAMES[month - 1]} ${year}`
-}
-
-function lastDayOfMonth(key: string): string {
-  const [year, month] = key.split('-').map(Number)
-  return `${key}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`
-}
-
-function addDays(dateStr: string, days: number): string {
-  const d = new Date(`${dateStr}T00:00:00`)
-  d.setDate(d.getDate() + days)
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-}
-
-/// Keeps the quick-add date from wandering into the next month once it runs past the end.
-function clampToMonth(dateStr: string, key: string): string {
-  return dateStr.slice(0, 7) === key ? dateStr : lastDayOfMonth(key)
-}
-
-/// The day after the latest entry in the month, or today (clamped into the month)
-/// when the month is still empty.
-function defaultQuickAddDate(key: string, list: TimeEntry[]): string {
-  if (list.length === 0) return clampToMonth(todayIso(), key)
-  const latest = list.reduce((max, e) => (e.periodEnd > max ? e.periodEnd : max), list[0].periodEnd)
-  return clampToMonth(addDays(latest, 1), key)
 }
 
 type MonthStatus = 'Invoiced' | 'Unbilled' | 'Partly invoiced'
@@ -122,6 +90,7 @@ const TH_RIGHT = `${TH} text-right`
 const TR = 'border-b border-[var(--border-faint)] last:border-0 transition-colors hover:bg-[var(--bg-elevated)]'
 const TD = 'px-4 py-3'
 const TD_NUM = 'px-4 py-3 text-right font-mono tabular-nums'
+const STANDARD_PLACEHOLDER = 'Standard rate'
 
 export function HourlyPanel({
   project,
@@ -139,11 +108,13 @@ export function HourlyPanel({
   const [busy, setBusy] = useState(false)
 
   const [showRateModal, setShowRateModal] = useState(false)
+  const [rateEditId, setRateEditId] = useState<number | null>(null)
   const [rateDraft, setRateDraft] = useState({
     rate: 0,
     currency: project.currency as Currency,
     effectiveFrom: todayIso(),
     notes: '',
+    category: '',
   })
 
   const [showEntryModal, setShowEntryModal] = useState(false)
@@ -152,6 +123,7 @@ export function HourlyPanel({
     periodEnd: '',
     hours: project.committedHours ?? 0,
     notes: '',
+    category: '',
   })
 
   const [showGenerateModal, setShowGenerateModal] = useState(false)
@@ -160,6 +132,7 @@ export function HourlyPanel({
     to: todayIso(),
     hours: '' as string,
     notes: '',
+    category: '',
   })
 
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
@@ -174,14 +147,6 @@ export function HourlyPanel({
 
   const [logMonthKey, setLogMonthKey] = useState(monthKeyOf(todayIso()))
   const [openMonthKey, setOpenMonthKey] = useState<string | null>(null)
-  const [monthEditId, setMonthEditId] = useState<number | null>(null)
-  const [monthEditDraft, setMonthEditDraft] = useState({
-    periodStart: '',
-    periodEnd: '',
-    hours: 0,
-    notes: '',
-  })
-  const [quickAdd, setQuickAdd] = useState({ date: '', hours: '', notes: '' })
 
   const load = async () => {
     setLoading(true)
@@ -223,12 +188,33 @@ export function HourlyPanel({
     }
   }
 
+  /// Like `run`, but throws instead of parking the message in the panel's error
+  /// banner. The month sheet shows a failure on the row it belongs to, which is
+  /// behind the modal the banner would otherwise be hidden under.
+  const apply = async (action: () => Promise<unknown>) => {
+    setBusy(true)
+    try {
+      await action()
+      await load()
+      onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const unbilled = entries.filter((e) => e.invoiceMilestoneId === null)
   const unbilledHours = unbilled.reduce((sum, e) => sum + e.hours, 0)
   const unbilledValue = unbilled.reduce((sum, e) => sum + e.hours * e.rateApplied, 0)
-  const currentRate = rates
-    .filter((r) => r.effectiveFrom <= todayIso())
-    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]
+  const categories = useMemo(() => categoriesOf(rates), [rates])
+  const hasTypes = categories.length > 0
+  const typeOptions = ['', ...categories]
+  /// The rate in force today, per category: the row that gets the Current badge.
+  const currentRateIds = new Set(
+    typeOptions
+      .map((c) => rateFor(rates, c, todayIso())?.id)
+      .filter((id): id is number => id !== undefined),
+  )
+  const currentRate = rateFor(rates, '', todayIso())
 
   // What the server would actually sweep for the range in the modal: same overlap rule
   // it uses. Shown live so you are not guessing what "Create" is about to bill.
@@ -279,8 +265,21 @@ export function HourlyPanel({
       periodEnd: '',
       hours: project.committedHours ?? 0,
       notes: '',
+      category: '',
     })
     setShowEntryModal(true)
+  }
+
+  const openRateModal = (rate?: ProjectRate) => {
+    setRateEditId(rate?.id ?? null)
+    setRateDraft({
+      rate: rate?.rate ?? currentRate?.rate ?? 0,
+      currency: rate?.currency ?? currentRate?.currency ?? project.currency,
+      effectiveFrom: rate?.effectiveFrom ?? todayIso(),
+      notes: rate?.notes ?? '',
+      category: rate?.category ?? '',
+    })
+    setShowRateModal(true)
   }
 
   const markInvoicePaid = (invoice: Milestone) =>
@@ -313,50 +312,7 @@ export function HourlyPanel({
     ? monthGroups.find((g) => g.key === openMonthKey) ?? { key: openMonthKey, label: monthLabel(openMonthKey), entries: [] as TimeEntry[] }
     : null
 
-  const openMonthModal = (key: string, list: TimeEntry[]) => {
-    setMonthEditId(null)
-    setQuickAdd({ date: defaultQuickAddDate(key, list), hours: '', notes: '' })
-    setOpenMonthKey(key)
-  }
-
-  const startRowEdit = (entry: TimeEntry) => {
-    setMonthEditId(entry.id)
-    setMonthEditDraft({
-      periodStart: entry.periodStart,
-      periodEnd: entry.periodEnd,
-      hours: entry.hours,
-      notes: entry.notes ?? '',
-    })
-  }
-
-  const saveRowEdit = async () => {
-    if (monthEditId === null) return
-    const ok = await run(() =>
-      updateTimeEntry(project.id, monthEditId, {
-        periodStart: monthEditDraft.periodStart,
-        periodEnd: monthEditDraft.periodEnd || monthEditDraft.periodStart,
-        hours: monthEditDraft.hours,
-        notes: monthEditDraft.notes || null,
-      }),
-    )
-    if (ok) setMonthEditId(null)
-  }
-
-  const addQuickEntry = async (key: string) => {
-    const hoursNum = Number(quickAdd.hours)
-    if (!quickAdd.date || !(hoursNum > 0)) return
-    const ok = await run(() =>
-      createTimeEntry(project.id, {
-        periodStart: quickAdd.date,
-        periodEnd: quickAdd.date,
-        hours: hoursNum,
-        notes: quickAdd.notes || null,
-      }),
-    )
-    if (ok) {
-      setQuickAdd({ date: clampToMonth(addDays(quickAdd.date, 1), key), hours: '', notes: '' })
-    }
-  }
+  const openMonthModal = (key: string) => setOpenMonthKey(key)
 
   const openInvoiceModalForMonth = (key: string) => {
     setInvoiceDraft({
@@ -396,15 +352,7 @@ export function HourlyPanel({
           title="Hourly rate"
           description="Raising the rate adds a row. Periods already logged keep the rate they were logged at."
           action={
-            <Button variant="secondary" className="text-xs" onClick={() => {
-              setRateDraft({
-                rate: currentRate?.rate ?? 0,
-                currency: currentRate?.currency ?? project.currency,
-                effectiveFrom: todayIso(),
-                notes: '',
-              })
-              setShowRateModal(true)
-            }}>
+            <Button variant="secondary" className="text-xs" onClick={() => openRateModal()}>
               + Add rate
             </Button>
           }
@@ -420,6 +368,7 @@ export function HourlyPanel({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border-faint)] text-left">
+                  {hasTypes && <th className={TH}>Applies to</th>}
                   <th className={TH}>Effective from</th>
                   <th className={TH_RIGHT}>Rate</th>
                   <th className={TH}>Notes</th>
@@ -429,9 +378,12 @@ export function HourlyPanel({
               <tbody>
                 {rates.map((rate) => (
                   <tr key={rate.id} className={TR}>
+                    {hasTypes && (
+                      <td className={`${TD} text-[var(--text-primary)]`}>{categoryLabel(rate.category)}</td>
+                    )}
                     <td className={`${TD} text-[var(--text-primary)]`}>
                       {formatDate(rate.effectiveFrom)}
-                      {currentRate?.id === rate.id && (
+                      {currentRateIds.has(rate.id) && (
                         <span
                           className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
                           style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
@@ -446,7 +398,10 @@ export function HourlyPanel({
                     </td>
                     <td className={`${TD} text-xs text-[var(--text-tertiary)]`}>{rate.notes ?? '—'}</td>
                     <td className={TD}>
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" className="px-2 text-xs" disabled={busy} onClick={() => openRateModal(rate)}>
+                          Edit
+                        </Button>
                         <Button
                           variant="danger"
                           className="px-2 text-xs"
@@ -471,10 +426,10 @@ export function HourlyPanel({
             {rates.map((rate) => (
               <RowCard
                 key={rate.id}
-                title={formatDate(rate.effectiveFrom)}
+                title={hasTypes ? `${categoryLabel(rate.category)} from ${formatDate(rate.effectiveFrom)}` : formatDate(rate.effectiveFrom)}
                 subtitle={rate.notes}
                 amount={<>{formatCurrency(rate.rate, rate.currency)} /h</>}
-                badge={currentRate?.id === rate.id ? (
+                badge={currentRateIds.has(rate.id) ? (
                   <span
                     className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
                     style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
@@ -483,17 +438,22 @@ export function HourlyPanel({
                   </span>
                 ) : undefined}
                 actions={
-                  <Button
-                    variant="danger"
-                    className="min-h-11 px-4 text-xs"
-                    disabled={busy}
-                    onClick={() => {
-                      if (!confirm(`Delete the rate effective ${formatDate(rate.effectiveFrom)}?`)) return
-                      void run(() => deleteProjectRate(project.id, rate.id))
-                    }}
-                  >
-                    Del
-                  </Button>
+                  <>
+                    <Button variant="secondary" className="min-h-11 px-4 text-xs" disabled={busy} onClick={() => openRateModal(rate)}>
+                      Edit
+                    </Button>
+                    <Button
+                      variant="danger"
+                      className="min-h-11 px-4 text-xs"
+                      disabled={busy}
+                      onClick={() => {
+                        if (!confirm(`Delete the rate effective ${formatDate(rate.effectiveFrom)}?`)) return
+                        void run(() => deleteProjectRate(project.id, rate.id))
+                      }}
+                    >
+                      Del
+                    </Button>
+                  </>
                 }
               />
             ))}
@@ -524,10 +484,7 @@ export function HourlyPanel({
                 value={logMonthKey}
                 onChange={(e) => setLogMonthKey(e.target.value || monthKeyOf(todayIso()))}
               />
-              <Button
-                className="text-xs"
-                onClick={() => openMonthModal(logMonthKey, monthGroups.find((g) => g.key === logMonthKey)?.entries ?? [])}
-              >
+              <Button className="text-xs" onClick={() => openMonthModal(logMonthKey)}>
                 + Log hours
               </Button>
               <Button variant="ghost" className="text-xs" onClick={openNewEntry}>Log a period</Button>
@@ -564,7 +521,7 @@ export function HourlyPanel({
               title="Nothing logged yet"
               description="Log a period, or generate them from the committed hours."
               action={
-                <Button onClick={() => openMonthModal(monthKeyOf(todayIso()), [])}>Log hours</Button>
+                <Button onClick={() => openMonthModal(monthKeyOf(todayIso()))}>Log hours</Button>
               }
             />
           </div>
@@ -585,10 +542,11 @@ export function HourlyPanel({
                 {monthGroups.map((group) => {
                   const hours = group.entries.reduce((sum, e) => sum + e.hours, 0)
                   const amount = group.entries.reduce((sum, e) => sum + e.hours * e.rateApplied, 0)
+                  const days = new Set(group.entries.map((e) => e.periodStart)).size
                   return (
                     <tr key={group.key} className={TR}>
                       <td className={`${TD} text-[var(--text-primary)]`}>{group.label}</td>
-                      <td className={`${TD_NUM} text-[var(--text-secondary)]`}>{group.entries.length}</td>
+                      <td className={`${TD_NUM} text-[var(--text-secondary)]`}>{days}</td>
                       <td className={`${TD_NUM} text-[var(--text-primary)]`}>{hoursLabel(hours)}</td>
                       <td className={`${TD_NUM} text-[var(--text-primary)]`}>
                         {formatCurrency(amount, group.entries[0].currency)}
@@ -596,7 +554,7 @@ export function HourlyPanel({
                       <td className={TD}><StatusBadge status={monthStatus(group.entries)} /></td>
                       <td className={TD}>
                         <div className="flex justify-end">
-                          <Button variant="secondary" className="px-2 text-xs" onClick={() => openMonthModal(group.key, group.entries)}>
+                          <Button variant="secondary" className="px-2 text-xs" onClick={() => openMonthModal(group.key)}>
                             Open
                           </Button>
                         </div>
@@ -620,11 +578,11 @@ export function HourlyPanel({
                   amount={formatCurrency(amount, group.entries[0].currency)}
                   badge={<StatusBadge status={monthStatus(group.entries)} />}
                   facts={[
-                    ['Days', group.entries.length],
+                    ['Days', new Set(group.entries.map((e) => e.periodStart)).size],
                     ['Hours', <span className="font-mono tabular-nums">{hoursLabel(hours)}</span>],
                   ]}
                   actions={
-                    <Button variant="secondary" className="min-h-11 px-4 text-xs" onClick={() => openMonthModal(group.key, group.entries)}>
+                    <Button variant="secondary" className="min-h-11 px-4 text-xs" onClick={() => openMonthModal(group.key)}>
                       Open
                     </Button>
                   }
@@ -669,8 +627,22 @@ export function HourlyPanel({
 
       {/* --- Rate modal --- */}
       {showRateModal && (
-      <Modal title="Add rate" onClose={() => setShowRateModal(false)}>
+      <Modal title={rateEditId === null ? 'Add rate' : 'Edit rate'} onClose={() => setShowRateModal(false)}>
         <div className="grid gap-3">
+          <Field
+            label="Applies to"
+            hint="Blank is the standard rate. Name a second kind of work, e.g. Contracted out, to bill some hours at another rate. The name prints on the invoice when both kinds are on it."
+          >
+            <Input
+              list="rate-categories"
+              value={rateDraft.category}
+              placeholder={STANDARD_PLACEHOLDER}
+              onChange={(e) => setRateDraft({ ...rateDraft, category: e.target.value })}
+            />
+            <datalist id="rate-categories">
+              {categories.map((c) => <option key={c} value={c} />)}
+            </datalist>
+          </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Rate per hour">
               <Input
@@ -706,12 +678,18 @@ export function HourlyPanel({
             busy={busy}
             disabled={rateDraft.rate <= 0}
             onConfirm={async () => {
-              const ok = await run(() => createProjectRate(project.id, {
+              const input = {
                 rate: rateDraft.rate,
                 currency: rateDraft.currency,
                 effectiveFrom: rateDraft.effectiveFrom,
                 notes: rateDraft.notes || null,
-              }))
+                category: rateDraft.category.trim() || null,
+              }
+              const ok = await run(() =>
+                rateEditId === null
+                  ? createProjectRate(project.id, input)
+                  : updateProjectRate(project.id, rateEditId, input),
+              )
               if (ok) setShowRateModal(false)
             }}
           />
@@ -743,9 +721,19 @@ export function HourlyPanel({
               />
             </Field>
           </div>
+          {hasTypes && (
+            <Field label="Type of work">
+              <Select value={entryDraft.category} onChange={(e) => setEntryDraft({ ...entryDraft, category: e.target.value })}>
+                {typeOptions.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+              </Select>
+            </Field>
+          )}
           <Field
             label="Hours"
-            hint={currentRate ? `Bills at ${formatCurrency(currentRate.rate, currentRate.currency)} an hour.` : 'No rate set yet.'}
+            hint={(() => {
+              const r = rateFor(rates, entryDraft.category, entryDraft.periodStart || todayIso())
+              return r ? `Bills at ${formatCurrency(r.rate, r.currency)} an hour.` : 'No rate in force for that date.'
+            })()}
           >
             <Input
               type="number" step="0.25" min="0" value={entryDraft.hours}
@@ -770,6 +758,7 @@ export function HourlyPanel({
                   ...(entryDraft.periodEnd ? { periodEnd: entryDraft.periodEnd } : {}),
                   hours: entryDraft.hours,
                   notes: entryDraft.notes || null,
+                  category: entryDraft.category || null,
                 }),
               )
               if (ok) setShowEntryModal(false)
@@ -802,6 +791,13 @@ export function HourlyPanel({
               onChange={(e) => setGenDraft({ ...genDraft, hours: e.target.value })}
             />
           </Field>
+          {hasTypes && (
+            <Field label="Type of work">
+              <Select value={genDraft.category} onChange={(e) => setGenDraft({ ...genDraft, category: e.target.value })}>
+                {typeOptions.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+              </Select>
+            </Field>
+          )}
           <Field label="Notes">
             <Input value={genDraft.notes} onChange={(e) => setGenDraft({ ...genDraft, notes: e.target.value })} />
           </Field>
@@ -815,6 +811,7 @@ export function HourlyPanel({
                 to: genDraft.to,
                 hours: genDraft.hours ? Number(genDraft.hours) : null,
                 notes: genDraft.notes || null,
+                category: genDraft.category || null,
               }))
               if (ok) setShowGenerateModal(false)
             }}
@@ -936,210 +933,22 @@ export function HourlyPanel({
       </Modal>
       )}
 
-      {/* --- Month modal --- */}
+      {/* --- Month sheet --- */}
       {openMonth && (
-      <Modal title={openMonth.label} onClose={() => setOpenMonthKey(null)} size="xl">
-        <div className="grid gap-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border-faint)] text-left">
-                  <th className={TH}>Date</th>
-                  <th className={TH_RIGHT}>Hours</th>
-                  <th className={TH}>Notes</th>
-                  <th className={TH_RIGHT}>Amount</th>
-                  <th className={TH} />
-                </tr>
-              </thead>
-              <tbody>
-                {openMonth.entries.map((entry) => {
-                  const invoiced = entry.invoiceMilestoneId !== null
-                  const isEditing = monthEditId === entry.id
-                  const isSingleDay = monthEditDraft.periodStart === monthEditDraft.periodEnd
-
-                  if (isEditing) {
-                    return (
-                      <tr key={entry.id} className={TR}>
-                        <td className={TD}>
-                          {isSingleDay ? (
-                            <Input
-                              type="date"
-                              value={monthEditDraft.periodStart}
-                              onChange={(e) => setMonthEditDraft({ ...monthEditDraft, periodStart: e.target.value, periodEnd: e.target.value })}
-                              onKeyDown={(e) => e.key === 'Enter' && void saveRowEdit()}
-                            />
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                type="date"
-                                value={monthEditDraft.periodStart}
-                                onChange={(e) => setMonthEditDraft({ ...monthEditDraft, periodStart: e.target.value })}
-                                onKeyDown={(e) => e.key === 'Enter' && void saveRowEdit()}
-                              />
-                              <Input
-                                type="date"
-                                value={monthEditDraft.periodEnd}
-                                onChange={(e) => setMonthEditDraft({ ...monthEditDraft, periodEnd: e.target.value })}
-                                onKeyDown={(e) => e.key === 'Enter' && void saveRowEdit()}
-                              />
-                            </div>
-                          )}
-                        </td>
-                        <td className={TD_NUM}>
-                          <Input
-                            type="number" step="0.25" min="0"
-                            value={monthEditDraft.hours}
-                            onChange={(e) => setMonthEditDraft({ ...monthEditDraft, hours: Number(e.target.value) })}
-                            onKeyDown={(e) => e.key === 'Enter' && void saveRowEdit()}
-                          />
-                        </td>
-                        <td className={TD}>
-                          <Input
-                            value={monthEditDraft.notes}
-                            onChange={(e) => setMonthEditDraft({ ...monthEditDraft, notes: e.target.value })}
-                            onKeyDown={(e) => e.key === 'Enter' && void saveRowEdit()}
-                          />
-                        </td>
-                        <td className={`${TD_NUM} text-[var(--text-primary)]`}>
-                          {formatCurrency(monthEditDraft.hours * entry.rateApplied, entry.currency)}
-                        </td>
-                        <td className={TD}>
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" className="px-2 text-xs" disabled={busy} onClick={() => void saveRowEdit()}>
-                              Save
-                            </Button>
-                            <Button variant="secondary" className="px-2 text-xs" onClick={() => setMonthEditId(null)}>
-                              Cancel
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  }
-
-                  return (
-                    <tr key={entry.id} className={TR}>
-                      <td
-                        className={`${TD} text-[var(--text-primary)]`}
-                        style={invoiced ? undefined : { cursor: 'pointer' }}
-                        onClick={() => !invoiced && startRowEdit(entry)}
-                      >
-                        {rowDateLabel(entry)}
-                      </td>
-                      <td
-                        className={`${TD_NUM} text-[var(--text-primary)]`}
-                        style={invoiced ? undefined : { cursor: 'pointer' }}
-                        onClick={() => !invoiced && startRowEdit(entry)}
-                      >
-                        {hoursLabel(entry.hours)}
-                      </td>
-                      <td
-                        className={`${TD} text-xs text-[var(--text-tertiary)]`}
-                        style={invoiced ? undefined : { cursor: 'pointer' }}
-                        onClick={() => !invoiced && startRowEdit(entry)}
-                      >
-                        {entry.notes ?? '—'}
-                      </td>
-                      <td className={`${TD_NUM} text-[var(--text-primary)]`}>
-                        {formatCurrency(entry.hours * entry.rateApplied, entry.currency)}
-                      </td>
-                      <td className={TD}>
-                        <div className="flex justify-end">
-                          {invoiced ? (
-                            <StatusBadge status="Invoiced" />
-                          ) : (
-                            <Button
-                              variant="danger"
-                              className="px-2 text-xs"
-                              disabled={busy}
-                              onClick={() => {
-                                if (!confirm(`Delete ${rowDateLabel(entry)}?`)) return
-                                void run(() => deleteTimeEntry(project.id, entry.id))
-                              }}
-                            >
-                              Del
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-
-                {openMonth.entries.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className={`${TD} text-sm`} style={{ color: 'var(--text-tertiary)' }}>
-                      Nothing logged in {openMonth.label} yet. Add the first day below.
-                    </td>
-                  </tr>
-                )}
-
-                {/* Quick-add row, pinned at the bottom. Enter in any field adds the
-                    line and advances the date so a run of days can be typed without
-                    touching the mouse. */}
-                <tr className={TR}>
-                  <td className={TD}>
-                    <Input
-                      type="date"
-                      value={quickAdd.date}
-                      min={`${openMonth.key}-01`}
-                      max={lastDayOfMonth(openMonth.key)}
-                      onChange={(e) => setQuickAdd({ ...quickAdd, date: e.target.value })}
-                      onKeyDown={(e) => e.key === 'Enter' && void addQuickEntry(openMonth.key)}
-                    />
-                  </td>
-                  <td className={TD_NUM}>
-                    <Input
-                      type="number" step="0.25" min="0"
-                      placeholder="Hours"
-                      value={quickAdd.hours}
-                      onChange={(e) => setQuickAdd({ ...quickAdd, hours: e.target.value })}
-                      onKeyDown={(e) => e.key === 'Enter' && void addQuickEntry(openMonth.key)}
-                    />
-                  </td>
-                  <td className={TD}>
-                    <Input
-                      placeholder="Notes"
-                      value={quickAdd.notes}
-                      onChange={(e) => setQuickAdd({ ...quickAdd, notes: e.target.value })}
-                      onKeyDown={(e) => e.key === 'Enter' && void addQuickEntry(openMonth.key)}
-                    />
-                  </td>
-                  <td className={TD_NUM} />
-                  <td className={TD}>
-                    <div className="flex justify-end">
-                      <Button
-                        className="px-2 text-xs"
-                        disabled={busy || !quickAdd.date || !(Number(quickAdd.hours) > 0)}
-                        onClick={() => void addQuickEntry(openMonth.key)}
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <span>{hoursLabel(openMonth.entries.reduce((sum, e) => sum + e.hours, 0))}h logged</span>
-            <span className="font-mono tabular-nums font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {formatCurrency(
-                openMonth.entries.reduce((sum, e) => sum + e.hours * e.rateApplied, 0),
-                openMonth.entries[0]?.currency ?? project.currency,
-              )}
-            </span>
-          </div>
-
-          {openMonth.entries.some((e) => e.invoiceMilestoneId === null) && (
-            <ModalActions
-              onCancel={() => setOpenMonthKey(null)}
-              confirmLabel={`Create invoice for ${openMonth.label}`}
-              onConfirm={() => openInvoiceModalForMonth(openMonth.key)}
-            />
-          )}
-        </div>
+      <Modal title="Logged hours" onClose={() => setOpenMonthKey(null)} size="2xl">
+        <MonthSheet
+          project={project}
+          monthKey={openMonth.key}
+          entries={openMonth.entries}
+          rates={rates}
+          busy={busy}
+          onMonthChange={setOpenMonthKey}
+          onCreate={(input) => apply(() => createTimeEntry(project.id, input))}
+          onUpdate={(id, input) => apply(() => updateTimeEntry(project.id, id, input))}
+          onDelete={(id) => apply(() => deleteTimeEntry(project.id, id))}
+          onInvoice={openInvoiceModalForMonth}
+          onClose={() => setOpenMonthKey(null)}
+        />
       </Modal>
       )}
     </div>

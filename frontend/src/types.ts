@@ -110,6 +110,10 @@ export interface ProjectRate {
   currency: Currency
   effectiveFrom: string
   notes: string | null
+  /// Which kind of work this rate prices. Null is the project's standard rate; a
+  /// second category (e.g. "Contracted out") has its own rate history and prints as
+  /// its own line on an invoice that mixes categories.
+  category: string | null
 }
 
 export interface ProjectRateInput {
@@ -117,6 +121,7 @@ export interface ProjectRateInput {
   currency: Currency
   effectiveFrom: string
   notes?: string | null
+  category?: string | null
 }
 
 export interface TimeEntry {
@@ -128,6 +133,7 @@ export interface TimeEntry {
   notes: string | null
   rateApplied: number
   currency: Currency
+  category: string | null
   invoiceMilestoneId: number | null
   amount: number
 }
@@ -139,12 +145,14 @@ export interface TimeEntryInput {
   notes?: string | null
   rateApplied?: number
   currency?: Currency
+  category?: string | null
 }
 
 export interface GenerateEntriesRequest {
   from: string
   to: string
   hours?: number | null
+  category?: string | null
   notes?: string | null
 }
 

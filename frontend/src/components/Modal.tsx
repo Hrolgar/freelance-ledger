@@ -4,7 +4,7 @@ interface ModalProps {
   title: string
   onClose: () => void
   children: ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   nested?: boolean
 }
 
@@ -17,7 +17,7 @@ export function Modal({ title, onClose, children, size = 'md', nested }: ModalPr
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  const widths = { sm: 'lg:max-w-sm', md: 'lg:max-w-lg', lg: 'lg:max-w-2xl', xl: 'lg:max-w-3xl' }
+  const widths = { sm: 'lg:max-w-sm', md: 'lg:max-w-lg', lg: 'lg:max-w-2xl', xl: 'lg:max-w-3xl', '2xl': 'lg:max-w-5xl' }
 
   return (
     <div className={`fixed inset-0 flex items-stretch justify-center p-0 lg:items-center lg:p-4 ${nested ? 'z-[60]' : 'z-50'}`}>
