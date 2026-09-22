@@ -52,6 +52,15 @@ export default function Dashboard() {
     [projects],
   )
 
+  // "YTD" is up to and including the current month when the year is this one; the
+  // overview's twelve months include recurring costs projected into months to come.
+  const costsYtd = useMemo(() => {
+    if (!overview) return 0
+    const lastMonth = year === now.getFullYear() ? now.getMonth() + 1 : 12
+    return overview.months.filter((m) => m.month <= lastMonth).reduce((s, m) => s + m.costs, 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overview, year])
+
   const missingRates = useMemo(() => {
     const all = new Set<string>([...(overview?.missingRates ?? []), ...(pipeline?.missingRates ?? [])])
     return [...all].sort()
@@ -143,7 +152,7 @@ export default function Dashboard() {
             />
             <StatCard
               label="Costs YTD"
-              value={formatCurrency(overview.totalCosts, 'NOK')}
+              value={formatCurrency(costsYtd, 'NOK')}
               hint="recurring + one-time, excl. investments"
             />
             <StatCard

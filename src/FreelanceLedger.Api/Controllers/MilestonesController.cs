@@ -89,7 +89,10 @@ public class MilestonesController(LedgerDbContext db, ProjectFileStore files) : 
             return Problem(title: "Not Found", detail: $"Milestone {id} not found.", statusCode: 404);
 
         var project = await db.Projects.AsNoTracking().FirstAsync(p => p.Id == projectId);
-        if (updated.Currency != project.Currency)
+        // A row that already carries another currency (two EUR milestones sit on a USD
+        // project in prod) may keep it or move to the project's currency; it may not be
+        // moved to a third one.
+        if (updated.Currency != milestone.Currency && updated.Currency != project.Currency)
             return Problem(
                 title: "Currency Mismatch",
                 detail: $"This project is billed in {project.Currency}.",
@@ -152,7 +155,7 @@ public class MilestonesController(LedgerDbContext db, ProjectFileStore files) : 
         // paid date either.
         if (milestone.Status == MilestoneStatus.Paid && milestone.DatePaid is null)
             milestone.DatePaid = Clock.Today;
-        if (milestone.Status != MilestoneStatus.Paid && patch.Status.HasValue)
+        if (milestone.Status != MilestoneStatus.Paid)
             milestone.DatePaid = null;
 
         await db.SaveChangesAsync();
@@ -170,10 +173,14 @@ public class MilestonesController(LedgerDbContext db, ProjectFileStore files) : 
 
         // A generated invoice is a milestone, so this route could otherwise delete a
         // PAID invoice that the invoices route refuses to touch. Same rule both ways.
-        if (milestone.InvoiceNumber is not null && milestone.Status == MilestoneStatus.Paid)
+        // Same rule as the project route: paid money is history. Set it back to
+        // Pending first if it really was a mistake, then delete it.
+        if (milestone.Status == MilestoneStatus.Paid)
             return Problem(
-                title: "Invoice Paid",
-                detail: $"Milestone {id} is invoice {milestone.InvoiceNumber} and is marked paid. Change its status first if you really mean to remove it.",
+                title: "Milestone Paid",
+                detail: milestone.InvoiceNumber is null
+                    ? $"{milestone.Name} is marked paid. Set it back to Pending first if you really mean to remove it."
+                    : $"Invoice {milestone.InvoiceNumber} is marked paid. Change its status first if you really mean to remove it.",
                 statusCode: 409);
 
         // Raising an invoice files a PDF against the project. The invoices route removes

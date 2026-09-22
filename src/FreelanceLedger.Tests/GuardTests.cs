@@ -122,7 +122,7 @@ public class GuardTests : IDisposable
     }
 
     [Fact]
-    public async Task An_invoice_milestone_keeps_its_amount_and_a_paid_one_is_frozen()
+    public async Task An_invoice_milestone_keeps_its_amount_but_may_be_renamed_and_marked_paid()
     {
         var project = await AddProjectAsync();
         var invoice = new Milestone
@@ -160,6 +160,34 @@ public class GuardTests : IDisposable
 
         var unpaid = await ctl.Patch(milestone.Id, new MilestonePatchRequest(MilestoneStatus.Pending, null, null));
         Assert.Null(((Milestone)((OkObjectResult)unpaid).Value!).DatePaid);
+    }
+
+    [Fact]
+    public async Task A_paid_milestone_is_not_deleted_until_it_is_unpaid()
+    {
+        var project = await AddProjectAsync();
+        var milestone = new Milestone { ProjectId = project.Id, Name = "M1", Amount = 100, Currency = Currency.USD, Status = MilestoneStatus.Paid, DatePaid = Clock.Today };
+        Db.Milestones.Add(milestone);
+        await Db.SaveChangesAsync();
+
+        var ctl = new MilestonesController(Db, _fixture.Files);
+        Assert.Equal(409, StatusOf(await ctl.Delete(project.Id, milestone.Id)));
+        Assert.Equal(200, StatusOf(await ctl.Patch(milestone.Id, new MilestonePatchRequest(MilestoneStatus.Pending, null, null))));
+        Assert.Equal(204, StatusOf(await ctl.Delete(project.Id, milestone.Id)));
+    }
+
+    [Fact]
+    public async Task A_foreign_currency_milestone_can_still_be_renamed_but_not_moved_to_a_third_currency()
+    {
+        var project = await AddProjectAsync(Currency.USD);
+        var eur = new Milestone { ProjectId = project.Id, Name = "Old EUR row", Amount = 70, Currency = Currency.EUR, Status = MilestoneStatus.Paid, DatePaid = Clock.Today };
+        Db.Milestones.Add(eur);
+        await Db.SaveChangesAsync();
+
+        var ctl = new MilestonesController(Db, _fixture.Files);
+        Assert.Equal(200, StatusOf(await ctl.Update(project.Id, eur.Id, new Milestone { Name = "Renamed", Amount = 70, Currency = Currency.EUR, Status = MilestoneStatus.Paid, DatePaid = eur.DatePaid })));
+        Assert.Equal(400, StatusOf(await ctl.Update(project.Id, eur.Id, new Milestone { Name = "Renamed", Amount = 70, Currency = Currency.GBP, Status = MilestoneStatus.Paid })));
+        Assert.Equal(200, StatusOf(await ctl.Update(project.Id, eur.Id, new Milestone { Name = "Renamed", Amount = 70, Currency = Currency.USD, Status = MilestoneStatus.Paid })));
     }
 
     [Fact]

@@ -12,20 +12,26 @@ import type { ExchangeRate } from '../types'
 
 let cache: ExchangeRate[] | null = null
 let inflight: Promise<ExchangeRate[]> | null = null
+// Bumped by invalidateRates(); a response from an older generation is ignored so a
+// request that was already in flight cannot overwrite the fresher table.
+let generation = 0
 const listeners = new Set<() => void>()
 
 export function loadRates(): Promise<ExchangeRate[]> {
   if (cache) return Promise.resolve(cache)
   if (!inflight) {
+    const started = generation
     inflight = getExchangeRates()
       .then((data) => {
-        cache = data
-        inflight = null
-        listeners.forEach((l) => l())
+        if (started === generation) {
+          cache = data
+          inflight = null
+          listeners.forEach((l) => l())
+        }
         return data
       })
       .catch((err: unknown) => {
-        inflight = null
+        if (started === generation) inflight = null
         throw err
       })
   }
@@ -35,6 +41,7 @@ export function loadRates(): Promise<ExchangeRate[]> {
 /// Call after anything that writes rates (a fetch in Settings, an edit) so the
 /// tooltips and totals on every page pick the new figures up.
 export function invalidateRates(): void {
+  generation++
   cache = null
   inflight = null
   listeners.forEach((l) => l())

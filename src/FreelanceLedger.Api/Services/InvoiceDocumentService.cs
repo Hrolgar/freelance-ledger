@@ -216,7 +216,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             var invoicePeriodLabel = invoice.PeriodStart is { } rps
                 ? $"{lineLabel}, {MonthYearDate(rps)}"
                 : lineLabel;
-            sb.AppendLine($"| {invoicePeriodLabel} | {Cur(invoice.Amount)} |");
+            sb.AppendLine($"| {invoicePeriodLabel.Replace("|", "/")} | {Cur(invoice.Amount)} |");
         }
         else
         {
@@ -236,7 +236,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             foreach (var group in groups)
             {
                 var lines = group.ToList();
-                var description = mixedCategories && group.Key.Length > 0 ? Text(group.Key)! : lineLabel;
+                var description = mixedCategories && group.Key.Length > 0 ? Cell(group.Key) : lineLabel.Replace("|", "/");
                 var uniformRate = lines.Select(e => e.RateApplied).Distinct().Count() <= 1;
                 if (uniformRate)
                 {
@@ -252,7 +252,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
                     foreach (var e in lines)
                     {
                         var when = $"{ShortDate(e.PeriodStart)} {periodConnector} {ShortDateYear(e.PeriodEnd)}";
-                        var periodDescription = mixedCategories && group.Key.Length > 0 ? $"{Text(group.Key)}, {when}" : when;
+                        var periodDescription = mixedCategories && group.Key.Length > 0 ? $"{Cell(group.Key)}, {when}" : when;
                         sb.AppendLine(
                             $"| {periodDescription} | {Num(e.Hours)} | "
                             + $"{Cur(e.RateApplied)} | {Cur(e.Hours * e.RateApplied)} |");
@@ -299,7 +299,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
             var paymentNotes = isNo ? profile.PaymentNotesNorwegian : profile.PaymentNotes;
             if (!string.IsNullOrWhiteSpace(paymentNotes))
             {
-                sb.AppendLine(paymentNotes);
+                sb.AppendLine(Text(paymentNotes));
                 sb.AppendLine();
             }
             // Raw HTML, not a markdown table: markdown insists on a header row, and an
@@ -322,7 +322,7 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
         }
 
         if (!string.IsNullOrWhiteSpace(profile.IssuerEmail))
-            sb.AppendLine(string.Format(closingTemplate, profile.IssuerEmail));
+            sb.AppendLine(string.Format(closingTemplate, Text(profile.IssuerEmail)));
 
         // --- Cover page ---
         // The client label is the legal entity, first line of Bill to, because that is
@@ -385,6 +385,10 @@ public class InvoiceDocumentService(LedgerDbContext db, ILogger<InvoiceDocumentS
     /// Free text on its way into the markdown body: HTML-encoded so it is text and only
     /// text on the page. Null stays null so the "is there anything to print" checks work.
     private static string? Text(string? value) => value is null ? null : System.Net.WebUtility.HtmlEncode(value);
+
+    /// A table cell: escaped like Text, and a pipe becomes a slash so a category or
+    /// label with "|" in it cannot split the row.
+    private static string Cell(string value) => Text(value)!.Replace("|", "/");
 
     /// First value that is neither null nor whitespace, trimmed. Null when there is none.
     private static string? FirstNonBlank(params string?[] values) =>

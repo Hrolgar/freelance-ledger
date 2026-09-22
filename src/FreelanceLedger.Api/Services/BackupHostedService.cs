@@ -52,12 +52,22 @@ public class BackupHostedService(
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
         var destPath = Path.Combine(backupRoot, $"ledger-{stamp}-{reason}.db");
 
+        // Pooling=False: Microsoft.Data.Sqlite keeps a pooled handle open after Dispose,
+        // which would leave -wal/-shm files next to the copy and keep the premigrate copy
+        // open while the migration runs. journal_mode=DELETE folds everything into the
+        // one file, so a backup is one file to copy, always.
         using (var source = new SqliteConnection(connectionString))
-        using (var dest = new SqliteConnection($"Data Source={destPath}"))
+        using (var dest = new SqliteConnection($"Data Source={destPath};Pooling=False"))
         {
             source.Open();
             dest.Open();
             source.BackupDatabase(dest);
+
+            using (var journal = dest.CreateCommand())
+            {
+                journal.CommandText = "PRAGMA journal_mode=DELETE;";
+                journal.ExecuteNonQuery();
+            }
 
             using var check = dest.CreateCommand();
             check.CommandText = "PRAGMA integrity_check;";

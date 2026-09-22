@@ -21,7 +21,8 @@ interface ModalProps {
 /// it and dropped the draft.
 const stack: symbol[] = []
 
-const FOCUSABLE = 'input:not([type=hidden]), select, textarea, button:not([data-modal-close]), a[href], [tabindex]:not([tabindex="-1"])'
+const FOCUSABLE = 'input:not([type=hidden]), select, textarea, button, a[href], [tabindex]:not([tabindex="-1"])'
+const FIRST_FIELD = 'input:not([type=hidden]), select, textarea, button:not([data-modal-close]), a[href], [tabindex]:not([tabindex="-1"])'
 
 export function Modal({ title, onClose, children, size = 'md', nested, tall, error }: ModalProps) {
   const id = useRef(Symbol('modal')).current
@@ -43,7 +44,7 @@ export function Modal({ title, onClose, children, size = 'md', nested, tall, err
     document.body.style.overflow = 'hidden'
 
     // Focus the first field so typing can start at once, and Tab stays inside.
-    const first = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE)
+    const first = panelRef.current?.querySelector<HTMLElement>(FIRST_FIELD)
     first?.focus()
 
     const handler = (e: KeyboardEvent) => {

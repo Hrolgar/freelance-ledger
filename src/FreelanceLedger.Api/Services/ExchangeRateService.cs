@@ -21,6 +21,12 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http, ILogger<Ex
     private static readonly ConcurrentDictionary<string, DateTime> _failedFetches = new();
     private static readonly TimeSpan FailureCooldown = TimeSpan.FromMinutes(30);
 
+    // Months fetched successfully but still short of the full set (the provider had no
+    // figure for one currency, or a rate was deleted by hand). Without this every report
+    // re-fetched such a month on every load. "3-2026" -> when it was last fetched.
+    private static readonly ConcurrentDictionary<string, DateTime> _partialFetches = new();
+    private static readonly TimeSpan PartialCooldown = TimeSpan.FromHours(24);
+
     private static string Key(Currency currency, int month, int year) => $"{currency}-{month}-{year}";
 
     /// <summary>
@@ -122,11 +128,15 @@ public class ExchangeRateService(LedgerDbContext db, HttpClient http, ILogger<Ex
         var failKey = $"{month}-{year}";
         if (_failedFetches.TryGetValue(failKey, out var failedAt) && DateTime.UtcNow - failedAt < FailureCooldown)
             return false;
+        if (count > 0 && !isCurrentMonth
+            && _partialFetches.TryGetValue(failKey, out var partialAt) && DateTime.UtcNow - partialAt < PartialCooldown)
+            return false;
 
         var ok = await FetchAndStoreRates(month, year);
         if (ok)
         {
             _failedFetches.TryRemove(failKey, out _);
+            _partialFetches[failKey] = DateTime.UtcNow;
             // Stamp the throttle on success only: a failed fetch used to be treated as
             // "done for 24 hours", so one outage hid today's rate for a day.
             if (isCurrentMonth)

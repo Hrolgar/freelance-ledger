@@ -102,6 +102,7 @@ export default function Projects() {
     try {
       const created = await createClient(newClient)
       setClients(prev => [...prev, created])
+      setError(null)
       setDraft(d => ({ ...d, clientId: created.id, clientName: created.name }))
       setShowNewClient(false)
       setNewClient(emptyNewClient)

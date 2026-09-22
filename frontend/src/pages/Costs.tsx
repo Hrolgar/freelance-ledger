@@ -187,7 +187,9 @@ export default function Costs() {
       setCosts(costData)
       setInvestments(investmentData)
       setRates(ratesData)
-      setYtdCostsOnlyNok(overview.totalCosts)
+      // Up to and including this month: the overview carries all twelve, and a
+      // recurring NOK cost projects into the months still to come.
+      setYtdCostsOnlyNok(overview.months.filter((m) => m.month <= currentMonth).reduce((s, m) => s + m.costs, 0))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to load costs.')
     }

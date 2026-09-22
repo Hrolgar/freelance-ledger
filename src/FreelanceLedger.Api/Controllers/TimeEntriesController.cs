@@ -267,6 +267,14 @@ public class TimeEntriesController(LedgerDbContext db, RateResolutionService rat
                 detail: "periodEnd is before periodStart.",
                 statusCode: 400);
 
+        // An explicit rate must still be in the project's currency: the invoice takes its
+        // currency from the entries, and a stray one would raise a foreign invoice.
+        if (entry.RateApplied > 0 && entry.Currency != project.Currency)
+            return Problem(
+                title: "Currency Mismatch",
+                detail: $"This project is billed in {project.Currency}; logged hours must be too.",
+                statusCode: 400);
+
         if (entry.RateApplied <= 0)
         {
             var rate = await rates.ResolveAsync(project.Id, entry.PeriodStart, entry.Category);

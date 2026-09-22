@@ -220,6 +220,7 @@ export default function ProjectDetail() {
     setSavingProject(true)
     try {
       await updateProject(projectId, projectDraft)
+      draftLoadedFor.current = null
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to save project.')
@@ -399,6 +400,7 @@ export default function ProjectDetail() {
         status: 'Paid',
         dateCompleted: project.dateCompleted ?? todayIso(),
       })
+      draftLoadedFor.current = null
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Failed to update status.')
@@ -682,7 +684,7 @@ export default function ProjectDetail() {
           Fixed-price projects never see this, and their milestone flow is untouched. */}
       {(project.billingType === 'Hourly' || project.billingType === 'Retainer') && (
         <>
-          <InvoicingCard project={project} onSaved={() => void load()} />
+          <InvoicingCard project={project} onSaved={() => { draftLoadedFor.current = null; void load() }} />
           {project.billingType === 'Hourly'
             ? <HourlyPanel project={project} onChanged={() => void load()} />
             : <RetainerPanel project={project} onChanged={() => void load()} />}
