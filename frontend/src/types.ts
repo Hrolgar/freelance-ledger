@@ -1,5 +1,5 @@
 export type Currency = 'GBP' | 'USD' | 'EUR' | 'CAD' | 'INR' | 'NOK'
-export type ProjectStatus = 'Quoted' | 'Awarded' | 'InProgress' | 'Completed' | 'Paid' | 'OnHold'
+export type ProjectStatus = 'Quoted' | 'Awarded' | 'InProgress' | 'Completed' | 'Paid' | 'OnHold' | 'Archived'
 export type MilestoneStatus = 'Pending' | 'Funded' | 'Released' | 'Paid' | 'Disputed'
 export type CostCategory = 'Software' | 'Hardware' | 'Internet' | 'Office' | 'Other' | 'Marketing'
 export type InvestmentCategory = 'Hardware' | 'Education' | 'Certification' | 'Equipment' | 'Other'
@@ -25,6 +25,8 @@ export interface Client {
   upworkId: string | null
   notes: string | null
   aliases: string | null
+  /// Hidden from the client list and the project form's picker; nothing deleted.
+  isArchived: boolean
   projects: Project[]
 }
 
@@ -389,7 +391,7 @@ export const CURRENCIES: Currency[] = ['GBP', 'USD', 'EUR', 'CAD', 'INR', 'NOK']
 /// The only three that mean anything on a retainer: it is running, on hold, or it
 /// has stopped. Same stored values as everywhere else -- see projectStatusLabel for
 /// the wording.
-export const RETAINER_STATUSES: ProjectStatus[] = ['InProgress', 'OnHold', 'Completed']
+export const RETAINER_STATUSES: ProjectStatus[] = ['InProgress', 'OnHold', 'Completed', 'Archived']
 
 export const PROJECT_STATUSES: ProjectStatus[] = [
   'Quoted',
@@ -398,6 +400,7 @@ export const PROJECT_STATUSES: ProjectStatus[] = [
   'Completed',
   'Paid',
   'OnHold',
+  'Archived',
 ]
 export const MILESTONE_STATUSES: MilestoneStatus[] = [
   'Pending',

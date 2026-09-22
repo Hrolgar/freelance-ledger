@@ -1,5 +1,6 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { UpdateBanner } from './components/UpdateBanner'
 import { useMyTimezone } from './lib/useMyTimezone'
 import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
@@ -209,6 +210,7 @@ function AppShell() {
       </aside>
 
       <div className="min-w-0 flex-1">
+        <UpdateBanner />
         <main className="mx-auto max-w-[1280px] px-4 py-6 lg:px-12 lg:py-10">
           <Outlet />
         </main>

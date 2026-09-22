@@ -29,6 +29,7 @@ import {
 import { formatCurrency, getRateForMonth } from '../lib/format'
 import { useMainCurrency } from '../lib/useMainCurrency'
 import type {
+  CostCategory,
   Cost,
   CostInput,
   Currency,
@@ -198,36 +199,49 @@ export default function Costs() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- load() clears the error before it fetches; that is the intent
   useEffect(() => { void load() }, [])
 
-  const activeRecurring = useMemo(() => costs.filter(isCurrentlyActive), [costs])
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<'All' | CostCategory>('All')
+  const q = search.trim().toLowerCase()
+  // The lists below are what the filter applies to. The KPI cards stay on the full set;
+  // a filter narrows what you read, not what the month cost.
+  const matches = (c: { description: string; category: string; notes?: string | null }) =>
+    (categoryFilter === 'All' || c.category === categoryFilter)
+    && (!q || c.description.toLowerCase().includes(q) || (c.notes ?? '').toLowerCase().includes(q))
+
+  const activeRecurringAll = useMemo(() => costs.filter(isCurrentlyActive), [costs])
+  const activeRecurring = activeRecurringAll.filter(matches)
 
   // KPI 1: active monthly burn in NOK
   const activeBurnNok = useMemo(
-    () => activeRecurring.reduce((s, c) => {
+    () => activeRecurringAll.reduce((s, c) => {
       const rate = getRateForMonth(rates, c.currency as Currency, currentMonth, currentYear)
       return s + (rate !== null ? c.amount * rate : 0)
     }, 0),
-    [activeRecurring, rates],
+    [activeRecurringAll, rates],
   )
 
-  const thisMonthRecurring = useMemo(() => costs.filter((c) => activeForMonth(c, month, year)), [costs, month, year])
-  const thisMonthOneTime = useMemo(
+  const thisMonthRecurringAll = useMemo(() => costs.filter((c) => activeForMonth(c, month, year)), [costs, month, year])
+  const thisMonthOneTimeAll = useMemo(
     () => costs.filter((c) => !c.recurring && c.month === month && c.year === year),
     [costs, month, year],
   )
-  const thisMonthInvestments = useMemo(
+  const thisMonthInvestmentsAll = useMemo(
     () => investments.filter((i) => i.month === month && i.year === year),
     [investments, month, year],
   )
+  const thisMonthRecurring = thisMonthRecurringAll.filter(matches)
+  const thisMonthOneTime = thisMonthOneTimeAll.filter(matches)
+  const thisMonthInvestments = thisMonthInvestmentsAll.filter(matches)
 
   // KPI 2: this month's spend in NOK
   const thisMonthNok = useMemo(() => {
-    const costNok = [...thisMonthRecurring, ...thisMonthOneTime].reduce((s, c) => {
+    const costNok = [...thisMonthRecurringAll, ...thisMonthOneTimeAll].reduce((s, c) => {
       const rate = getRateForMonth(rates, c.currency as Currency, month, year)
       return s + (rate !== null ? c.amount * rate : 0)
     }, 0)
-    const invNok = thisMonthInvestments.reduce((s, i) => s + i.amount * i.nokRate, 0)
+    const invNok = thisMonthInvestmentsAll.reduce((s, i) => s + i.amount * i.nokRate, 0)
     return costNok + invNok
-  }, [thisMonthRecurring, thisMonthOneTime, thisMonthInvestments, rates, month, year])
+  }, [thisMonthRecurringAll, thisMonthOneTimeAll, thisMonthInvestmentsAll, rates, month, year])
 
   const ytdInvestmentsNok = useMemo(
     () => investments
@@ -237,18 +251,11 @@ export default function Costs() {
   )
   const ytdTotalNok = ytdCostsOnlyNok + ytdInvestmentsNok
 
-  const archivedRecurring = useMemo(
-    () => costs.filter((c) => c.recurring && c.endMonth && c.endYear && c.endYear * 12 + c.endMonth < currentYear * 12 + currentMonth),
-    [costs],
-  )
-  const archivedOneTime = useMemo(
-    () => costs.filter((c) => !c.recurring && c.year * 12 + c.month < threeMonthsAgo),
-    [costs],
-  )
-  const archivedInvestments = useMemo(
-    () => investments.filter((i) => i.year * 12 + i.month < threeMonthsAgo),
-    [investments],
-  )
+  const archivedRecurring = costs
+    .filter((c) => c.recurring && c.endMonth && c.endYear && c.endYear * 12 + c.endMonth < currentYear * 12 + currentMonth)
+    .filter(matches)
+  const archivedOneTime = costs.filter((c) => !c.recurring && c.year * 12 + c.month < threeMonthsAgo).filter(matches)
+  const archivedInvestments = investments.filter((i) => i.year * 12 + i.month < threeMonthsAgo).filter(matches)
   const totalArchived = archivedRecurring.length + archivedOneTime.length + archivedInvestments.length
 
   const prev = () => {
@@ -423,6 +430,24 @@ export default function Costs() {
         }
       />
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="search"
+          aria-label="Search costs"
+          placeholder="Search description or notes..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-64"
+        />
+        <Select aria-label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as 'All' | CostCategory)} className="w-36">
+          <option value="All">All categories</option>
+          {COST_CATEGORIES_UI.map((c) => <option key={c} value={c}>{c}</option>)}
+        </Select>
+        {(search || categoryFilter !== 'All') && (
+          <Button variant="ghost" className="text-xs" onClick={() => { setSearch(''); setCategoryFilter('All') }}>Clear</Button>
+        )}
+      </div>
+
       {error && <ErrorState message={error} onRetry={() => void load()} />}
 
       {/* KPI strip */}
@@ -430,7 +455,7 @@ export default function Costs() {
         <StatCard
           label="Active monthly burn"
           value={formatCurrency(activeBurnNok, 'NOK')}
-          hint={`${activeRecurring.length} subscription${activeRecurring.length !== 1 ? 's' : ''}`}
+          hint={`${activeRecurringAll.length} subscription${activeRecurringAll.length !== 1 ? 's' : ''}`}
         />
         <StatCard
           label="This month's spend"
@@ -444,7 +469,7 @@ export default function Costs() {
         />
         <StatCard
           label="Active subscriptions"
-          value={activeRecurring.length}
+          value={activeRecurringAll.length}
           hint="currently billing"
         />
       </div>

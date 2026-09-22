@@ -65,6 +65,7 @@ public class ClientsController(LedgerDbContext db) : ControllerBase
         client.UpworkId = updated.UpworkId;
         client.Notes = updated.Notes;
         client.Aliases = updated.Aliases;
+        client.IsArchived = updated.IsArchived;
 
         await db.SaveChangesAsync();
         return Ok(client);

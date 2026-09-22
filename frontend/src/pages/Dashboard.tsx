@@ -43,7 +43,7 @@ export default function Dashboard() {
   const openTerm = year === now.getFullYear() ? Math.ceil((now.getMonth() + 1) / 2) : null
 
   const recentProjects = useMemo(
-    () => [...projects].sort((a, b) => b.id - a.id).slice(0, 5),
+    () => projects.filter((p) => p.status !== 'Archived').sort((a, b) => b.id - a.id).slice(0, 5),
     [projects],
   )
 

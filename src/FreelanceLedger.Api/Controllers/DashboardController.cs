@@ -109,7 +109,7 @@ public class DashboardController(LedgerDbContext db, ExchangeRateService rateSer
             .AsNoTracking()
             .Include(p => p.Milestones)
             .Include(p => p.Tips)
-            .Where(p => p.Status != ProjectStatus.Paid && p.Status != ProjectStatus.OnHold)
+            .Where(p => p.Status != ProjectStatus.Paid && p.Status != ProjectStatus.OnHold && p.Status != ProjectStatus.Archived)
             .ToListAsync();
 
         var onHoldProjects = await db.Projects

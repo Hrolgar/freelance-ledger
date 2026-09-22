@@ -17,7 +17,11 @@ public enum ProjectStatus
     InProgress,
     Completed,
     Paid,
-    OnHold
+    OnHold,
+    /// Out of the lists and the pipeline, nothing deleted. The stored integer is 6 and
+    /// MUST stay last: earlier values are on disk. Revenue from its paid milestones
+    /// still counts in the year it was paid.
+    Archived
 }
 
 public enum BillingType

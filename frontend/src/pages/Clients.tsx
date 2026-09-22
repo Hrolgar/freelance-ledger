@@ -46,7 +46,7 @@ function ClientClock({ timezone }: { timezone: string }) {
 
 const emptyClient: ClientInput = {
   name: '', email: null, phone: null, country: null, timezone: null,
-  freelancerId: null, upworkId: null, notes: null, aliases: null,
+  freelancerId: null, upworkId: null, notes: null, aliases: null, isArchived: false,
 }
 
 function ClientList() {
@@ -55,6 +55,8 @@ function ClientList() {
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [draft, setDraft] = useState<ClientInput>(emptyClient)
+  const [yearFilter, setYearFilter] = useState<'All' | number>('All')
+  const [showArchived, setShowArchived] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -126,21 +128,44 @@ function ClientList() {
         </Modal>
       )}
 
+      {(() => {
+        const years = [...new Set(clients.flatMap((c) => c.projects.flatMap((p) => [p.dateAwarded?.slice(0, 4), ...p.milestones.map((m) => m.datePaid?.slice(0, 4))])).filter((y): y is string => !!y))]
+          .map(Number).sort((a, b) => b - a)
+        const archivedCount = clients.filter((c) => c.isArchived).length
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            <Select aria-label="Year" value={yearFilter} onChange={(e) => setYearFilter(e.target.value === 'All' ? 'All' : Number(e.target.value))} className="w-32">
+              <option value="All">All years</option>
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+            </Select>
+            {archivedCount > 0 && (
+              <Button variant="ghost" className="text-xs" onClick={() => setShowArchived((v) => !v)}>
+                {showArchived ? 'Hide archived' : `Show ${archivedCount} archived`}
+              </Button>
+            )}
+          </div>
+        )
+      })()}
+
       {loading ? (
         <div className="text-sm text-[var(--text-tertiary)]">Loading...</div>
       ) : clients.length === 0 ? (
         <EmptyState title="No clients yet" description="Add a client to start tracking." />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {clients.map((client) => {
+          {clients.filter((c) => showArchived || !c.isArchived).map((client) => {
             // Per currency, tips included: one figure across a USD and a NOK project was
             // meaningless, and the detail page counts tips while this card did not.
+            // With a year chosen, "paid" is what was paid IN that year and the project
+            // count is what was awarded in it.
+            const inYear = (d: string | null | undefined) => yearFilter === 'All' || !!d?.startsWith(String(yearFilter))
             const paidByCurrency = new Map<Currency, number>()
             for (const p of client.projects) {
-              const paid = p.milestones.filter(m => m.status === 'Paid').reduce((s, m) => s + m.amount, 0)
-                + p.tips.reduce((s, t) => s + t.amount, 0)
+              const paid = p.milestones.filter(m => m.status === 'Paid' && inYear(m.datePaid)).reduce((s, m) => s + m.amount, 0)
+                + p.tips.filter((t) => inYear(t.date)).reduce((s, t) => s + t.amount, 0)
               if (paid > 0) paidByCurrency.set(p.currency, (paidByCurrency.get(p.currency) ?? 0) + paid)
             }
+            const projectCount = client.projects.filter((p) => inYear(p.dateAwarded)).length
             return (
               <Link key={client.id} to={`/clients/${client.id}`} className="group">
                 <AppCard className="h-full p-4 transition-colors hover:border-[var(--accent)]">
@@ -161,7 +186,8 @@ function ClientList() {
                     )}
                   </div>
                   <p className="mt-2 text-xs text-[var(--text-tertiary)]">
-                    {client.projects.length} project{client.projects.length !== 1 ? 's' : ''}
+                    {client.isArchived && <span className="mr-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ border: '1px solid var(--border-default)' }}>Archived</span>}
+                    {projectCount} project{projectCount !== 1 ? 's' : ''}{yearFilter !== 'All' ? ` in ${yearFilter}` : ''}
                     {client.freelancerId && ' · Freelancer'}
                     {client.upworkId && ' · Upwork'}
                   </p>
@@ -199,7 +225,7 @@ function ClientDetail() {
       setDraft({
         name: c.name, email: c.email, phone: c.phone, country: c.country,
         timezone: c.timezone, freelancerId: c.freelancerId, upworkId: c.upworkId,
-        notes: c.notes, aliases: c.aliases,
+        notes: c.notes, aliases: c.aliases, isArchived: c.isArchived,
       })
     } catch (e) { setError(e instanceof Error ? e.message : 'Not found.') }
     finally { setLoading(false) }
@@ -293,6 +319,12 @@ function ClientDetail() {
             </Field>
             <Field label="Notes">
               <Textarea value={draft.notes ?? ''} onChange={(e) => setDraft(d => ({ ...d, notes: e.target.value || null }))} />
+            </Field>
+            <Field label="Archived" hint="Hidden from the client list and the project form. Nothing is deleted.">
+              <label className="flex min-h-9 items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                <input type="checkbox" checked={draft.isArchived} onChange={(e) => setDraft(d => ({ ...d, isArchived: e.target.checked }))} className="h-4 w-4 accent-[var(--accent)]" />
+                Archive this client
+              </label>
             </Field>
             <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 sm:col-span-2 lg:static lg:col-span-3 lg:mx-0 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
               <Button type="button" variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>

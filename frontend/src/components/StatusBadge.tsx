@@ -8,6 +8,7 @@ const PROJECT_STATUS_DOT: Record<ProjectStatus, string> = {
   Completed: 'bg-[var(--paid)]',
   Paid: 'bg-[var(--paid)]',
   OnHold: 'bg-[var(--border-default)]',
+  Archived: 'bg-[var(--border-faint)]',
 }
 
 const MILESTONE_STATUS_DOT: Record<MilestoneStatus, string> = {
@@ -23,6 +24,7 @@ const MILESTONE_STATUS_DOT: Record<MilestoneStatus, string> = {
 /// auto-raise sweep and the pipeline exclusion server-side -- only the wording differs.
 export function projectStatusLabel(status: ProjectStatus, billingType?: BillingType): string {
   if (status === 'OnHold') return 'On hold'
+  if (status === 'Archived') return 'Archived'
   if (billingType === 'Retainer') {
     if (status === 'InProgress') return 'Active'
     if (status === 'Completed') return 'Ended'

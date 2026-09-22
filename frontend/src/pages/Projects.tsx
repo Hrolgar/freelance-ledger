@@ -39,7 +39,7 @@ const emptyProject: ProjectInput = {
 
 const emptyNewClient: ClientInput = {
   name: '', email: null, phone: null, country: null, timezone: null,
-  freelancerId: null, upworkId: null, notes: null, aliases: null,
+  freelancerId: null, upworkId: null, notes: null, aliases: null, isArchived: false,
 }
 
 export default function Projects() {
@@ -58,6 +58,7 @@ export default function Projects() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'All' | Project['status']>('All')
   const [currencyFilter, setCurrencyFilter] = useState<'All' | Project['currency']>('All')
+  const [yearFilter, setYearFilter] = useState<'All' | number>('All')
 
   const load = async () => {
     setLoading(true)
@@ -111,18 +112,26 @@ export default function Projects() {
     }
   }
 
+  // Years with anything awarded, newest first, for the year filter.
+  const years = useMemo(
+    () => [...new Set(projects.map((p) => p.dateAwarded?.slice(0, 4)).filter((y): y is string => !!y))].map(Number).sort((a, b) => b - a),
+    [projects],
+  )
+
   const filteredProjects = useMemo(() => {
     const q = search.trim().toLowerCase()
     return projects
-      .filter(p => statusFilter === 'All' || p.status === statusFilter)
+      // "All statuses" means everything still in play; archived only when asked for.
+      .filter(p => statusFilter === 'All' ? p.status !== 'Archived' : p.status === statusFilter)
       .filter(p => currencyFilter === 'All' || p.currency === currencyFilter)
+      .filter(p => yearFilter === 'All' || p.dateAwarded?.startsWith(String(yearFilter)))
       .filter(p => {
         if (!q) return true
         const clientName = (p.client?.name ?? p.clientName).toLowerCase()
         return p.projectName.toLowerCase().includes(q) || clientName.includes(q)
       })
       .sort((a, b) => b.id - a.id)
-  }, [projects, search, statusFilter, currencyFilter])
+  }, [projects, search, statusFilter, currencyFilter, yearFilter])
 
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -224,14 +233,23 @@ export default function Projects() {
             <option value="All">All cur</option>
             {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
           </Select>
+          <Select
+            aria-label="Year awarded"
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value === 'All' ? 'All' : Number(e.target.value))}
+            className="w-28"
+          >
+            <option value="All">All years</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </Select>
           <span className="ml-auto text-xs text-[var(--text-tertiary)]">
             Showing {filteredProjects.length} of {projects.length}
           </span>
-          {(search || statusFilter !== 'All' || currencyFilter !== 'All') && (
+          {(search || statusFilter !== 'All' || currencyFilter !== 'All' || yearFilter !== 'All') && (
             <Button
               variant="ghost"
               className="text-xs"
-              onClick={() => { setSearch(''); setStatusFilter('All'); setCurrencyFilter('All') }}
+              onClick={() => { setSearch(''); setStatusFilter('All'); setCurrencyFilter('All'); setYearFilter('All') }}
             >
               Clear
             </Button>
@@ -380,7 +398,7 @@ export default function Projects() {
                 <div className="flex gap-1.5">
                   <Select value={draft.clientId ?? ''} onChange={(e) => { const id = Number(e.target.value); const cl = clients.find(c => c.id === id); setDraft(d => ({ ...d, clientId: id || null, clientName: cl?.name ?? '' })) }} required className="flex-1">
                     <option value="">Select client...</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {clients.filter((c) => !c.isArchived || c.id === draft.clientId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </Select>
                   <Button type="button" variant="secondary" className="shrink-0 px-2.5" onClick={() => setShowNewClient(true)}>+</Button>
                 </div>
