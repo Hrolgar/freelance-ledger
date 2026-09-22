@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Button, cx } from './ui'
 import { formatCurrency, formatDate, hoursLabel, todayIso } from '../lib/format'
 import type { Project, ProjectRate, TimeEntry, TimeEntryInput } from '../types'
@@ -80,6 +80,62 @@ const CELL_NUM = `${CELL} text-right font-mono tabular-nums`
 const HEAD = 'px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]'
 const TEXT = 'flex h-10 items-center px-2.5 text-sm'
 
+const CELL_AREA =
+  'block w-full min-w-0 resize-none rounded-md border border-transparent bg-transparent px-2.5 py-2.5 text-sm leading-5 text-[var(--text-primary)] transition-colors hover:border-[var(--border-faint)] focus:border-[var(--accent)] focus:bg-[var(--bg-base)] focus:outline-none'
+
+/// Notes read as one line until the cell has focus, then grow to fit the whole
+/// note and shrink back on blur. Enter still saves the row (Shift+Enter for a new
+/// line inside the note). Hoisted out of the sheet so it keeps its identity, and
+/// its focus, across the sheet's re-renders.
+function NotesCell({
+  value,
+  placeholder,
+  ariaLabel,
+  className,
+  onChange,
+  onKeyDown,
+}: {
+  value: string
+  placeholder?: string
+  ariaLabel: string
+  className?: string
+  onChange: (value: string) => void
+  onKeyDown?: (e: KeyboardEvent) => void
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    if (!open) {
+      el.style.height = ''
+      return
+    }
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [open, value])
+
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      wrap={open ? 'soft' : 'off'}
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      className={cx(CELL_AREA, open ? 'whitespace-pre-wrap' : 'overflow-hidden whitespace-pre', className)}
+      value={value}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && e.shiftKey) return
+        onKeyDown?.(e)
+      }}
+    />
+  )
+}
+
 export function MonthSheet({
   project,
   monthKey,
@@ -111,6 +167,7 @@ export function MonthSheet({
   const typeOptions = ['', ...categories]
 
   const [drafts, setDrafts] = useState<Record<number, RowDraft>>({})
+  const [openBilledNotes, setOpenBilledNotes] = useState<Set<number>>(new Set())
   const [adding, setAdding] = useState(() => ({
     date: defaultAddDate(monthKey, entries),
     category: '',
@@ -242,7 +299,7 @@ export function MonthSheet({
     : 'lg:grid-cols-[10.5rem_5.5rem_minmax(0,1fr)_8rem_4.5rem]'
   // Phone: line one is date | hours | amount | actions, line two is type | notes,
   // placed with `order` so the DOM (and tab order) stays date, type, hours, notes.
-  const ROW = `grid grid-cols-[minmax(0,1fr)_4.5rem_6rem_3rem] items-center gap-x-2 gap-y-1 px-3 py-2 lg:gap-y-0 lg:py-1.5 ${gridCols}`
+  const ROW = `grid grid-cols-[minmax(0,1fr)_4.5rem_6rem_3rem] items-start gap-x-2 gap-y-1 px-3 py-2 lg:gap-y-0 lg:py-1.5 ${gridCols}`
   const O_DATE = 'order-1 lg:order-none'
   const O_TYPE = 'order-5 lg:order-none'
   const O_HOURS = 'order-2 lg:order-none'
@@ -342,9 +399,16 @@ export function MonthSheet({
                 <div className={cx(TEXT, O_DATE)}>{isRange ? `${formatDate(entry.periodStart)} to ${formatDate(entry.periodEnd)}` : formatDate(entry.periodStart)}</div>
                 {hasTypes && <div className={cx(TEXT, O_TYPE)}>{categoryLabel(entry.category)}</div>}
                 <div className={cx(TEXT, O_HOURS, 'justify-end font-mono tabular-nums')}>{hoursLabel(entry.hours)}</div>
-                <div className={cx(TEXT, O_NOTES, 'truncate text-xs')} style={{ color: 'var(--text-tertiary)' }}>{entry.notes ?? ''}</div>
+                <div
+                  className={cx(O_NOTES, 'min-h-10 px-2.5 py-2.5 text-xs leading-5', openBilledNotes.has(entry.id) ? 'whitespace-pre-wrap' : 'cursor-pointer truncate')}
+                  style={{ color: 'var(--text-tertiary)' }}
+                  title={openBilledNotes.has(entry.id) ? undefined : 'Click to read the whole note'}
+                  onClick={() => setOpenBilledNotes((s) => { const n = new Set(s); if (n.has(entry.id)) n.delete(entry.id); else n.add(entry.id); return n })}
+                >
+                  {entry.notes ?? ''}
+                </div>
                 {amountCell(formatCurrency(entry.hours * entry.rateApplied, entry.currency), 'muted')}
-                <div className={cx(O_ACTIONS, 'flex justify-end pr-1')}>
+                <div className={cx(O_ACTIONS, 'flex h-10 items-center justify-end pr-1')}>
                   <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-tertiary)' }}>Billed</span>
                 </div>
               </div>
@@ -378,13 +442,13 @@ export function MonthSheet({
               )}
               <input type="text" inputMode="decimal" aria-label="Hours" className={cx(CELL_NUM, O_HOURS)} value={view.hours}
                 onChange={(e) => setDraft(entry.id, { hours: e.target.value }, entry)} onKeyDown={rowKeys(entry)} />
-              <input aria-label="Notes" placeholder="Notes" className={cx(CELL, O_NOTES)} value={view.notes}
-                onChange={(e) => setDraft(entry.id, { notes: e.target.value }, entry)} onKeyDown={rowKeys(entry)} />
+              <NotesCell ariaLabel="Notes" placeholder="Notes" className={O_NOTES} value={view.notes}
+                onChange={(v) => setDraft(entry.id, { notes: v }, entry)} onKeyDown={rowKeys(entry)} />
               {amountCell(
                 previewAmount === null ? 'no rate' : formatCurrency(previewAmount, previewRate?.currency ?? entry.currency),
                 dirty ? 'draft' : 'normal',
               )}
-              <div className={cx(O_ACTIONS, 'flex items-center justify-end gap-0.5')}>
+              <div className={cx(O_ACTIONS, 'flex h-10 items-center justify-end gap-0.5')}>
                 {dirty && !draft?.saving && (
                   <button type="button" className="rounded px-1.5 text-xs" style={{ color: 'var(--text-tertiary)' }} title="Discard changes (Esc)" onMouseDown={(e) => e.preventDefault()} onClick={() => revert(entry.id)}>
                     undo
@@ -427,9 +491,9 @@ export function MonthSheet({
             type="text" inputMode="decimal" aria-label="Hours to add" placeholder="Hours" className={cx(CELL_NUM, O_HOURS)}
             value={adding.hours} onChange={(e) => setAdding({ ...adding, hours: e.target.value })} onKeyDown={addKeys}
           />
-          <input
-            aria-label="Notes for the new day" placeholder="What was done" className={cx(CELL, O_NOTES)}
-            value={adding.notes} onChange={(e) => setAdding({ ...adding, notes: e.target.value })} onKeyDown={addKeys}
+          <NotesCell
+            ariaLabel="Notes for the new day" placeholder="What was done" className={O_NOTES}
+            value={adding.notes} onChange={(v) => setAdding({ ...adding, notes: v })} onKeyDown={addKeys}
           />
           {amountCell(
             (() => {
@@ -439,7 +503,7 @@ export function MonthSheet({
             })(),
             'muted',
           )}
-          <div className={cx(O_ACTIONS, 'flex justify-end')}>
+          <div className={cx(O_ACTIONS, 'flex h-10 items-center justify-end')}>
             <Button className="min-h-8 px-2 text-xs" disabled={addingBusy || !adding.date || !(parseHours(adding.hours) > 0)} onClick={() => void add()}>
               {addingBusy ? '…' : 'Add'}
             </Button>
@@ -451,7 +515,7 @@ export function MonthSheet({
       </div>
 
       <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-        Rows save when you leave them or press Enter. Esc puts a row back. Enter on the last line adds the day and moves the date on.
+        Rows save when you leave them or press Enter. Esc puts a row back. Enter on the last line adds the day and moves the date on. Shift+Enter for a new line in a note.
       </p>
 
       {/* --- Footer: per-type split, then the actions. Sticky, like ModalActions, so
