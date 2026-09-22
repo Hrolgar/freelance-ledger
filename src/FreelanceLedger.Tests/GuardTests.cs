@@ -191,6 +191,28 @@ public class GuardTests : IDisposable
     }
 
     [Fact]
+    public async Task An_archived_project_leaves_the_pipeline_but_its_paid_money_still_counts()
+    {
+        // Archived MUST stay the last enum value: earlier integers are on disk.
+        Assert.Equal(6, (int)ProjectStatus.Archived);
+
+        var project = await AddProjectAsync(Currency.NOK);
+        project.Status = ProjectStatus.Archived;
+        Db.Milestones.AddRange(
+            new Milestone { ProjectId = project.Id, Name = "Paid", Amount = 1000, Currency = Currency.NOK, Status = MilestoneStatus.Paid, DatePaid = new DateOnly(2026, 3, 15) },
+            new Milestone { ProjectId = project.Id, Name = "Open", Amount = 500, Currency = Currency.NOK, Status = MilestoneStatus.Pending });
+        await Db.SaveChangesAsync();
+
+        var dashboard = new DashboardController(Db, new ExchangeRateService(Db, new HttpClient(), Microsoft.Extensions.Logging.Abstractions.NullLogger<ExchangeRateService>.Instance));
+        var pipeline = Assert.IsType<PipelineResponse>(Assert.IsType<OkObjectResult>(await dashboard.GetPipeline()).Value);
+        Assert.DoesNotContain(pipeline.Projects, p => p.ProjectId == project.Id);
+        Assert.Equal(0, pipeline.OnHoldCount);
+
+        var overview = Assert.IsType<YearOverviewResponse>(Assert.IsType<OkObjectResult>(await dashboard.GetYearOverview(2026)).Value);
+        Assert.Equal(1000m, overview.Months.Single(m => m.Month == 3).Revenue);
+    }
+
+    [Fact]
     public void Csv_neutralises_formula_characters()
     {
         var method = typeof(ExportController).GetMethod("EscapeCsv", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;

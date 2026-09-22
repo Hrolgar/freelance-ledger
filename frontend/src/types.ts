@@ -388,9 +388,8 @@ export interface MilestonePatchRequest {
 }
 
 export const CURRENCIES: Currency[] = ['GBP', 'USD', 'EUR', 'CAD', 'INR', 'NOK']
-/// The only three that mean anything on a retainer: it is running, on hold, or it
-/// has stopped. Same stored values as everywhere else -- see projectStatusLabel for
-/// the wording.
+/// What a retainer can be: running, on hold, stopped, or archived. Same stored values
+/// as everywhere else -- see projectStatusLabel for the wording.
 export const RETAINER_STATUSES: ProjectStatus[] = ['InProgress', 'OnHold', 'Completed', 'Archived']
 
 export const PROJECT_STATUSES: ProjectStatus[] = [

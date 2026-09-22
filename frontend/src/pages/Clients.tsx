@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { getClients, getClient, createClient, updateClient, deleteClient } from '../api'
 import { Modal } from '../components/Modal'
-import { AppCard, Button, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
+import { AppCard, Button, Checkbox, EmptyState, ErrorState, Field, Input, PageIntro, Select, SectionHeading, Textarea } from '../components/ui'
 import { ProjectStatusBadge } from '../components/StatusBadge'
 import { MoneyAmount } from '../components/MoneyAmount'
 import { formatDate } from '../lib/format'
@@ -321,11 +321,8 @@ function ClientDetail() {
             <Field label="Notes">
               <Textarea value={draft.notes ?? ''} onChange={(e) => setDraft(d => ({ ...d, notes: e.target.value || null }))} />
             </Field>
-            <Field label="Archived" hint="Hidden from the client list and the project form. Nothing is deleted.">
-              <label className="flex min-h-9 items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                <input type="checkbox" checked={draft.isArchived} onChange={(e) => setDraft(d => ({ ...d, isArchived: e.target.checked }))} className="h-4 w-4 accent-[var(--accent)]" />
-                Archive this client
-              </label>
+            <Field label="Archive this client" hint="Hidden from the client list and the project form. Nothing is deleted.">
+              <Checkbox checked={draft.isArchived} onChange={(e) => setDraft(d => ({ ...d, isArchived: e.target.checked }))} />
             </Field>
             <div className="sticky bottom-0 -mx-6 flex justify-end gap-2 border-t border-[var(--border-faint)] bg-[var(--bg-elevated)] px-6 py-4 sm:col-span-2 lg:static lg:col-span-3 lg:mx-0 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-0 lg:pt-2">
               <Button type="button" variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
