@@ -243,7 +243,7 @@ export default function Projects() {
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </Select>
           <span className="ml-auto text-xs text-[var(--text-tertiary)]">
-            Showing {filteredProjects.length} of {statusFilter === 'Archived' ? projects.length : projects.filter((p) => p.status !== 'Archived').length}
+            Showing {filteredProjects.length} of {projects.filter((p) => (p.status === 'Archived') === (statusFilter === 'Archived')).length}
           </span>
           {(search || statusFilter !== 'All' || currencyFilter !== 'All' || yearFilter !== 'All') && (
             <Button

@@ -170,7 +170,7 @@ public class ProjectsController(LedgerDbContext db) : ControllerBase
         if (paid > 0)
             return Problem(
                 title: "Project Has Paid History",
-                detail: $"{project.ProjectName} has {paid} paid milestone{(paid == 1 ? "" : "s")}. A project with paid money cannot be deleted; set its status to Paid or On hold instead.",
+                detail: $"{project.ProjectName} has {paid} paid milestone{(paid == 1 ? "" : "s")}. A project with paid money cannot be deleted; set its status to Archived to tidy it away.",
                 statusCode: 409);
 
         // The rows cascade; the bytes on disk do not. Remove the blobs first so nothing

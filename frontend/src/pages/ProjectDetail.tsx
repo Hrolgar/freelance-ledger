@@ -217,6 +217,12 @@ export default function ProjectDetail() {
 
   const handleProjectSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    // Archiving takes the project out of the pipeline, so money still owed on it
+    // would stop showing anywhere. Say so before it disappears.
+    if (projectDraft.status === 'Archived' && project?.status !== 'Archived') {
+      const open = project?.milestones.filter((m) => m.status !== 'Paid').length ?? 0
+      if (open > 0 && !window.confirm(`${open} milestone${open === 1 ? ' is' : 's are'} not paid on this project. Archiving hides it from the pipeline, so that money will not show as owed anywhere. Archive anyway?`)) return
+    }
     setSavingProject(true)
     setError(null)
     try {
@@ -525,7 +531,7 @@ export default function ProjectDetail() {
                   required
                 >
                   <option value="">Select client...</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {clients.filter((c) => !c.isArchived || c.id === projectDraft.clientId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
               </Field>
               <Field label="Project Name" required>
@@ -600,8 +606,8 @@ export default function ProjectDetail() {
                   value={projectDraft.status}
                   onChange={(e) => setProjectDraft((c) => ({ ...c, status: e.target.value as Project['status'] }))}
                 >
-                  {/* A retainer is never quoted, awarded or finally paid -- it just runs,
-                      pauses, or stops. The three it does use keep their stored values, so
+                  {/* A retainer is never quoted, awarded or finally paid -- it runs,
+                      pauses, stops, or is archived. Those keep their stored values, so
                       the auto-raise sweep and the pipeline exclusion are unaffected. */}
                   {(isRetainer ? RETAINER_STATUSES : PROJECT_STATUSES).map((s) => (
                     <option key={s} value={s}>{projectStatusLabel(s, projectDraft.billingType)}</option>

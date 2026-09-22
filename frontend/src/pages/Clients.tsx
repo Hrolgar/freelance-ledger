@@ -152,8 +152,8 @@ function ClientList() {
       ) : clients.length === 0 ? (
         <EmptyState title="No clients yet" description="Add a client to start tracking." />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {clients.filter((c) => showArchived || !c.isArchived).map((client) => {
+        (() => {
+          const cards = clients.filter((c) => showArchived || !c.isArchived).map((client) => {
             // Per currency, tips included: one figure across a USD and a NOK project was
             // meaningless, and the detail page counts tips while this card did not.
             // With a year chosen, "paid" is what was paid IN that year and the project
@@ -202,8 +202,11 @@ function ClientList() {
                 </AppCard>
               </Link>
             )
-          })}
-        </div>
+          }).filter((card) => card !== null)
+          return cards.length === 0
+            ? <EmptyState title={yearFilter === 'All' ? 'No clients to show' : `No clients with anything in ${yearFilter}`} description={yearFilter === 'All' ? 'Every client is archived. Use "Show archived" to see them.' : 'Pick another year, or All years.'} />
+            : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{cards}</div>
+        })()
       )}
     </div>
   )
@@ -262,6 +265,9 @@ function ClientDetail() {
         <span className="text-[var(--text-secondary)]">{client.name}</span>
       </div>
 
+      {client.isArchived && (
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-tertiary)' }}>Archived client</p>
+      )}
       <PageIntro
         title={client.name}
         description={[client.aliases, client.country].filter(Boolean).join(' · ') || 'Client profile'}

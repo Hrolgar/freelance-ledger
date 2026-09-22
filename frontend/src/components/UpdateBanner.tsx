@@ -9,7 +9,9 @@ export function UpdateBanner() {
     // The browser only checks for a new worker on navigation. An installed PWA can sit
     // open on the phone for days, so ask once an hour as well.
     onRegisteredSW(_url, registration) {
-      if (registration) setInterval(() => void registration.update(), 60 * 60 * 1000)
+      // update() rejects when offline; an installed app left open would log one
+      // unhandled rejection an hour without the catch.
+      if (registration) setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000)
     },
   })
   if (!needRefresh) return null
