@@ -204,9 +204,14 @@ export default function Costs() {
   const q = search.trim().toLowerCase()
   // The lists below are what the filter applies to. The KPI cards stay on the full set;
   // a filter narrows what you read, not what the month cost.
-  const matches = (c: { description: string; category: string; notes?: string | null }) =>
+  const filtering = !!q || categoryFilter !== 'All'
+  const matches = (c: { description: string; category: CostCategory; notes?: string | null }) =>
     (categoryFilter === 'All' || c.category === categoryFilter)
     && (!q || c.description.toLowerCase().includes(q) || (c.notes ?? '').toLowerCase().includes(q))
+  // Investments have their own category set (Hardware, Education...), so the cost
+  // category filter does not apply to them; they answer to the search only.
+  const matchesInvestment = (i: { description: string; notes?: string | null }) =>
+    categoryFilter === 'All' && (!q || i.description.toLowerCase().includes(q) || (i.notes ?? '').toLowerCase().includes(q))
 
   const activeRecurringAll = useMemo(() => costs.filter(isCurrentlyActive), [costs])
   const activeRecurring = activeRecurringAll.filter(matches)
@@ -231,7 +236,7 @@ export default function Costs() {
   )
   const thisMonthRecurring = thisMonthRecurringAll.filter(matches)
   const thisMonthOneTime = thisMonthOneTimeAll.filter(matches)
-  const thisMonthInvestments = thisMonthInvestmentsAll.filter(matches)
+  const thisMonthInvestments = thisMonthInvestmentsAll.filter(matchesInvestment)
 
   // KPI 2: this month's spend in NOK
   const thisMonthNok = useMemo(() => {
@@ -255,7 +260,7 @@ export default function Costs() {
     .filter((c) => c.recurring && c.endMonth && c.endYear && c.endYear * 12 + c.endMonth < currentYear * 12 + currentMonth)
     .filter(matches)
   const archivedOneTime = costs.filter((c) => !c.recurring && c.year * 12 + c.month < threeMonthsAgo).filter(matches)
-  const archivedInvestments = investments.filter((i) => i.year * 12 + i.month < threeMonthsAgo).filter(matches)
+  const archivedInvestments = investments.filter((i) => i.year * 12 + i.month < threeMonthsAgo).filter(matchesInvestment)
   const totalArchived = archivedRecurring.length + archivedOneTime.length + archivedInvestments.length
 
   const prev = () => {
@@ -493,7 +498,9 @@ export default function Costs() {
 
         {thisMonthRecurring.length === 0 && thisMonthOneTime.length === 0 && thisMonthInvestments.length === 0 ? (
           <div className="px-4 py-8">
-            <EmptyState title="Nothing this month" description="No subscriptions, expenses, or investments for this period." />
+            {filtering
+              ? <EmptyState title="No matches" description="Nothing this month matches the search or category." />
+              : <EmptyState title="Nothing this month" description="No subscriptions, expenses, or investments for this period." />}
           </div>
         ) : (
           <>
@@ -621,10 +628,11 @@ export default function Costs() {
             <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4">
               {(() => {
                 const byCurrency: Record<string, number> = {}
-                for (const c of [...thisMonthRecurring, ...thisMonthOneTime]) byCurrency[c.currency] = (byCurrency[c.currency] ?? 0) + c.amount
-                for (const i of thisMonthInvestments) byCurrency[i.currency] = (byCurrency[i.currency] ?? 0) + i.amount
+                for (const c of [...thisMonthRecurringAll, ...thisMonthOneTimeAll]) byCurrency[c.currency] = (byCurrency[c.currency] ?? 0) + c.amount
+                for (const i of thisMonthInvestmentsAll) byCurrency[i.currency] = (byCurrency[i.currency] ?? 0) + i.amount
                 return (
                   <div className="space-y-2">
+                    {filtering && <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Totals are for the whole month, not the filtered rows.</p>}
                     {Object.entries(byCurrency).map(([currency, total]) => (
                       <div key={currency} className="flex items-center justify-between gap-3 text-sm">
                         <span className="text-xs text-[var(--text-tertiary)]">{currency} total</span>
@@ -662,7 +670,7 @@ export default function Costs() {
               {activeRecurring.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8">
-                    <EmptyState title="No active subscriptions" description="Add subscriptions like Claude Max, Freelancer Plus, etc." />
+                    {filtering ? <EmptyState title="No matches" description="No active subscription matches the search or category." /> : <EmptyState title="No active subscriptions" description="Add subscriptions like Claude Max, Freelancer Plus, etc." />}
                   </td>
                 </tr>
               ) : (
@@ -715,7 +723,7 @@ export default function Costs() {
         </div>
         <div className="space-y-3 px-4 py-4 lg:hidden">
           {activeRecurring.length === 0 ? (
-            <EmptyState title="No active subscriptions" description="Add subscriptions like Claude Max, Freelancer Plus, etc." />
+            filtering ? <EmptyState title="No matches" description="No active subscription matches the search or category." /> : <EmptyState title="No active subscriptions" description="Add subscriptions like Claude Max, Freelancer Plus, etc." />
           ) : (
             <>
               {activeRecurring.map((cost) => (

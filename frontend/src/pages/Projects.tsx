@@ -243,7 +243,7 @@ export default function Projects() {
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </Select>
           <span className="ml-auto text-xs text-[var(--text-tertiary)]">
-            Showing {filteredProjects.length} of {projects.length}
+            Showing {filteredProjects.length} of {statusFilter === 'Archived' ? projects.length : projects.filter((p) => p.status !== 'Archived').length}
           </span>
           {(search || statusFilter !== 'All' || currencyFilter !== 'All' || yearFilter !== 'All') && (
             <Button
@@ -459,7 +459,7 @@ export default function Projects() {
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <Field label="Status">
                 <Select value={draft.status} onChange={(e) => setDraft((c) => ({ ...c, status: e.target.value as Project['status'] }))}>
-                  {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{projectStatusLabel(s)}</option>)}
+                  {PROJECT_STATUSES.filter((s) => s !== 'Archived').map((s) => <option key={s} value={s}>{projectStatusLabel(s)}</option>)}
                 </Select>
               </Field>
               <Field label="Awarded">

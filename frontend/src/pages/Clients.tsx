@@ -165,7 +165,8 @@ function ClientList() {
                 + p.tips.filter((t) => inYear(t.date)).reduce((s, t) => s + t.amount, 0)
               if (paid > 0) paidByCurrency.set(p.currency, (paidByCurrency.get(p.currency) ?? 0) + paid)
             }
-            const projectCount = client.projects.filter((p) => inYear(p.dateAwarded)).length
+            const projectCount = client.projects.filter((p) => inYear(p.dateAwarded) || p.milestones.some((m) => m.status === 'Paid' && inYear(m.datePaid))).length
+            if (yearFilter !== 'All' && projectCount === 0 && paidByCurrency.size === 0) return null
             return (
               <Link key={client.id} to={`/clients/${client.id}`} className="group">
                 <AppCard className="h-full p-4 transition-colors hover:border-[var(--accent)]">

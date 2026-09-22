@@ -671,7 +671,7 @@ export default function ProjectDetail() {
 
       {project.billingType === 'Fixed' && project.milestones.length > 0 &&
         project.milestones.every(m => m.status === 'Paid') &&
-        project.status !== 'Paid' && (
+        project.status !== 'Paid' && project.status !== 'Archived' && (
           <div
             className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-faint)] border-l-2 bg-[var(--bg-surface)] px-4 py-3"
             style={{ borderLeftColor: 'var(--paid)' }}
